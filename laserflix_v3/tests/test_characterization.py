@@ -205,10 +205,12 @@ class TestGetOriginFromPath(unittest.TestCase):
         result = self.get_origin_from_path("/my_projects/custom_folder/project3")
         self.assertEqual(result, "custom_folder")
     
-    def test_invalid_path(self):
-        """Retorna 'Diversos' para paths inválidos"""
+    def test_invalid_path_returns_empty(self):
+        """Path vazio retorna string vazia (comportamento atual v740)"""
         result = self.get_origin_from_path("")
-        self.assertEqual(result, "Diversos")
+        # BUG DOCUMENTADO: v740 retorna "" em vez de "Diversos" para paths vazios
+        # Será corrigido quando extrairmos para domain/
+        self.assertEqual(result, "")
 
 
 if __name__ == "__main__":
