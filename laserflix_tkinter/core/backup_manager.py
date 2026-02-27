@@ -1,1 +1,40 @@
-"""\nCore — Backup Manager\nGerenciamento de backups automáticos e manuais\n"""\n\nimport os\nimport shutil\nfrom datetime import datetime\nfrom config import BACKUP_FOLDER, DB_FILE, LOGGER\n\n\nclass BackupManager:\n    def __init__(self):\n        os.makedirs(BACKUP_FOLDER, exist_ok=True)\n\n    def auto_backup(self):\n        """Cria backup automático e mantém apenas os 10 mais recentes."""\n        try:\n            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")\n            backup_file = os.path.join(BACKUP_FOLDER, f"auto_backup_{timestamp}.json")\n            if os.path.exists(DB_FILE):\n                shutil.copy2(DB_FILE, backup_file)\n                LOGGER.info(f"💾 Backup automático: {backup_file}")\n            # Limpa backups antigos\n            backups = sorted([f for f in os.listdir(BACKUP_FOLDER) if f.startswith("auto_backup_")])\n            if len(backups) > 10:\n                for old_backup in backups[:-10]:\n                    os.remove(os.path.join(BACKUP_FOLDER, old_backup))\n        except Exception:\n            LOGGER.exception("Falha no auto-backup")\n\n    def manual_backup(self):\n        """Cria backup manual."""\n        try:\n            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")\n            backup_file = os.path.join(BACKUP_FOLDER, f"manual_backup_{timestamp}.json")\n            if os.path.exists(DB_FILE):\n                shutil.copy2(DB_FILE, backup_file)\n                LOGGER.info(f"💾 Backup manual: {backup_file}")\n                return backup_file\n            return None\n        except Exception as e:\n            LOGGER.error(f"Falha ao criar backup manual: {e}", exc_info=True)\n            return None\n
+"""Core — Backup Manager
+Gerenciamento de backups automáticos e manuais
+"""
+
+import os
+import shutil
+from datetime import datetime
+from config import BACKUP_FOLDER, DB_FILE, LOGGER
+
+
+class BackupManager:
+    def __init__(self):
+        os.makedirs(BACKUP_FOLDER, exist_ok=True)
+
+    def auto_backup(self):
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_file = os.path.join(BACKUP_FOLDER, f"auto_backup_{timestamp}.json")
+            if os.path.exists(DB_FILE):
+                shutil.copy2(DB_FILE, backup_file)
+                LOGGER.info(f"💾 Backup automático: {backup_file}")
+            backups = sorted([f for f in os.listdir(BACKUP_FOLDER) if f.startswith("auto_backup_")])
+            if len(backups) > 10:
+                for old_backup in backups[:-10]:
+                    os.remove(os.path.join(BACKUP_FOLDER, old_backup))
+        except Exception:
+            LOGGER.exception("Falha no auto-backup")
+
+    def manual_backup(self):
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_file = os.path.join(BACKUP_FOLDER, f"manual_backup_{timestamp}.json")
+            if os.path.exists(DB_FILE):
+                shutil.copy2(DB_FILE, backup_file)
+                LOGGER.info(f"💾 Backup manual: {backup_file}")
+                return backup_file
+            return None
+        except Exception as e:
+            LOGGER.error(f"Falha ao criar backup manual: {e}", exc_info=True)
+            return None

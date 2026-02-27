@@ -1,1 +1,51 @@
-"""\nLASERFLIX v7.4.0 — Configuração Central\nConstantes, modelos Ollama, paths e logging\n"""\n\nimport logging\nfrom logging.handlers import RotatingFileHandler\nimport os\n\nVERSION = "7.4.0"\nCONFIG_FILE = "laserflix_config.json"\nDB_FILE = "laserflix_database.json"\nBACKUP_FOLDER = "laserflix_backups"\n\n# ---------------------------------------------------------------------------\n# CONFIGURAÇÃO CENTRAL DOS MODELOS\n# ---------------------------------------------------------------------------\nOLLAMA_MODELS = {\n    "text_quality":  "qwen2.5:7b-instruct-q4_K_M",   # análise individual, descrições\n    "text_fast":     "qwen2.5:3b-instruct-q4_K_M",   # lotes grandes (>50 projetos)\n    "vision":        "moondream:latest",               # análise de imagem de capa\n    "embed":         "nomic-embed-text:latest",        # embeddings (reservado)\n}\n\n# Limiar: acima deste número de projetos, usa modelo rápido no lote\nFAST_MODEL_THRESHOLD = 50\n\n# Timeouts por tipo de modelo (connect_timeout, read_timeout)\nTIMEOUTS = {\n    "text_quality": (5, 120),\n    "text_fast":    (5,  75),\n    "vision":       (5,  60),\n    "embed":        (5,  15),\n}\n\n\ndef setup_logging():\n    """Configura sistema de logging com rotação de arquivos."""\n    logger = logging.getLogger("Laserflix")\n    if logger.handlers:\n        return logger\n    logger.setLevel(logging.INFO)\n    fmt = logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s")\n    file_handler = RotatingFileHandler(\n        "laserflix.log", maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"\n    )\n    file_handler.setFormatter(fmt)\n    stream_handler = logging.StreamHandler()\n    stream_handler.setFormatter(fmt)\n    logger.addHandler(file_handler)\n    logger.addHandler(stream_handler)\n    return logger\n\n\nLOGGER = setup_logging()\n
+"""LASERFLIX v7.4.0 — Configuração Central
+Constantes, modelos Ollama, paths e logging
+"""
+
+import logging
+from logging.handlers import RotatingFileHandler
+import os
+
+VERSION = "7.4.0"
+CONFIG_FILE = "laserflix_config.json"
+DB_FILE = "laserflix_database.json"
+BACKUP_FOLDER = "laserflix_backups"
+
+# ---------------------------------------------------------------------------
+# CONFIGURAÇÃO CENTRAL DOS MODELOS
+# ---------------------------------------------------------------------------
+OLLAMA_MODELS = {
+    "text_quality":  "qwen2.5:7b-instruct-q4_K_M",
+    "text_fast":     "qwen2.5:3b-instruct-q4_K_M",
+    "vision":        "moondream:latest",
+    "embed":         "nomic-embed-text:latest",
+}
+
+FAST_MODEL_THRESHOLD = 50
+
+TIMEOUTS = {
+    "text_quality": (5, 120),
+    "text_fast":    (5,  75),
+    "vision":       (5,  60),
+    "embed":        (5,  15),
+}
+
+
+def setup_logging():
+    logger = logging.getLogger("Laserflix")
+    if logger.handlers:
+        return logger
+    logger.setLevel(logging.INFO)
+    fmt = logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s")
+    file_handler = RotatingFileHandler(
+        "laserflix.log", maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
+    )
+    file_handler.setFormatter(fmt)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(fmt)
+    logger.addHandler(file_handler)
+    logger.addHandler(stream_handler)
+    return logger
+
+
+LOGGER = setup_logging()

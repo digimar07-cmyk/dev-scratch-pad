@@ -1,1 +1,67 @@
-"""\nCore — Database Manager\nGerenciamento de persistência JSON\n"""\n\nimport json\nimport os\nfrom datetime import datetime\nfrom config import DB_FILE, LOGGER\n\n\nclass DatabaseManager:\n    def __init__(self):\n        self.database = {}\n        self.load_database()\n\n    def load_database(self):\n        """Carrega banco JSON. Migra formato antigo 'category' para 'categories'."""\n        if os.path.exists(DB_FILE):\n            try:\n                with open(DB_FILE, "r", encoding="utf-8") as f:\n                    self.database = json.load(f)\n                    # Migração de formato antigo\n                    for path, data in self.database.items():\n                        if "category" in data and "categories" not in data:\n                            old_cat = data.get("category", "")\n                            data["categories"] = [old_cat] if (old_cat and old_cat != "Sem Categoria") else []\n                            del data["category"]\n                LOGGER.info(f"✅ Banco carregado: {len(self.database)} projetos")\n            except Exception as e:\n                LOGGER.error(f"Falha ao carregar {DB_FILE}: {e}", exc_info=True)\n                self.database = {}\n\n    def save_database(self, make_backup=True):\n        """Salva banco JSON de forma atômica."""\n        from core.backup_manager import BackupManager\n        tmp_file = DB_FILE + ".tmp"\n        try:\n            with open(tmp_file, "w", encoding="utf-8") as f:\n                json.dump(self.database, f, indent=2, ensure_ascii=False)\n            if make_backup and os.path.exists(DB_FILE):\n                try:\n                    import shutil\n                    shutil.copy2(DB_FILE, DB_FILE + ".bak")\n                except Exception:\n                    LOGGER.warning(f"Falha ao criar .bak de {DB_FILE}", exc_info=True)\n            os.replace(tmp_file, DB_FILE)\n        except Exception:\n            LOGGER.error(f"Falha ao salvar JSON atômico: {DB_FILE}", exc_info=True)\n            try:\n                if os.path.exists(tmp_file):\n                    os.remove(tmp_file)\n            except Exception:\n                pass\n\n    def add_project(self, project_path, name, origin):\n        """Adiciona projeto novo ao banco."""\n        if project_path not in self.database:\n            self.database[project_path] = {\n                "name": name,\n                "origin": origin,\n                "favorite": False,\n                "done": False,\n                "good": False,\n                "bad": False,\n                "categories": [],\n                "tags": [],\n                "analyzed": False,\n                "ai_description": "",\n                "added_date": datetime.now().isoformat(),\n            }\n            return True\n        return False\n
+"""Core — Database Manager
+Gerenciamento de persistência JSON
+"""
+
+import json
+import os
+import shutil
+from datetime import datetime
+from config import DB_FILE, LOGGER
+
+
+class DatabaseManager:
+    def __init__(self):
+        self.database = {}
+        self.load_database()
+
+    def load_database(self):
+        if os.path.exists(DB_FILE):
+            try:
+                with open(DB_FILE, "r", encoding="utf-8") as f:
+                    self.database = json.load(f)
+                    for path, data in self.database.items():
+                        if "category" in data and "categories" not in data:
+                            old_cat = data.get("category", "")
+                            data["categories"] = [old_cat] if (old_cat and old_cat != "Sem Categoria") else []
+                            del data["category"]
+                LOGGER.info(f"✅ Banco carregado: {len(self.database)} projetos")
+            except Exception as e:
+                LOGGER.error(f"Falha ao carregar {DB_FILE}: {e}", exc_info=True)
+                self.database = {}
+
+    def save_database(self, make_backup=True):
+        tmp_file = DB_FILE + ".tmp"
+        try:
+            with open(tmp_file, "w", encoding="utf-8") as f:
+                json.dump(self.database, f, indent=2, ensure_ascii=False)
+            if make_backup and os.path.exists(DB_FILE):
+                try:
+                    shutil.copy2(DB_FILE, DB_FILE + ".bak")
+                except Exception:
+                    LOGGER.warning(f"Falha ao criar .bak de {DB_FILE}", exc_info=True)
+            os.replace(tmp_file, DB_FILE)
+        except Exception:
+            LOGGER.error(f"Falha ao salvar JSON atômico: {DB_FILE}", exc_info=True)
+            try:
+                if os.path.exists(tmp_file):
+                    os.remove(tmp_file)
+            except Exception:
+                pass
+
+    def add_project(self, project_path, name, origin):
+        if project_path not in self.database:
+            self.database[project_path] = {
+                "name": name,
+                "origin": origin,
+                "favorite": False,
+                "done": False,
+                "good": False,
+                "bad": False,
+                "categories": [],
+                "tags": [],
+                "analyzed": False,
+                "ai_description": "",
+                "added_date": datetime.now().isoformat(),
+            }
+            return True
+        return False
