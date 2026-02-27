@@ -1,0 +1,11 @@
+{
+  "folders": [
+    "D:/DOWNLOAD/01 PROJETOS LASER/03.1 DIVERSOS"
+  ],
+  "models": {
+    "text_quality": "qwen2.5:7b-instruct-q4_K_M",
+    "text_fast": "qwen2.5:3b-instruct-q4_K_M",
+    "vision": "moondream:latest",
+    "embed": "nomic-embed-text:latest"
+  }
+}

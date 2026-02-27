@@ -1,1 +1,9 @@
-# LASERFLIX v7.4.0 — Dependências\n\n# Core\nPillow>=10.0.0\nrequests>=2.31.0\n\n# Opcional (para exportação futura)\n# reportlab>=4.0.0\n# openpyxl>=3.1.0\n
+# LASERFLIX v7.4.0 — Dependências
+
+# Core
+Pillow>=10.0.0
+requests>=2.31.0
+
+# Opcional (para exportação futura)
+# reportlab>=4.0.0
+# openpyxl>=3.1.0
