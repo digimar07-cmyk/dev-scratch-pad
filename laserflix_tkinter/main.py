@@ -1,0 +1,1 @@
+"""\nLASERFLIX v7.4.0 — Entry Point\nPonto de entrada minimalista\n"""\n\nimport tkinter as tk\nfrom app import LaserflixNetflix\n\n\ndef main():\n    root = tk.Tk()\n    app = LaserflixNetflix(root)\n    root.mainloop()\n\n\nif __name__ == "__main__":\n    main()\n

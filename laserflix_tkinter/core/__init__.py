@@ -1,0 +1,1 @@
+"""\nCore — Módulos de lógica de negócio\n"""\n
