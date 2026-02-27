@@ -1,1 +1,233 @@
-"""\nUI — Sidebar\nBarra lateral com filtros e estatísticas\n"""\n\nimport tkinter as tk\nfrom tkinter import ttk\nfrom collections import Counter\n\n\nclass Sidebar:\n    def __init__(self, parent, filters_obj, callbacks):\n        """\n        callbacks: dict com {\n            'filter_change': func(filter_type),\n            'origin_change': func(origin),\n            'category_change': func(categories_list),\n            'tag_change': func(tag),\n            'refresh': func()\n        }\n        """\n        self.parent = parent\n        self.filters = filters_obj\n        self.callbacks = callbacks\n        self.frame = tk.Frame(parent, bg="#1A1A1A", width=250)\n        self.frame.pack(side="left", fill="y")\n        self.frame.pack_propagate(False)\n        self.create_ui()\n\n    def create_ui(self):\n        """Cria interface da sidebar."""\n        # Título\n        title = tk.Label(self.frame, text="FILTROS", font=("Arial", 14, "bold"),\n                        bg="#1A1A1A", fg="#FFFFFF")\n        title.pack(pady=10)\n\n        # Filtros principais\n        filters_frame = tk.Frame(self.frame, bg="#1A1A1A")\n        filters_frame.pack(fill="x", padx=10, pady=5)\n        self._create_filter_buttons(filters_frame)\n\n        # Origem\n        self.origin_combo = ttk.Combobox(self.frame, state="readonly")\n        self.origin_combo.pack(fill="x", padx=10, pady=5)\n        self.origin_combo.bind("<<ComboboxSelected>>", self._on_origin_change)\n\n        # Categorias\n        cat_label = tk.Label(self.frame, text="Categorias", font=("Arial", 10, "bold"),\n                           bg="#1A1A1A", fg="#FFFFFF")\n        cat_label.pack(pady=(10, 5))\n        self.categories_listbox = tk.Listbox(self.frame, height=8, selectmode="multiple",\n                                           bg="#2A2A2A", fg="#FFFFFF",\n                                           selectbackground="#E50914")\n        self.categories_listbox.pack(fill="x", padx=10)\n        self.categories_listbox.bind("<<ListboxSelect>>", self._on_category_change)\n\n        # Tags\n        tag_label = tk.Label(self.frame, text="Tags", font=("Arial", 10, "bold"),\n                           bg="#1A1A1A", fg="#FFFFFF")\n        tag_label.pack(pady=(10, 5))\n        self.tags_listbox = tk.Listbox(self.frame, height=10, bg="#2A2A2A", fg="#FFFFFF",\n                                      selectbackground="#E50914")\n        self.tags_listbox.pack(fill="both", expand=True, padx=10, pady=(0, 10))\n        self.tags_listbox.bind("<<ListboxSelect>>", self._on_tag_change)\n\n    def _create_filter_buttons(self, parent):\n        """Cria botões de filtro principal."""\n        filters = [\n            ("Todos", "all", "#E50914"),\n            ("⭐ Favoritos", "favorite", "#FFD700"),\n            ("✓ Feitos", "done", "#00FF00"),\n            ("👍 Bons", "good", "#00AA00"),\n            ("👎 Ruins", "bad", "#FF0000"),\n        ]\n        for label, filter_type, color in filters:\n            btn = tk.Button(parent, text=label, bg=color, fg="white",\n                          font=("Arial", 9, "bold"), relief="flat",\n                          command=lambda f=filter_type: self._on_filter_change(f))\n            btn.pack(fill="x", pady=2)\n\n    def _on_filter_change(self, filter_type):\n        """Callback de mudança de filtro."""\n        if self.callbacks.get('filter_change'):\n            self.callbacks['filter_change'](filter_type)\n\n    def _on_origin_change(self, event):\n        """Callback de mudança de origem."""\n        origin = self.origin_combo.get()\n        if self.callbacks.get('origin_change'):\n            self.callbacks['origin_change'](origin)\n\n    def _on_category_change(self, event):\n        """Callback de mudança de categoria."""\n        selection = self.categories_listbox.curselection()\n        categories = [self.categories_listbox.get(i) for i in selection]\n        if self.callbacks.get('category_change'):\n            self.callbacks['category_change'](categories)\n\n    def _on_tag_change(self, event):\n        """Callback de seleção de tag."""\n        selection = self.tags_listbox.curselection()\n        if selection:\n            tag = self.tags_listbox.get(selection[0])\n            if self.callbacks.get('tag_change'):\n                self.callbacks['tag_change'](tag)\n\n    def update_data(self, database):\n        """Atualiza dados da sidebar."""\n        # Origens\n        origins = ["Todas"] + sorted(set(d.get("origin", "Diversos") for d in database.values()))\n        self.origin_combo['values'] = origins\n        self.origin_combo.set("Todas")\n\n        # Categorias\n        all_categories = []\n        for data in database.values():\n            all_categories.extend(data.get("categories", []))\n        cat_counter = Counter(all_categories)\n        self.categories_listbox.delete(0, tk.END)\n        for cat, count in cat_counter.most_common(30):\n            self.categories_listbox.insert(tk.END, f"{cat} ({count})")\n\n        # Tags\n        all_tags = []\n        for data in database.values():\n            all_tags.extend(data.get("tags", []))\n        tag_counter = Counter(all_tags)\n        self.tags_listbox.delete(0, tk.END)\n        for tag, count in tag_counter.most_common(50):\n            self.tags_listbox.insert(tk.END, f"{tag} ({count})")\n
+"""Sidebar UI component with filters."""
+import tkinter as tk
+from tkinter import ttk
+from typing import Dict, List, Tuple, Optional, Callable
+import logging
+
+logger = logging.getLogger("Laserflix.UI.Sidebar")
+
+
+class Sidebar:
+    """Sidebar with origin, category, and tag filters."""
+    
+    def __init__(self, parent: tk.Frame):
+        self.parent = parent
+        
+        # Callbacks
+        self.on_origin_filter: Optional[Callable[[str], None]] = None
+        self.on_category_filter: Optional[Callable[[List[str]], None]] = None
+        self.on_tag_filter: Optional[Callable[[str], None]] = None
+        self.on_show_all_categories: Optional[Callable[[], None]] = None
+        
+        # Active button tracking
+        self._active_btn: Optional[tk.Button] = None
+        
+        # Create sidebar
+        self._create_sidebar()
+    
+    def _create_sidebar(self):
+        """Create sidebar container with scrollable content."""
+        sidebar_container = tk.Frame(self.parent, bg="#1A1A1A", width=250)
+        sidebar_container.pack(side="left", fill="both")
+        sidebar_container.pack_propagate(False)
+        
+        self.sidebar_canvas = tk.Canvas(sidebar_container, bg="#1A1A1A", 
+                                        highlightthickness=0)
+        sidebar_scrollbar = ttk.Scrollbar(sidebar_container, orient="vertical", 
+                                         command=self.sidebar_canvas.yview)
+        
+        self.sidebar_content = tk.Frame(self.sidebar_canvas, bg="#1A1A1A")
+        self.sidebar_content.bind(
+            "<Configure>",
+            lambda e: self.sidebar_canvas.configure(scrollregion=self.sidebar_canvas.bbox("all"))
+        )
+        
+        self.sidebar_canvas.create_window((0, 0), window=self.sidebar_content, 
+                                         anchor="nw", width=230)
+        self.sidebar_canvas.configure(yscrollcommand=sidebar_scrollbar.set)
+        self.sidebar_canvas.pack(side="left", fill="both", expand=True)
+        sidebar_scrollbar.pack(side="right", fill="y")
+        
+        # Mouse wheel scroll
+        self.sidebar_canvas.bind(
+            "<MouseWheel>",
+            lambda e: self.sidebar_canvas.yview_scroll(int(-1*(e.delta/120)), "units")
+        )
+        
+        # Create sections
+        self.origins_frame = self._create_section("🌐 Origem")
+        self.categories_frame = self._create_section("📂 Categorias")
+        self.tags_frame = self._create_section("🏷️ Tags Populares")
+        
+        # Bottom padding
+        tk.Frame(self.sidebar_content, bg="#1A1A1A", height=50).pack(fill="x")
+    
+    def _create_section(self, title: str) -> tk.Frame:
+        """Create a section with title and content frame."""
+        tk.Label(self.sidebar_content, text=title, font=("Arial", 14, "bold"),
+                bg="#1A1A1A", fg="#FFFFFF", anchor="w").pack(fill="x", padx=15, pady=(15, 5))
+        
+        frame = tk.Frame(self.sidebar_content, bg="#1A1A1A")
+        frame.pack(fill="x", padx=10, pady=5)
+        
+        # Separator
+        tk.Frame(self.sidebar_content, bg="#333333", height=2).pack(fill="x", padx=10, pady=10)
+        
+        return frame
+    
+    def update_origins(self, origins: Dict[str, int]):
+        """Update origins list with counts."""
+        for w in self.origins_frame.winfo_children():
+            w.destroy()
+        
+        colors = {
+            "Creative Fabrica": "#FF6B35",
+            "Etsy": "#F7931E",
+            "Diversos": "#4ECDC4"
+        }
+        
+        for origin in sorted(origins):
+            count = origins[origin]
+            color = colors.get(origin, "#9B59B6")
+            
+            btn = tk.Button(self.origins_frame, text=f"{origin} ({count})",
+                          bg="#1A1A1A", fg=color, font=("Arial", 10, "bold"),
+                          relief="flat", cursor="hand2", anchor="w", 
+                          padx=15, pady=8)
+            btn.config(command=lambda o=origin, b=btn: self._on_origin_click(o, b))
+            btn.pack(fill="x", pady=2)
+            btn.bind("<Enter>", lambda e, b=btn: self._on_hover(b, True))
+            btn.bind("<Leave>", lambda e, b=btn: self._on_hover(b, False))
+        
+        self._bind_scroll_recursive(self.origins_frame)
+    
+    def update_categories(self, categories: List[Tuple[str, int]], show_more_count: int = 0):
+        """Update categories list with top 8 + show more button."""
+        for w in self.categories_frame.winfo_children():
+            w.destroy()
+        
+        if not categories:
+            tk.Label(self.categories_frame, text="Nenhuma categoria", 
+                    bg="#1A1A1A", fg="#666666",
+                    font=("Arial", 10, "italic"), anchor="w", 
+                    padx=15, pady=10).pack(fill="x")
+            return
+        
+        # Top 8 categories
+        for cat, count in categories[:8]:
+            btn = tk.Button(self.categories_frame, text=f"{cat} ({count})",
+                          bg="#1A1A1A", fg="#CCCCCC", font=("Arial", 10),
+                          relief="flat", cursor="hand2", anchor="w", 
+                          padx=15, pady=8)
+            btn.config(command=lambda c=cat, b=btn: self._on_category_click([c], b))
+            btn.pack(fill="x", pady=2)
+            btn.bind("<Enter>", lambda e, b=btn: self._on_hover(b, True))
+            btn.bind("<Leave>", lambda e, b=btn: self._on_hover(b, False))
+        
+        # Show more button
+        if show_more_count > 0:
+            more_btn = tk.Button(self.categories_frame, text=f"+ Ver mais ({show_more_count})",
+                               bg="#2A2A2A", fg="#888888", font=("Arial", 9),
+                               relief="flat", cursor="hand2", anchor="w", 
+                               padx=15, pady=6)
+            more_btn.config(command=self._on_show_all_categories)
+            more_btn.pack(fill="x", pady=(4, 2))
+            more_btn.bind("<Enter>", lambda e, w=more_btn: w.config(fg="#FFFFFF"))
+            more_btn.bind("<Leave>", lambda e, w=more_btn: w.config(fg="#888888"))
+        
+        self._bind_scroll_recursive(self.categories_frame)
+    
+    def update_tags(self, tags: List[Tuple[str, int]], total_count: int = 0):
+        """Update tags list with top 20."""
+        for w in self.tags_frame.winfo_children():
+            w.destroy()
+        
+        if not tags:
+            tk.Label(self.tags_frame, text="Nenhuma tag", 
+                    bg="#1A1A1A", fg="#666666",
+                    font=("Arial", 10, "italic"), anchor="w", 
+                    padx=15, pady=10).pack(fill="x")
+            return
+        
+        # Header if showing subset
+        if total_count > len(tags):
+            tk.Label(self.tags_frame, text=f"Top {len(tags)} de {total_count} tags",
+                    bg="#1A1A1A", fg="#666666", font=("Arial", 9),
+                    anchor="w", padx=15, pady=3).pack(fill="x")
+        
+        # Tag buttons
+        for tag, count in tags:
+            btn = tk.Button(self.tags_frame, text=f"{tag} ({count})",
+                          bg="#1A1A1A", fg="#CCCCCC", font=("Arial", 10),
+                          relief="flat", cursor="hand2", anchor="w", 
+                          padx=15, pady=6)
+            btn.config(command=lambda t=tag, b=btn: self._on_tag_click(t, b))
+            btn.pack(fill="x", pady=1)
+            btn.bind("<Enter>", lambda e, b=btn: self._on_hover(b, True))
+            btn.bind("<Leave>", lambda e, b=btn: self._on_hover(b, False))
+        
+        self._bind_scroll_recursive(self.tags_frame)
+    
+    def _on_origin_click(self, origin: str, btn: tk.Button):
+        """Handle origin filter click."""
+        self._set_active_button(btn)
+        if self.on_origin_filter:
+            self.on_origin_filter(origin)
+    
+    def _on_category_click(self, categories: List[str], btn: tk.Button):
+        """Handle category filter click."""
+        self._set_active_button(btn)
+        if self.on_category_filter:
+            self.on_category_filter(categories)
+    
+    def _on_tag_click(self, tag: str, btn: tk.Button):
+        """Handle tag filter click."""
+        self._set_active_button(btn)
+        if self.on_tag_filter:
+            self.on_tag_filter(tag)
+    
+    def _on_show_all_categories(self):
+        """Handle show all categories click."""
+        if self.on_show_all_categories:
+            self.on_show_all_categories()
+    
+    def _set_active_button(self, btn: tk.Button):
+        """Set active button and reset previous."""
+        try:
+            if self._active_btn is not None:
+                self._active_btn.config(bg="#1A1A1A")
+        except Exception:
+            pass
+        
+        self._active_btn = btn
+        try:
+            if btn is not None:
+                btn.config(bg="#E50914")
+        except Exception:
+            pass
+    
+    def clear_active_button(self):
+        """Clear active button state."""
+        self._set_active_button(None)
+    
+    def _on_hover(self, btn: tk.Button, is_enter: bool):
+        """Handle button hover."""
+        if btn is self._active_btn:
+            return
+        
+        try:
+            if is_enter:
+                btn.config(bg="#2A2A2A")
+            else:
+                btn.config(bg="#1A1A1A")
+        except Exception:
+            pass
+    
+    def _bind_scroll_recursive(self, widget: tk.Widget):
+        """Bind scroll event recursively to all children."""
+        def scroll(e):
+            self.sidebar_canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
+        
+        widget.bind("<MouseWheel>", scroll)
+        for child in widget.winfo_children():
+            self._bind_scroll_recursive(child)
