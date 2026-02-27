@@ -36,7 +36,7 @@ class LaserflixApp:
         self.analyzing = False
         self.stop_analysis = False
 
-        # Core modules
+        # Core modules (ORDEM IMPORTANTE!)
         self.config = Config()
         self.database = Database()
         self.backup = BackupManager()
@@ -44,11 +44,11 @@ class LaserflixApp:
         self.ollama = OllamaManager(self)
         self.media = MediaManager()
 
-        # Workers
-        self.analysis_worker = AnalysisWorker(self)
-
-        # UI
+        # UI ANTES dos Workers (workers precisam de app.ui)
         self.ui = MainWindow(self)
+
+        # Workers (agora app.ui já existe)
+        self.analysis_worker = AnalysisWorker(self)
 
         # Init
         self.config.load()
