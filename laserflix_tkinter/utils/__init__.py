@@ -1,1 +1,1 @@
-"""\nUtils — Utilitários auxiliares\n"""\n
+"""Utilities module for Laserflix."""
