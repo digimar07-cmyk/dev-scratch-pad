@@ -1,0 +1,59 @@
+# LASERFLIX - Gitignore
+# Estrutura modular limpa
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+PIPFILE.lock
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Laserflix specific
+laserflix.log
+laserflix_config.json
+laserflix_database.json
+laserflix_database.json.bak
+laserflix_database.json.tmp
+laserflix_backups/
+
+# Local test data
+test_projects/
+sample_data/
+
+# Conflitos de merge
+*.orig
