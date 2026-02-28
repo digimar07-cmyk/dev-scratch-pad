@@ -1,0 +1,9 @@
+# Runtime - não vai pro Git
+data/
+*.json
+*.log
+*.bak
+*.tmp
+__pycache__/
+*.pyc
+.env
