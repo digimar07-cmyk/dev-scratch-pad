@@ -5,6 +5,9 @@ CONFIG_FILE = "laserflix_config.json"
 DB_FILE = "laserflix_database.json"
 BACKUP_FOLDER = "laserflix_backups"
 
+OLLAMA_BASE_URL = "http://localhost:11434"
+OLLAMA_TIMEOUT = 120
+
 OLLAMA_MODELS = {
     "text_quality":  "qwen2.5:7b-instruct-q4_K_M",
     "text_fast":     "qwen2.5:3b-instruct-q4_K_M",
