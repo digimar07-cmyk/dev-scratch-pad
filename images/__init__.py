@@ -1,1 +1,1 @@
-# Image handling and thumbnails
+# Image handling modules

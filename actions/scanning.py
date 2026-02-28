@@ -1,60 +1,61 @@
-"""Scanning de pastas e filtros."""
+"""Scan de projetos e filtros."""
 import os
-from datetime import datetime
 from tkinter import filedialog, messagebox
-from analysis.structure import get_origin_from_path
+from analysis.structure import analyze_project_structure, extract_tags_from_name
 from data.persistence import save_database
 
 
-def add_folders(app):
-    folder = filedialog.askdirectory(title="Selecione uma pasta de projetos")
-    if folder and folder not in app.folders:
-        app.folders.append(folder)
-        from data.persistence import save_config
-        save_config(app)
-        scan_projects(app)
-        messagebox.showinfo("✓", f"Pasta adicionada!\n{folder}")
-
-
-def scan_projects(app):
+def scan_folders(app):
+    folder = filedialog.askdirectory(title="Selecione a pasta raiz dos projetos")
+    if not folder:
+        return
+    
     new_count = 0
-    for root_folder in app.folders:
-        if not os.path.exists(root_folder):
-            continue
-        for item in os.listdir(root_folder):
-            project_path = os.path.join(root_folder, item)
+    try:
+        for item in os.listdir(folder):
+            project_path = os.path.join(folder, item)
             if os.path.isdir(project_path) and project_path not in app.database:
+                structure = analyze_project_structure(project_path)
+                tags = extract_tags_from_name(item)
                 app.database[project_path] = {
                     "name": item,
-                    "origin": get_origin_from_path(project_path),
-                    "favorite": False, "done": False, "good": False, "bad": False,
-                    "categories": [], "tags": [], "analyzed": False,
-                    "ai_description": "", "added_date": datetime.now().isoformat(),
+                    "origin": os.path.basename(folder),
+                    "categories": ["Diversos"],
+                    "tags": tags,
+                    "analyzed": False,
+                    "favorite": False,
+                    "done": False,
+                    "good": False,
+                    "bad": False,
+                    "ai_description": "",
                 }
                 new_count += 1
-    if new_count > 0:
+        
         save_database(app)
         from ui.sidebar import update_sidebar
-        from ui.project_grid import display_projects
         update_sidebar(app)
+        from ui.project_grid import display_projects
         display_projects(app)
-        app.status_bar.config(text=f"✓ {new_count} novos projetos")
+        messagebox.showinfo("✅", f"{new_count} novos projetos adicionados!")
+    
+    except Exception as e:
+        messagebox.showerror("❌ Erro", f"Erro ao escanear pastas: {e}")
 
 
 def get_filtered_projects(app):
-    filtered = []
-    for project_path, data in app.database.items():
-        show = (
-            app.current_filter == "all"
-            or (app.current_filter == "favorite" and data.get("favorite"))
-            or (app.current_filter == "done"     and data.get("done"))
-            or (app.current_filter == "good"     and data.get("good"))
-            or (app.current_filter == "bad"      and data.get("bad"))
-        )
-        if not show: continue
-        if app.current_origin != "all" and data.get("origin") != app.current_origin: continue
-        if app.current_categories and not any(c in data.get("categories", []) for c in app.current_categories): continue
-        if app.current_tag and app.current_tag not in data.get("tags", []): continue
-        if app.search_query and app.search_query not in data.get("name", "").lower(): continue
-        filtered.append(project_path)
+    filtered = list(app.database.keys())
+    
+    if app.current_origin and app.current_origin != "all":
+        filtered = [p for p in filtered if app.database[p].get("origin") == app.current_origin]
+    
+    if app.current_categories:
+        filtered = [p for p in filtered if any(c in app.database[p].get("categories", []) for c in app.current_categories)]
+    
+    if app.current_tag:
+        filtered = [p for p in filtered if app.current_tag in app.database[p].get("tags", [])]
+    
+    if app.search_query:
+        query = app.search_query.lower()
+        filtered = [p for p in filtered if query in app.database[p].get("name", "").lower()]
+    
     return filtered
