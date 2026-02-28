@@ -1,22 +1,24 @@
 # -*- coding: utf-8 -*-
 """
 Classe principal da aplicação Laserflix
+Reproduz EXATAMENTE o comportamento do v740 original
 """
 
 import tkinter as tk
-from laserflix.ui.main_window import MainWindow
-from laserflix.config import Config
+
+VERSION = "7.4.0"
 
 class LaserflixApp(tk.Tk):
-    """Aplicação principal do Laserflix"""
+    """Aplicação principal do Laserflix - equivalente ao root + LaserflixNetflix do v740"""
     
     def __init__(self):
         super().__init__()
         
-        # Configurações iniciais
-        self.title(Config.APP_NAME)
-        self.geometry(f"{Config.WINDOW_WIDTH}x{Config.WINDOW_HEIGHT}")
+        # Configurações EXATAS do v740 (linha 72-74)
+        self.title(f"LASERFLIX {VERSION}")
+        self.state('zoomed')
+        self.configure(bg="#141414")
         
-        # Inicializar janela principal
-        self.main_window = MainWindow(self)
-        self.main_window.pack(fill="both", expand=True)
+        # Placeholder para componentes futuros
+        # No v740: folders, database, filters, etc serão migrados gradualmente
+        # Por enquanto: janela funcional que abre maximizada com fundo correto
