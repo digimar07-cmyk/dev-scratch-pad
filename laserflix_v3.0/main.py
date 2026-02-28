@@ -1,16 +1,29 @@
 """
-LASERFLIX v3.0.0
-Arquitetura modular — Entry point
+LASERFLIX v3.0
+Entry point - Usa main_window_FIXED (layout exato v740)
 """
 import tkinter as tk
-from ui.main_window import LaserflixMainWindow
+import sys
+import os
 
-VERSION = "3.0.0"
+# Adiciona pasta raiz ao path
+sys.path.insert(0, os.path.dirname(__file__))
+
+from ui.main_window_FIXED import LaserflixMainWindow
+from utils.logging_setup import LOGGER
+
 
 def main():
-    root = tk.Tk()
-    app = LaserflixMainWindow(root)
-    root.mainloop()
+    """Ponto de entrada."""
+    try:
+        root = tk.Tk()
+        app = LaserflixMainWindow(root)
+        root.mainloop()
+    except Exception as e:
+        LOGGER.exception("Erro fatal: %s", e)
+        input("\nPressione Enter para sair...")
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
