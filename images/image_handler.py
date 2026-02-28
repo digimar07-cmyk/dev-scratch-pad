@@ -6,6 +6,11 @@ from PIL import Image, ImageTk
 VALID_IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp")
 
 
+def init_thumbnail_cache(app):
+    """Inicializa cache de thumbnails (LRU automático via decorator)."""
+    pass
+
+
 @lru_cache(maxsize=300)
 def get_cover_image(app, project_path):
     try:
