@@ -1,152 +1,187 @@
-"""
-LASERFLIX — Sidebar Manager
-Gerencia filtros de origem / categorias / tags na sidebar
-"""
-
+"""Sidebar com filtros e categorias."""
 import tkinter as tk
+from tkinter import ttk
 from collections import Counter
 
 
-class SidebarManager:
-    """Gerencia atualização da sidebar (origem/categorias/tags)"""
+def create_sidebar(app, parent):
+    app.sidebar = tk.Frame(parent, bg="#1A1A1A", width=240)
+    app.sidebar.pack(side="left", fill="y")
+    app.sidebar.pack_propagate(False)
+    
+    tk.Label(app.sidebar, text="🏛️ FILTROS", font=("Arial", 14, "bold"),
+             bg="#1A1A1A", fg="#E50914").pack(pady=15)
+    
+    # Origins
+    tk.Label(app.sidebar, text="🌐 Origem", font=("Arial", 11, "bold"),
+             bg="#1A1A1A", fg="#CCCCCC").pack(pady=(10, 5), anchor="w", padx=15)
+    app.origins_listbox = tk.Listbox(app.sidebar, bg="#2A2A2A", fg="#FFFFFF",
+                                      font=("Arial", 10), relief="flat",
+                                      selectbackground="#E50914", selectforeground="#FFFFFF",
+                                      height=6, selectmode=tk.SINGLE)
+    app.origins_listbox.pack(fill="x", padx=15, pady=5)
+    app.origins_listbox.bind("<<ListboxSelect>>", lambda e: set_origin_filter(app))
+    
+    # Categories
+    tk.Label(app.sidebar, text="🏷️ Categorias", font=("Arial", 11, "bold"),
+             bg="#1A1A1A", fg="#CCCCCC").pack(pady=(15, 5), anchor="w", padx=15)
+    cat_frame = tk.Frame(app.sidebar, bg="#1A1A1A")
+    cat_frame.pack(fill="x", padx=15)
+    app.active_categories_label = tk.Label(cat_frame, text="Todas", bg="#2A2A2A",
+                                           fg="#FFFFFF", font=("Arial", 9), anchor="w",
+                                           relief="flat", padx=8, pady=6)
+    app.active_categories_label.pack(side="left", fill="x", expand=True)
+    tk.Button(cat_frame, text="✎", command=lambda: open_categories_picker(app),
+              bg="#E50914", fg="#FFFFFF", font=("Arial", 10, "bold"),
+              relief="flat", cursor="hand2", width=3).pack(side="right")
+    
+    # Tags
+    tk.Label(app.sidebar, text="🏷️ Tags", font=("Arial", 11, "bold"),
+             bg="#1A1A1A", fg="#CCCCCC").pack(pady=(15, 5), anchor="w", padx=15)
+    app.tags_listbox = tk.Listbox(app.sidebar, bg="#2A2A2A", fg="#FFFFFF",
+                                   font=("Arial", 10), relief="flat",
+                                   selectbackground="#E50914", selectforeground="#FFFFFF",
+                                   height=12, selectmode=tk.SINGLE)
+    app.tags_listbox.pack(fill="both", expand=True, padx=15, pady=5)
+    app.tags_listbox.bind("<<ListboxSelect>>", lambda e: set_tag_filter(app))
+    
+    app.sidebar_buttons = {}
+    update_sidebar(app)
 
-    def __init__(self, main_window):
-        self.mw = main_window
-        self.app = main_window.app
-        self.db = main_window.db
-        self.filter = main_window.filter
 
-    def update_all(self):
-        self._update_origins()
-        self._update_categories()
-        self._update_tags()
-        self._bind_scroll(self.mw.sidebar_content)
+def update_sidebar(app):
+    update_origins_list(app)
+    update_categories_list(app)
+    update_tags_list(app)
 
-    def _bind_scroll(self, widget):
-        def _scroll(e):
-            self.mw.sidebar_canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
-        widget.bind("<MouseWheel>", _scroll)
-        for child in widget.winfo_children():
-            self._bind_scroll(child)
 
-    def _update_origins(self):
-        for w in self.mw.origins_frame.winfo_children():
-            w.destroy()
-        origins = Counter(d.get("origin", "Desconhecido") for d in self.db.data.values())
-        colors = {"Creative Fabrica": "#FF6B35", "Etsy": "#F7931E", "Diversos": "#4ECDC4"}
-        for origin in sorted(origins):
-            color = colors.get(origin, "#9B59B6")
-            btn = tk.Button(self.mw.origins_frame, text=f"{origin} ({origins[origin]})", bg="#1A1A1A", fg=color, font=("Arial", 10, "bold"), relief="flat", cursor="hand2", anchor="w", padx=15, pady=8)
-            btn.config(command=lambda o=origin, b=btn: self._set_origin(o, b))
-            btn.pack(fill="x", pady=2)
-            btn.bind("<Enter>", lambda e, b=btn: b.config(bg="#2A2A2A") if b is not self.mw._active_sidebar_btn else None)
-            btn.bind("<Leave>", lambda e, b=btn: b.config(bg="#1A1A1A") if b is not self.mw._active_sidebar_btn else None)
+def update_origins_list(app):
+    app.origins_listbox.delete(0, tk.END)
+    origins = Counter(d.get("origin", "Diversos") for d in app.database.values())
+    total = sum(origins.values())
+    app.origins_listbox.insert(tk.END, f"🌍 Todas ({total})")
+    for origin in sorted(origins.keys()):
+        app.origins_listbox.insert(tk.END, f"{origin} ({origins[origin]})")
 
-    def _update_categories(self):
-        for w in self.mw.categories_frame.winfo_children():
-            w.destroy()
-        all_cats = Counter()
-        for d in self.db.data.values():
-            for c in d.get("categories", []):
-                c = c.strip()
-                if c and c != "Sem Categoria":
-                    all_cats[c] += 1
-        if not all_cats:
-            tk.Label(self.mw.categories_frame, text="Nenhuma categoria", bg="#1A1A1A", fg="#666666", font=("Arial", 10, "italic"), anchor="w", padx=15, pady=10).pack(fill="x")
-            return
-        cats_sorted = all_cats.most_common()
-        for cat, count in cats_sorted[:8]:
-            btn = tk.Button(self.mw.categories_frame, text=f"{cat} ({count})", bg="#1A1A1A", fg="#CCCCCC", font=("Arial", 10), relief="flat", cursor="hand2", anchor="w", padx=15, pady=8)
-            btn.config(command=lambda c=cat, b=btn: self._set_category([c], b))
-            btn.pack(fill="x", pady=2)
-            btn.bind("<Enter>", lambda e, b=btn: b.config(bg="#2A2A2A") if b is not self.mw._active_sidebar_btn else None)
-            btn.bind("<Leave>", lambda e, b=btn: b.config(bg="#1A1A1A") if b is not self.mw._active_sidebar_btn else None)
-        more_count = max(0, len(cats_sorted) - 8)
-        if more_count > 0:
-            more_btn = tk.Button(self.mw.categories_frame, text=f"+ Ver mais ({more_count})", bg="#2A2A2A", fg="#888888", font=("Arial", 9), relief="flat", cursor="hand2", anchor="w", padx=15, pady=6)
-            more_btn.config(command=lambda: self._open_categories_picker(cats_sorted))
-            more_btn.pack(fill="x", pady=(4, 2))
-            more_btn.bind("<Enter>", lambda e, w=more_btn: w.config(fg="#FFFFFF"))
-            more_btn.bind("<Leave>", lambda e, w=more_btn: w.config(fg="#888888"))
 
-    def _update_tags(self):
-        for w in self.mw.tags_frame.winfo_children():
-            w.destroy()
-        tag_count = Counter()
-        for d in self.db.data.values():
-            for t in d.get("tags", []):
-                t = t.strip()
-                if t:
-                    tag_count[t] += 1
-        popular = tag_count.most_common(20)
-        if not popular:
-            tk.Label(self.mw.tags_frame, text="Nenhuma tag", bg="#1A1A1A", fg="#666666", font=("Arial", 10, "italic"), anchor="w", padx=15, pady=10).pack(fill="x")
-            return
-        if len(tag_count) > 20:
-            tk.Label(self.mw.tags_frame, text=f"Top 20 de {len(tag_count)} tags", bg="#1A1A1A", fg="#666666", font=("Arial", 9), anchor="w", padx=15, pady=3).pack(fill="x")
-        for tag, count in popular:
-            btn = tk.Button(self.mw.tags_frame, text=f"{tag} ({count})", bg="#1A1A1A", fg="#CCCCCC", font=("Arial", 10), relief="flat", cursor="hand2", anchor="w", padx=15, pady=6)
-            btn.config(command=lambda t=tag, b=btn: self._set_tag(t, b))
-            btn.pack(fill="x", pady=1)
-            btn.bind("<Enter>", lambda e, w=btn: w.config(bg="#2A2A2A"))
-            btn.bind("<Leave>", lambda e, w=btn: w.config(bg="#1A1A1A"))
+def update_categories_list(app):
+    if not app.current_categories:
+        app.active_categories_label.config(text="Todas")
+    else:
+        display = ", ".join(app.current_categories[:3])
+        if len(app.current_categories) > 3:
+            display += f" +{len(app.current_categories)-3}"
+        app.active_categories_label.config(text=display)
 
-    def _set_origin(self, origin, btn=None):
-        self.filter.current = "all"
-        self.filter.origin = origin
-        self.filter.categories = []
-        self.filter.tag = None
-        self.mw._set_active_sidebar_btn(btn)
-        self.mw.display_projects()
-        count = sum(1 for d in self.db.data.values() if d.get("origin") == origin)
-        self.mw.status_bar.config(text="Todas as Origens" if origin == "all" else f"Origem: {origin} ({count} projetos)")
 
-    def _set_category(self, categories, btn=None):
-        self.filter.current = "all"
-        self.filter.categories = categories
-        self.filter.tag = None
-        self.filter.origin = "all"
-        self.mw._set_active_sidebar_btn(btn)
-        self.mw.display_projects()
-        if not categories:
-            self.mw.status_bar.config(text="Todas as Categorias")
+def update_tags_list(app):
+    app.tags_listbox.delete(0, tk.END)
+    all_tags = []
+    for d in app.database.values():
+        all_tags.extend(d.get("tags", []))
+    tag_counts = Counter(all_tags)
+    top_tags = tag_counts.most_common(50)
+    for tag, count in top_tags:
+        app.tags_listbox.insert(tk.END, f"{tag} ({count})")
+
+
+def open_categories_picker(app):
+    from collections import Counter
+    win = tk.Toplevel(app.root)
+    win.title("🎯 Selecionar Categorias")
+    win.configure(bg="#141414")
+    win.geometry("700x600")
+    win.transient(app.root)
+    win.grab_set()
+    
+    tk.Label(win, text="🎯 Filtrar por Categorias", font=("Arial", 16, "bold"),
+             bg="#141414", fg="#E50914").pack(pady=15)
+    tk.Label(win, text="Selecione uma ou mais categorias (Ctrl/Cmd clique):",
+             font=("Arial", 10), bg="#141414", fg="#CCCCCC").pack(pady=5)
+    
+    list_frame = tk.Frame(win, bg="#2A2A2A")
+    list_frame.pack(fill="both", expand=True, padx=20, pady=10)
+    scrollbar = tk.Scrollbar(list_frame)
+    scrollbar.pack(side="right", fill="y")
+    listbox = tk.Listbox(list_frame, bg="#2A2A2A", fg="#FFFFFF",
+                         font=("Arial", 11), selectmode=tk.MULTIPLE,
+                         yscrollcommand=scrollbar.set, relief="flat",
+                         selectbackground="#E50914", selectforeground="#FFFFFF")
+    listbox.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+    scrollbar.config(command=listbox.yview)
+    
+    all_cats = Counter()
+    for d in app.database.values():
+        all_cats.update(d.get("categories", []))
+    categories = sorted([c for c in all_cats.keys() if c and c != "Sem Categoria"])
+    for cat in categories:
+        listbox.insert(tk.END, f"{cat} ({all_cats[cat]})")
+    for i, cat in enumerate(categories):
+        if cat in app.current_categories:
+            listbox.selection_set(i)
+    
+    def apply_filter():
+        indices = listbox.curselection()
+        app.current_categories = [categories[i] for i in indices]
+        update_categories_list(app)
+        from ui.project_grid import display_projects
+        display_projects(app)
+        win.destroy()
+    
+    def clear_filter():
+        app.current_categories = []
+        update_categories_list(app)
+        from ui.project_grid import display_projects
+        display_projects(app)
+        win.destroy()
+    
+    btn_frame = tk.Frame(win, bg="#141414")
+    btn_frame.pack(pady=15)
+    tk.Button(btn_frame, text="✓ Aplicar", command=apply_filter,
+              bg="#1DB954", fg="#FFFFFF", font=("Arial", 12, "bold"),
+              relief="flat", cursor="hand2", padx=20, pady=10).pack(side="left", padx=5)
+    tk.Button(btn_frame, text="🗑️ Limpar", command=clear_filter,
+              bg="#FF6B6B", fg="#FFFFFF", font=("Arial", 12, "bold"),
+              relief="flat", cursor="hand2", padx=20, pady=10).pack(side="left", padx=5)
+    tk.Button(btn_frame, text="✕ Cancelar", command=win.destroy,
+              bg="#666666", fg="#FFFFFF", font=("Arial", 12, "bold"),
+              relief="flat", cursor="hand2", padx=20, pady=10).pack(side="left", padx=5)
+
+
+def set_origin_filter(app):
+    selection = app.origins_listbox.curselection()
+    if not selection: return
+    selected_text = app.origins_listbox.get(selection[0])
+    if selected_text.startswith("🌍 Todas"):
+        app.current_origin = "all"
+    else:
+        app.current_origin = selected_text.split(" (")[0].strip()
+    from ui.project_grid import display_projects
+    display_projects(app)
+
+
+def set_category_filter(app, category):
+    if category in app.current_categories:
+        app.current_categories.remove(category)
+    else:
+        app.current_categories.append(category)
+    update_categories_list(app)
+    from ui.project_grid import display_projects
+    display_projects(app)
+
+
+def set_tag_filter(app):
+    selection = app.tags_listbox.curselection()
+    if not selection: return
+    selected_text = app.tags_listbox.get(selection[0])
+    app.current_tag = selected_text.split(" (")[0].strip()
+    from ui.project_grid import display_projects
+    display_projects(app)
+
+
+def _set_active_sidebar_btn(app, button_id):
+    for btn_id, btn in app.sidebar_buttons.items():
+        if btn_id == button_id:
+            btn.config(bg="#E50914")
         else:
-            count = sum(1 for d in self.db.data.values() if any(c in d.get("categories", []) for c in categories))
-            self.mw.status_bar.config(text=f"Categorias: {', '.join(categories)} ({count} projetos)")
-
-    def _set_tag(self, tag, btn=None):
-        self.filter.current = "all"
-        self.filter.tag = tag
-        self.filter.categories = []
-        self.filter.origin = "all"
-        self.mw._set_active_sidebar_btn(btn)
-        self.mw.display_projects()
-        count = sum(1 for d in self.db.data.values() if tag in d.get("tags", []))
-        self.mw.status_bar.config(text=f"Tag: {tag} ({count} projetos)")
-
-    def _open_categories_picker(self, cats_sorted):
-        win = tk.Toplevel(self.mw.root)
-        win.title("Todas as Categorias")
-        win.configure(bg="#141414")
-        win.geometry("400x600")
-        win.transient(self.mw.root)
-        win.grab_set()
-        tk.Label(win, text="Selecione uma categoria", font=("Arial", 13, "bold"), bg="#141414", fg="#FFFFFF").pack(pady=10)
-        from tkinter import ttk
-        frm = tk.Frame(win, bg="#141414")
-        frm.pack(fill="both", expand=True, padx=10, pady=5)
-        cv = tk.Canvas(frm, bg="#141414", highlightthickness=0)
-        sb = ttk.Scrollbar(frm, orient="vertical", command=cv.yview)
-        inner = tk.Frame(cv, bg="#141414")
-        inner.bind("<Configure>", lambda e: cv.configure(scrollregion=cv.bbox("all")))
-        cv.create_window((0, 0), window=inner, anchor="nw")
-        cv.configure(yscrollcommand=sb.set)
-        cv.pack(side="left", fill="both", expand=True)
-        sb.pack(side="right", fill="y")
-        cv.bind("<MouseWheel>", lambda e: cv.yview_scroll(int(-1 * (e.delta / 120)), "units"))
-        for cat, count in cats_sorted:
-            b = tk.Button(inner, text=f"{cat} ({count})", command=lambda c=cat: (self._set_category([c]), win.destroy()), bg="#2A2A2A", fg="#FFFFFF", font=("Arial", 10), relief="flat", cursor="hand2", anchor="w", padx=12, pady=8)
-            b.pack(fill="x", pady=2, padx=5)
-            b.bind("<Enter>", lambda e, w=b: w.config(bg="#E50914"))
-            b.bind("<Leave>", lambda e, w=b: w.config(bg="#2A2A2A"))
-        tk.Button(win, text="Fechar", command=win.destroy, bg="#555555", fg="#FFFFFF", font=("Arial", 11, "bold"), relief="flat", cursor="hand2", padx=14, pady=8).pack(pady=10)
+            btn.config(bg="#2A2A2A")

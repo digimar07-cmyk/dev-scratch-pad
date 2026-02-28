@@ -1,13 +1,10 @@
-"""
-CONFIG - Constantes e modelos
-"""
+"""Configuração central da aplicação."""
 
-VERSION = "7.4.0"
+VERSION = "7.5.0"
 CONFIG_FILE = "laserflix_config.json"
 DB_FILE = "laserflix_database.json"
 BACKUP_FOLDER = "laserflix_backups"
 
-# CONFIGURAÇÃO CENTRAL DOS MODELOS
 OLLAMA_MODELS = {
     "text_quality":  "qwen2.5:7b-instruct-q4_K_M",
     "text_fast":     "qwen2.5:3b-instruct-q4_K_M",

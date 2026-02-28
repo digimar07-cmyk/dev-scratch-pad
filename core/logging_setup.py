@@ -1,4 +1,4 @@
-"""Logging setup"""
+"""Setup de logging da aplicação."""
 import logging
 from logging.handlers import RotatingFileHandler
 
@@ -18,6 +18,3 @@ def setup_logging():
     logger.addHandler(file_handler)
     logger.addHandler(stream_handler)
     return logger
-
-
-LOGGER = setup_logging()

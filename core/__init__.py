@@ -1,1 +1,1 @@
-"""Core package"""
+# Core configuration and utilities
