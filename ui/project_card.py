@@ -78,16 +78,27 @@ class ProjectCard:
         actions_frame = tk.Frame(info_frame, bg="#2A2A2A")
         actions_frame.pack(fill="x", pady=(10, 0))
         tk.Button(actions_frame, text="📂", font=("Arial", 14), command=lambda: self.app.open_folder(project_path), bg="#2A2A2A", fg="#FFD700", relief="flat", cursor="hand2", activebackground="#3A3A3A").pack(side="left", padx=2)
+        
+        # botão favorito
         btn_fav = tk.Button(actions_frame, font=("Arial", 14), bg="#2A2A2A", relief="flat", cursor="hand2")
         btn_fav.config(text="⭐" if data.get("favorite") else "☆", fg="#FFD700" if data.get("favorite") else "#666666", command=lambda b=btn_fav: self.app.toggle_favorite(project_path, b))
         btn_fav.pack(side="left", padx=2)
+        
+        # botão done
         btn_done = tk.Button(actions_frame, font=("Arial", 14), bg="#2A2A2A", relief="flat", cursor="hand2")
         btn_done.config(text="✓" if data.get("done") else "○", fg="#00FF00" if data.get("done") else "#666666", command=lambda b=btn_done: self.app.toggle_done(project_path, b))
         btn_done.pack(side="left", padx=2)
-        btn_good = tk.Button(actions_frame, text="👍", font=("Arial", 14), bg="#2A2A2A", relief="flat", cursor="hand2", fg="#00FF00" if data.get("good") else "#666666", command=lambda b=btn_good: self.app.toggle_good(project_path, b))
+        
+        # botão good - CRIA ANTES de usar no lambda
+        btn_good = tk.Button(actions_frame, text="👍", font=("Arial", 14), bg="#2A2A2A", relief="flat", cursor="hand2", fg="#00FF00" if data.get("good") else "#666666")
+        btn_good.config(command=lambda: self.app.toggle_good(project_path, btn_good))
         btn_good.pack(side="left", padx=2)
-        btn_bad = tk.Button(actions_frame, text="👎", font=("Arial", 14), bg="#2A2A2A", relief="flat", cursor="hand2", fg="#FF0000" if data.get("bad") else "#666666", command=lambda b=btn_bad: self.app.toggle_bad(project_path, b))
+        
+        # botão bad - CRIA ANTES de usar no lambda
+        btn_bad = tk.Button(actions_frame, text="👎", font=("Arial", 14), bg="#2A2A2A", relief="flat", cursor="hand2", fg="#FF0000" if data.get("bad") else "#666666")
+        btn_bad.config(command=lambda: self.app.toggle_bad(project_path, btn_bad))
         btn_bad.pack(side="left", padx=2)
+        
         if not data.get("analyzed"):
             tk.Button(actions_frame, text="🤖", font=("Arial", 14), command=lambda: self.app.analyze_single_project(project_path), bg="#2A2A2A", fg="#1DB954", relief="flat", cursor="hand2").pack(side="left", padx=2)
 
