@@ -1,1 +1,1 @@
-"""UI package"""
+# User interface modules
