@@ -21,7 +21,7 @@ class DescriptionGenerator:
     def generate(self, project_path: str, data: dict, model_fn):
         """Gera descrição comercial"""
         try:
-            from ..media.files import FileAnalyzer
+            from media.files import FileAnalyzer
             file_analyzer = FileAnalyzer()
             raw_name = data.get("name", os.path.basename(project_path))
             clean_name = self._clean_name(raw_name)

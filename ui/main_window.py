@@ -163,7 +163,7 @@ class MainWindow:
         self.display_projects()
 
     def update_sidebar(self):
-        from .sidebar import SidebarManager
+        from ui.sidebar import SidebarManager
         SidebarManager(self).update_all()
 
     def _set_active_sidebar_btn(self, btn):
@@ -180,7 +180,7 @@ class MainWindow:
             pass
 
     def display_projects(self):
-        from .project_card import ProjectCard
+        from ui.project_card import ProjectCard
         for w in self.scrollable_frame.winfo_children():
             w.destroy()
         title_text = "Todos os Projetos"

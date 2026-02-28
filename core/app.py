@@ -9,14 +9,14 @@ import os
 from datetime import datetime
 import threading
 
-from .database import Database
-from .backup import BackupManager
-from .config import Config
-from .filter import Filter
-from ..ollama import OllamaManager
-from ..ui.main_window import MainWindow
-from ..workers.analysis import AnalysisWorker
-from ..media import MediaManager
+from core.database import Database
+from core.backup import BackupManager
+from core.config import Config
+from core.filter import Filter
+from ollama import OllamaManager
+from ui.main_window import MainWindow
+from workers.analysis import AnalysisWorker
+from media import MediaManager
 
 
 VERSION = "7.4.0"
@@ -226,11 +226,11 @@ class LaserflixApp:
     # MODALS
     # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     def open_project_modal(self, project_path):
-        from ..ui.project_modal import ProjectModal
+        from ui.project_modal import ProjectModal
         ProjectModal(self, project_path)
 
     def open_dashboard(self):
-        from ..ui.dashboard import Dashboard
+        from ui.dashboard import Dashboard
         Dashboard(self)
 
     def open_batch_edit(self):

@@ -21,7 +21,7 @@ class ProjectAnalyzer:
     def analyze(self, project_path: str, batch_size: int, model_fn):
         """Analisa projeto e retorna (categories, tags)"""
         try:
-            from ..media.files import FileAnalyzer
+            from media.files import FileAnalyzer
             file_analyzer = FileAnalyzer()
             name = os.path.basename(project_path)
             structure = file_analyzer.analyze_structure(project_path)
