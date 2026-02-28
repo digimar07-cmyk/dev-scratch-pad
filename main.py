@@ -10,7 +10,7 @@ import tkinter as tk
 import logging
 from logging.handlers import RotatingFileHandler
 
-from laserflix.core.app import LaserflixApp
+from core.app import LaserflixApp
 
 
 def setup_logging():
