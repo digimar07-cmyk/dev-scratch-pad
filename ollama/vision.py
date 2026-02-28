@@ -4,10 +4,11 @@ import base64
 import io
 from PIL import Image, ImageStat
 from ollama.ollama_client import _ollama_is_available, _model_name, _timeout
+from core.config import OLLAMA_BASE_URL
 
 
 def _image_quality_score(app, image_path: str) -> dict:
-    """Avalia se a imagem tem qualidade suficiente para o Moondream analisar sem alucinar."""
+    """Avalia se a imagem tem qualidade suficiente."""
     try:
         with Image.open(image_path) as img:
             img_rgb = img.convert("RGB")
@@ -32,29 +33,24 @@ def _image_quality_score(app, image_path: str) -> dict:
                 white_pct_normalized > 50
             )
 
-            app.logger.info(
-                "📊 [quality] brilho=%.1f sat=%.1f fundo_branco~%.1f%% → vision=%s",
-                brightness, saturation, white_pct_normalized, use_vision
-            )
             return {
                 "brightness": brightness,
                 "saturation": saturation,
                 "white_pct":  white_pct_normalized,
                 "use_vision": use_vision,
             }
-    except Exception as e:
-        app.logger.warning("Falha em _image_quality_score: %s", e)
+    except Exception:
         return {"brightness": 0, "saturation": 100, "white_pct": 0, "use_vision": True}
 
 
 def _ollama_describe_image(app, image_path: str) -> str:
-    """Usa moondream:latest para descrever o OBJETO CENTRAL da imagem."""
+    """Usa moondream para descrever imagem."""
     if not image_path or not os.path.exists(image_path):
         return ""
     if not _ollama_is_available(app):
         return ""
 
-    model   = _model_name(app, "vision")
+    model = _model_name(app, "vision")
     timeout = _timeout(app, "vision")
     try:
         with Image.open(image_path) as img:
@@ -66,24 +62,21 @@ def _ollama_describe_image(app, image_path: str) -> str:
         payload = {
             "model":  model,
             "prompt": (
-                "Look only at the main laser-cut wooden object in the center of this image. "
-                "Ignore the background, walls, stuffed animals, toys, watermarks and any text overlays. "
-                "Describe ONLY the central object: its shape, theme and style. "
-                "One short sentence. Be specific and factual."
+                "Look only at the main laser-cut wooden object in the center. "
+                "Ignore background. Describe ONLY the central object: shape, theme, style. "
+                "One short sentence."
             ),
             "images": [img_b64],
             "stream": False,
             "options": {"temperature": 0.2, "num_predict": 60},
         }
         resp = app.http_session.post(
-            f"{app.ollama_base_url}/api/generate",
+            f"{OLLAMA_BASE_URL}/api/generate",
             json=payload,
             timeout=timeout,
         )
         if resp.status_code == 200:
-            vision_text = (resp.json().get("response") or "").strip()
-            app.logger.info("👁️ [moondream] %s", vision_text[:80])
-            return vision_text
-    except Exception as e:
-        app.logger.warning("Falha ao descrever imagem com moondream: %s", e)
+            return (resp.json().get("response") or "").strip()
+    except Exception:
+        pass
     return ""

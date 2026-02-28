@@ -1,72 +1,60 @@
-"""Janela de configuração de modelos Ollama."""
+"""Configuração de modelos Ollama."""
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 from data.persistence import save_config
 
 
 def open_model_settings(app):
-    """Janela para configurar qual modelo usar em cada papel."""
+    """Abre janela de configuração de modelos."""
     win = tk.Toplevel(app.root)
-    win.title("⚙️ Configurar Modelos de IA")
+    win.title("⚙️ Configurar Modelos IA")
+    win.geometry("700x500")
     win.configure(bg="#141414")
-    win.geometry("600x420")
     win.transient(app.root)
     win.grab_set()
-
-    tk.Label(win, text="⚙️ Configurar Modelos Ollama", font=("Arial", 16, "bold"),
-             bg="#141414", fg="#E50914").pack(pady=15)
-
-    # Detecta modelos disponíveis
-    available = []
-    try:
-        resp = app.http_session.get(f"{app.ollama_base_url}/api/tags", timeout=3)
-        if resp.status_code == 200:
-            available = [m["name"] for m in resp.json().get("models", [])]
-    except Exception:
-        pass
-
-    roles_labels = {
-        "text_quality": "🧠 Modelo Qualidade (análise individual/descrições)",
-        "text_fast":    "⚡ Modelo Rápido (lotes grandes)",
-        "vision":       "👁️ Modelo Visão (análise de imagens)",
-        "embed":        "🔗 Modelo Embeddings (busca semântica)",
-    }
-
+    
+    tk.Label(win, text="🤖 MODELOS OLLAMA", font=("Arial", 18, "bold"),
+             bg="#141414", fg="#E50914").pack(pady=20)
+    
+    tk.Label(win, text="Configure os modelos usados para cada tarefa:",
+             font=("Arial", 11), bg="#141414", fg="#CCCCCC").pack(pady=10)
+    
+    frame = tk.Frame(win, bg="#141414")
+    frame.pack(fill="both", expand=True, padx=40, pady=20)
+    
     entries = {}
-    for role, label in roles_labels.items():
-        frame = tk.Frame(win, bg="#141414")
-        frame.pack(fill="x", padx=25, pady=6)
-        tk.Label(frame, text=label, font=("Arial", 10, "bold"),
-                 bg="#141414", fg="#CCCCCC", width=48, anchor="w").pack(side="left")
-        var = tk.StringVar(value=app.active_models.get(role, ""))
-        if available:
-            cb = ttk.Combobox(frame, textvariable=var, values=available, width=32, state="normal")
-        else:
-            cb = tk.Entry(frame, textvariable=var, bg="#2A2A2A", fg="#FFFFFF",
-                          font=("Arial", 10), width=35, relief="flat")
-        cb.pack(side="left", padx=5)
-        entries[role] = var
-
-    status_lbl = tk.Label(win, text="", bg="#141414", fg="#1DB954", font=("Arial", 10))
-    status_lbl.pack(pady=5)
-
-    if not available:
-        status_lbl.config(text="⚠️ Ollama offline — digitando modelos manualmente", fg="#FF6B6B")
-
-    def save_models():
-        for role, var in entries.items():
-            val = var.get().strip()
-            if val:
-                app.active_models[role] = val
+    roles = [
+        ("text_quality", "📝 Análise de Qualidade"),
+        ("text_fast", "⚡ Análise Rápida (batch)"),
+        ("vision", "👁️ Visão (moondream)"),
+        ("embed", "🔍 Embeddings"),
+    ]
+    
+    for role, label in roles:
+        row = tk.Frame(frame, bg="#141414")
+        row.pack(fill="x", pady=10)
+        
+        tk.Label(row, text=label, font=("Arial", 11, "bold"),
+                 bg="#141414", fg="#FFFFFF", width=25, anchor="w").pack(side="left")
+        
+        entry = tk.Entry(row, font=("Arial", 10), bg="#2A2A2A", fg="#FFFFFF",
+                         relief="flat", width=40)
+        entry.insert(0, app.current_models.get(role, ""))
+        entry.pack(side="left", padx=10)
+        entries[role] = entry
+    
+    def save():
+        for role, entry in entries.items():
+            app.current_models[role] = entry.get().strip()
         save_config(app)
-        status_lbl.config(text="✓ Modelos salvos!", fg="#1DB954")
-        app.root.after(1500, win.destroy)
-
+        messagebox.showinfo("✅", "Modelos salvos!")
+        win.destroy()
+    
     btn_frame = tk.Frame(win, bg="#141414")
-    btn_frame.pack(pady=15)
-    tk.Button(btn_frame, text="💾 Salvar", command=save_models,
+    btn_frame.pack(pady=20)
+    tk.Button(btn_frame, text="💾 Salvar", command=save,
               bg="#1DB954", fg="#FFFFFF", font=("Arial", 12, "bold"),
-              relief="flat", cursor="hand2", padx=20, pady=10).pack(side="left", padx=5)
-    tk.Button(btn_frame, text="✕ Cancelar", command=win.destroy,
+              relief="flat", cursor="hand2", padx=25, pady=10).pack(side="left", padx=5)
+    tk.Button(btn_frame, text="✖ Cancelar", command=win.destroy,
               bg="#666666", fg="#FFFFFF", font=("Arial", 12, "bold"),
-              relief="flat", cursor="hand2", padx=20, pady=10).pack(side="left", padx=5)
+              relief="flat", cursor="hand2", padx=25, pady=10).pack(side="left", padx=5)
