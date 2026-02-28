@@ -1,1 +1,1 @@
-"""Core package - App principal e gerenciamento"""
+"""Core package"""
