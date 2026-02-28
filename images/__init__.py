@@ -1,0 +1,1 @@
+# Image handling and thumbnails
