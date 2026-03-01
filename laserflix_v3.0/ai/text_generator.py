@@ -10,14 +10,16 @@ from utils.logging_setup import LOGGER
 class TextGenerator:
     """
     Gera análises (categorias/tags) e descrições de projetos usando Ollama.
+    Funciona com ou sem Ollama rodando — fallbacks garantem resultado sempre.
     """
-    
-    def __init__(self, ollama_client, image_analyzer, project_scanner):
+
+    def __init__(self, ollama_client, image_analyzer, project_scanner, fallback_generator):
         self.ollama = ollama_client
         self.image_analyzer = image_analyzer
         self.scanner = project_scanner
+        self.fallback = fallback_generator
         self.logger = LOGGER
-    
+
     def _choose_model_role(self, batch_size=1):
         """
         Escolhe modelo baseado no tamanho do lote.
@@ -27,35 +29,39 @@ class TextGenerator:
         if batch_size > FAST_MODEL_THRESHOLD:
             return "text_fast"
         return "text_quality"
-    
+
     def analyze_project(self, project_path, batch_size=1):
         """
         Analisa projeto e retorna (categories, tags).
         Integra visão (moondream) quando imagem de capa está disponível.
-        
+
+        Funciona com ou sem Ollama:
+          - COM Ollama: usa IA + visão + fallback_categories se retorno incompleto
+          - SEM Ollama: usa fallback_analysis baseado em keywords do nome
+
         Args:
             project_path: Caminho completo do projeto
             batch_size: Tamanho do lote (para escolha de modelo)
-        
+
         Returns:
-            Tuple (categories: list, tags: list)
+            Tuple (categories: list, tags: list) — NUNCA vazio, sempre tem fallback
         """
         try:
             name = os.path.basename(project_path)
             structure = self.scanner.analyze_project_structure(project_path)
-            
+
             # Prepara contexto de tipos de arquivo
             file_types_str = ", ".join(
                 f"{ext} ({count}x)"
                 for ext, count in structure["file_types"].items()
             )
-            
+
             subfolders_str = (
                 ", ".join(structure["subfolders"][:5])
                 if structure["subfolders"]
                 else "nenhuma"
             )
-            
+
             # Contexto técnico
             tech_context = []
             if structure["has_svg"]: tech_context.append("SVG vetorial")
@@ -63,25 +69,25 @@ class TextGenerator:
             if structure["has_dxf"]: tech_context.append("DXF/CAD")
             if structure["has_ai"]:  tech_context.append("Adobe Illustrator")
             tech_str = ", ".join(tech_context) if tech_context else "formatos variados"
-            
-            # Tenta descrição visual com moondream
+
+            # Tenta descrição visual com moondream (só se Ollama disponível)
             vision_line = ""
             cover_img = self._find_first_image(project_path)
             if cover_img:
                 vision_desc = self.image_analyzer.analyze_cover(cover_img)
                 if vision_desc:
-                    vision_line = f"\n🖼️ DESCRIÇÃO VISUAL DA CAPA: {vision_desc}"
-            
+                    vision_line = f"\n\U0001f5bc\ufe0f DESCRIÇÃO VISUAL DA CAPA: {vision_desc}"
+
             # Escolhe modelo baseado no batch_size
             role = self._choose_model_role(batch_size)
-            
+
             # Prompt otimizado para Qwen2.5-Instruct
             prompt = f"""Analise este produto de corte laser e responda EXATAMENTE no formato solicitado.
 
-📁 NOME: {name}
-📊 ARQUIVOS: {structure['total_files']} arquivos | Subpastas: {subfolders_str}
-🗂️ TIPOS: {file_types_str}
-🔧 FORMATOS: {tech_str}{vision_line}
+\U0001f4c1 NOME: {name}
+\U0001f4ca ARQUIVOS: {structure['total_files']} arquivos | Subpastas: {subfolders_str}
+\U0001f5c2\ufe0f TIPOS: {file_types_str}
+\U0001f527 FORMATOS: {tech_str}{vision_line}
 
 ### TAREFA 1 — CATEGORIAS
 Atribua de 3 a 5 categorias, OBRIGATORIAMENTE nesta ordem:
@@ -99,83 +105,94 @@ Crie exatamente 8 tags relevantes:
 ### FORMATO DE RESPOSTA (siga exatamente):
 Categorias: [cat1], [cat2], [cat3], [cat4 opcional], [cat5 opcional]
 Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
-            
+
             if self.ollama.stop_flag:
-                return [], []
-            
-            # Gera resposta
+                return self.fallback.fallback_analysis(project_path)
+
+            # Gera resposta com IA
             text = self.ollama.generate_text(
                 prompt,
                 role=role,
                 temperature=0.65,
                 num_predict=200,
             )
-            
+
             categories, tags = [], []
-            
+
             if text:
                 # Parse de categorias e tags
                 for line in text.split("\n"):
                     line = line.strip()
-                    
+
                     if line.startswith("Categorias:") or line.startswith("Categories:"):
                         raw = line.split(":", 1)[1].strip().replace("[", "").replace("]", "")
                         categories = [c.strip().strip('"') for c in raw.split(",") if c.strip()]
-                    
+
                     elif line.startswith("Tags:"):
                         raw = line.split(":", 1)[1].strip().replace("[", "").replace("]", "")
                         tags = [t.strip().strip('"') for t in raw.split(",") if t.strip()]
-                
+
                 # Garante tags do nome sempre presentes
                 name_tags = self.scanner.extract_tags_from_name(name)
                 for tag in name_tags:
                     if tag not in tags:
                         tags.insert(0, tag)
-                
+
                 # Deduplica e limita
                 tags = list(dict.fromkeys(tags))[:10]
-                categories = categories[:8]
-            
-            return categories, tags
-        
+
+                # Se IA retornou menos de 3 categorias, completa com fallback
+                if len(categories) < 3:
+                    categories = self.fallback.fallback_categories(project_path, categories)
+
+                return categories[:8], tags
+
+            # Ollama retornou vazio (indisponível ou timeout) — usa fallback completo
+            return self.fallback.fallback_analysis(project_path)
+
         except Exception:
             self.logger.exception("Erro em analyze_project para %s", project_path)
-            return [], []
-    
+            return self.fallback.fallback_analysis(project_path)
+
     def generate_description(self, project_path, project_data):
         """
         Gera descrição comercial personalizada.
-        
+
         HIERARQUIA (inviolável):
           1° NOME da peça — âncora absoluta. Define o que o produto É.
           2° VISÃO (moondream) — detalhe visual SECUNDÁRIO, só se a imagem
              passa no filtro de qualidade. Nunca contradiz nem substitui o nome.
-        
+
+        Funciona com ou sem Ollama:
+          - COM Ollama: gera descrição personalizada via IA
+          - SEM Ollama: usa fallback_description baseado em templates + keywords
+
         Formato de saída:
             NOME DA PEÇA
 
             🎨 Por Que Este Produto é Especial:
-            [2-3 frases afetivas e únicas baseadas no nome + visual se disponível]
+            [2-3 frases afetivas e únicas]
 
             💖 Perfeito Para:
-            [2-3 frases práticas com exemplos reais de uso e ocasião]
-        
+            [2-3 frases práticas com exemplos reais]
+
         Args:
             project_path: Caminho do projeto
             project_data: Dict com dados do projeto (name, structure, etc)
-        
+
         Returns:
-            String com descrição formatada ou None em caso de erro
+            String com descrição formatada (nunca None — sempre tem fallback)
         """
         if self.ollama.stop_flag:
-            return None
-        
+            structure = self._get_structure(project_path, project_data)
+            return self.fallback.fallback_description(project_path, project_data, structure)
+
         try:
             # 1° NOME — âncora absoluta
             raw_name = project_data.get("name", os.path.basename(project_path) or "Sem nome")
             clean_name = self._clean_name(raw_name)
-            
-            # 2° VISÃO — só se imagem passa no filtro
+
+            # 2° VISÃO — só se imagem passa no filtro (filtro aplicado dentro de analyze_cover)
             vision_context = ""
             cover_img = self._find_first_image(project_path)
             if cover_img:
@@ -185,10 +202,11 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
                         "\n\nDETALHE VISUAL (use apenas para complementar, "
                         "nunca contradizer o nome): " + vision_desc
                     )
-            
+
             if self.ollama.stop_flag:
-                return None
-            
+                structure = self._get_structure(project_path, project_data)
+                return self.fallback.fallback_description(project_path, project_data, structure)
+
             # Prompt de geração
             prompt = (
                 "Você é especialista em peças físicas de corte a laser — placas, espelhos, "
@@ -217,47 +235,54 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
                 "- Máximo 120 palavras no total\n"
                 "- Responda APENAS com o texto no formato acima, sem comentários adicionais"
             )
-            
+
             response_text = self.ollama.generate_text(
                 prompt,
                 role="text_quality",
                 temperature=0.78,
                 num_predict=250,
             )
-            
+
             if response_text:
                 # Garante que começa com o nome
                 if not response_text.strip().startswith(clean_name[:15]):
                     response_text = clean_name + "\n\n" + response_text.strip()
-                
                 return response_text.strip()
-            
-            return None
-        
+
+            # Ollama retornou vazio — usa fallback de descrição
+            structure = self._get_structure(project_path, project_data)
+            return self.fallback.fallback_description(project_path, project_data, structure)
+
         except Exception as e:
             self.logger.error("Erro ao gerar descrição para %s: %s", project_path, e, exc_info=True)
-            return None
-    
+            structure = self._get_structure(project_path, project_data)
+            return self.fallback.fallback_description(project_path, project_data, structure)
+
+    # ------------------------------------------------------------------
+    # HELPERS INTERNOS
+    # ------------------------------------------------------------------
+
+    def _get_structure(self, project_path, project_data):
+        """Retorna estrutura do projeto (do cache ou analisa ao vivo)."""
+        return (
+            project_data.get("structure")
+            or self.scanner.analyze_project_structure(project_path)
+        )
+
     def _find_first_image(self, project_path):
-        """
-        Encontra primeira imagem no projeto.
-        """
+        """Encontra primeira imagem no projeto."""
         from config.constants import FILE_EXTENSIONS
         valid_extensions = FILE_EXTENSIONS["images"]
-        
         try:
             for item in os.listdir(project_path):
                 if item.lower().endswith(valid_extensions):
                     return os.path.join(project_path, item)
         except Exception:
             pass
-        
         return None
-    
+
     def _clean_name(self, raw_name):
-        """
-        Limpa nome do projeto removendo extensões e códigos.
-        """
+        """Limpa nome do projeto removendo extensões e códigos."""
         clean = raw_name
         for ext in [".zip", ".rar", ".svg", ".pdf", ".dxf", ".cdr", ".ai"]:
             clean = clean.replace(ext, "")

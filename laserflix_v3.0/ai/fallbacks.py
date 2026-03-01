@@ -1,5 +1,7 @@
 """
 Geradores de fallback (sem IA)
+Usado quando Ollama está indisponível — garante que análise e descrição
+SEMPRE retornam um resultado válido.
 """
 import os
 import re
@@ -17,7 +19,7 @@ class FallbackGenerator:
         self.logger = LOGGER
 
     # ------------------------------------------------------------------
-    # Alias público para compatibilidade com main_window_FIXED.py
+    # Alias público para compatibilidade com main_window
     # ------------------------------------------------------------------
     def generate_fallback_description(self, project_path, project_data, structure):
         """Alias de fallback_description (chamado por main_window)."""
@@ -26,6 +28,7 @@ class FallbackGenerator:
     def fallback_analysis(self, project_path):
         """
         Gera categorias e tags baseadas em keywords no nome.
+        Chamado quando Ollama está offline ou retornou resposta vazia.
 
         Returns:
             Tuple (categories: list, tags: list)
@@ -69,6 +72,7 @@ class FallbackGenerator:
     def fallback_categories(self, project_path, existing_categories):
         """
         Completa categorias faltantes baseadas em keywords.
+        Chamado quando IA retornou menos de 3 categorias.
         """
         name = os.path.basename(project_path).lower()
         result = list(existing_categories)
@@ -131,6 +135,9 @@ class FallbackGenerator:
     def fallback_description(self, project_path, project_data, structure):
         """
         Gera descrição baseada em templates (sem IA).
+        Chamado quando Ollama está offline ou retornou resposta vazia.
+        Respeita o mesmo formato da descrição gerada por IA:
+            NOME\n\n🎨 Por Que Este Produto é Especial:\n...\n\n💖 Perfeito Para:\n...
         """
         raw_name = project_data.get("name", "Sem nome")
         clean_name = self._clean_name(raw_name)
@@ -155,7 +162,7 @@ class FallbackGenerator:
             )
             perfeito = (
                 "Ideal para decorar quarto de bebê ou quarto infantil com estilo. "
-                "Um presente memorial para maternidades e enxovais."
+                "Um presente memorável para maternidades e enxovais."
             )
         elif any(w in name_lower or w in tags_lower for w in ["calendar", "calendário", "calendario"]):
             especial = (
@@ -182,7 +189,7 @@ class FallbackGenerator:
             )
             perfeito = (
                 "Presente perfeito para chá de bebê, decoração de quarto de bebê "
-                "ou como lemrança afetiva dos primeiros anos."
+                "ou como lembrança afetiva dos primeiros anos."
             )
         elif any(w in name_lower or w in tags_lower for w in ["wedding", "casamento", "noiva"]):
             especial = (
@@ -211,14 +218,14 @@ class FallbackGenerator:
             )
             perfeito = (
                 "Ideal como presente personalizado, decoração de ambiente "
-                "ou lemrança especial para quem você ama."
+                "ou lembrança especial para quem você ama."
             )
 
         return (
             clean_name + "\n\n"
-            "✨ Por Que Este Produto é Especial:\n"
+            "\U0001f3a8 Por Que Este Produto é Especial:\n"
             + especial + "\n\n"
-            "💖 Perfeito Para:\n"
+            "\U0001f496 Perfeito Para:\n"
             + perfeito
         )
 
