@@ -11,6 +11,7 @@ from datetime import datetime
 from collections import Counter, OrderedDict
 import subprocess
 import platform
+from PIL import Image, ImageTk
 
 # Config
 from config.settings import VERSION
@@ -96,7 +97,6 @@ class LaserflixMainWindow:
             btn.bind("<Enter>", lambda e, w=btn: w.config(fg="#E50914"))
             btn.bind("<Leave>", lambda e, w=btn: w.config(fg="#FFFFFF"))
 
-        # Busca à direita
         search_frame = tk.Frame(header, bg="#000000")
         search_frame.pack(side="right", padx=20)
         tk.Label(search_frame, text="🔍", bg="#000000", fg="#FFFFFF",
@@ -110,7 +110,6 @@ class LaserflixMainWindow:
         extras_frame = tk.Frame(header, bg="#000000")
         extras_frame.pack(side="right", padx=10)
 
-        # Menu dropdown principal
         menu_btn = tk.Menubutton(extras_frame, text="⚙️ Menu", bg="#444444",
                                   fg="#FFFFFF", font=("Arial", 11, "bold"),
                                   relief="flat", cursor="hand2", padx=15, pady=8)
@@ -123,12 +122,10 @@ class LaserflixMainWindow:
         menu.add_separator()
         menu.add_command(label="🤖 Configurar Modelos IA", command=self.open_model_settings)
 
-        # Botão Pastas
         tk.Button(extras_frame, text="➕ Pastas", command=self.add_folders,
                   bg="#E50914", fg="#FFFFFF", font=("Arial", 11, "bold"),
                   relief="flat", cursor="hand2", padx=15, pady=8).pack(side="left", padx=5)
 
-        # Menu Analisar
         ai_btn = tk.Menubutton(extras_frame, text="🤖 Analisar", bg="#1DB954",
                                 fg="#FFFFFF", font=("Arial", 11, "bold"),
                                 relief="flat", cursor="hand2", padx=15, pady=8)
@@ -136,13 +133,12 @@ class LaserflixMainWindow:
         ai_menu = tk.Menu(ai_btn, tearoff=0, bg="#2A2A2A", fg="#FFFFFF",
                           activebackground="#E50914", activeforeground="#FFFFFF")
         ai_btn["menu"] = ai_menu
-        ai_menu.add_command(label="🆕 Analisar apenas novos",       command=self.analyze_only_new)
-        ai_menu.add_command(label="🔄 Reanalisar todos",              command=self.reanalyze_all)
+        ai_menu.add_command(label="🆕 Analisar apenas novos",    command=self.analyze_only_new)
+        ai_menu.add_command(label="🔄 Reanalisar todos",          command=self.reanalyze_all)
         ai_menu.add_separator()
-        ai_menu.add_command(label="📝 Gerar descrições (novos)",    command=self.generate_descriptions_for_new)
-        ai_menu.add_command(label="📝 Gerar descrições (todos)",    command=self.generate_descriptions_for_all)
+        ai_menu.add_command(label="📝 Gerar descrições (novos)", command=self.generate_descriptions_for_new)
+        ai_menu.add_command(label="📝 Gerar descrições (todos)", command=self.generate_descriptions_for_all)
 
-        # Container principal
         main_container = tk.Frame(self.root, bg="#141414")
         main_container.pack(fill="both", expand=True)
 
@@ -369,7 +365,6 @@ class LaserflixMainWindow:
         card.grid(row=row, column=col, padx=10, pady=10, sticky="n")
         card.grid_propagate(False)
 
-        # Cover
         cover_frame = tk.Frame(card, bg="#1A1A1A", width=220, height=200)
         cover_frame.pack(fill="x")
         cover_frame.pack_propagate(False)
@@ -387,11 +382,9 @@ class LaserflixMainWindow:
             ph.pack(expand=True)
             ph.bind("<Button-1>", lambda e: self.open_project_modal(project_path))
 
-        # Info
         info = tk.Frame(card, bg="#2A2A2A")
         info.pack(fill="both", expand=True, padx=10, pady=8)
 
-        # Nome
         name = data.get("name", "Sem nome")
         nm = (name[:27]+"...") if len(name) > 30 else name
         nl = tk.Label(info, text=nm, font=("Arial",11,"bold"), bg="#2A2A2A",
@@ -399,7 +392,6 @@ class LaserflixMainWindow:
         nl.pack(anchor="w")
         nl.bind("<Button-1>", lambda e: self.open_project_modal(project_path))
 
-        # Badges categorias
         cats = data.get("categories", [])
         if cats:
             cf = tk.Frame(info, bg="#2A2A2A")
@@ -414,7 +406,6 @@ class LaserflixMainWindow:
                 b.bind("<Enter>", lambda e, bt=b, cl=c: bt.config(bg=self.darken_color(cl)))
                 b.bind("<Leave>", lambda e, bt=b, cl=c: bt.config(bg=cl))
 
-        # Tags
         tags = data.get("tags", [])
         if tags:
             tf = tk.Frame(info, bg="#2A2A2A")
@@ -428,7 +419,6 @@ class LaserflixMainWindow:
                 b.bind("<Enter>", lambda e, w=b: w.config(bg="#E50914"))
                 b.bind("<Leave>", lambda e, w=b: w.config(bg="#3A3A3A"))
 
-        # Origem
         origin = data.get("origin", "Desconhecido")
         oc = {"Creative Fabrica":"#FF6B35","Etsy":"#F7931E","Diversos":"#4ECDC4"}
         tk.Button(info, text=origin, font=("Arial",8),
@@ -437,7 +427,6 @@ class LaserflixMainWindow:
                   command=lambda o=origin: self.set_origin_filter(o)
                   ).pack(anchor="w", pady=(5,0))
 
-        # Botões de ação
         af = tk.Frame(info, bg="#2A2A2A")
         af.pack(fill="x", pady=(8,0))
 
@@ -536,14 +525,10 @@ class LaserflixMainWindow:
         return filtered
 
     # =========================================================================
-    # ✅ PASSO 1: add_folders() REAL
+    # ADD FOLDERS
     # =========================================================================
 
     def add_folders(self):
-        """
-        Abre dialog para selecionar pasta(s) de projetos.
-        Suporta adicionar múltiplas pastas em sequência.
-        """
         while True:
             folder = filedialog.askdirectory(
                 title="Selecione pasta com projetos laser",
@@ -551,34 +536,23 @@ class LaserflixMainWindow:
             )
             if not folder:
                 break
-
             if folder in self.folders:
-                messagebox.showinfo("⚠️ Já adicionada",
-                                    f"A pasta já está na lista:\n{folder}")
+                messagebox.showinfo("⚠️ Já adicionada", f"A pasta já está na lista:\n{folder}")
             else:
                 self.folders.append(folder)
                 self.status_bar.config(text=f"⏳ Escaneando {folder}...")
                 self.root.update_idletasks()
-
                 new_count = self.scanner.scan_projects([folder])
                 self.db_manager.database = self.scanner.database
                 self.database = self.db_manager.database
                 self.db_manager.config["folders"] = self.folders
                 self.db_manager.save_config()
                 self.db_manager.save_database()
-
                 self.status_bar.config(text=f"✅ {new_count} novos projetos adicionados de {os.path.basename(folder)}")
                 self.logger.info("Pasta adicionada: %s | %d projetos novos", folder, new_count)
-
-            # Pergunta se quer adicionar mais
-            mais = messagebox.askyesno(
-                "Adicionar mais?",
-                f"Deseja adicionar outra pasta?"
-            )
+            mais = messagebox.askyesno("Adicionar mais?", "Deseja adicionar outra pasta?")
             if not mais:
                 break
-
-        # Atualiza tela
         self.update_sidebar()
         self.display_projects()
 
@@ -625,32 +599,550 @@ class LaserflixMainWindow:
                 btn.config(fg="#FF0000" if new_val else "#666666")
 
     # =========================================================================
-    # AÇÕES (TODO - próximos passos)
+    # ✅ PARTE 1.1 — MODAL DE DETALHES DO PROJETO
     # =========================================================================
 
+    def open_project_modal(self, project_path):
+        BG       = "#0F0F0F"
+        BG_CARD  = "#1A1A1A"
+        BG_HOVER = "#242424"
+        SEP_CLR  = "#2A2A2A"
+        FG_PRI   = "#F0F0F0"
+        FG_SEC   = "#999999"
+        FG_TER   = "#555555"
+        ACCENT   = "#E50914"
+        GREEN    = "#1DB954"
+        PAD      = 24
+        FONT_TITLE   = ("Arial", 24, "bold")
+        FONT_SECTION = ("Arial", 9, "bold")
+        FONT_BODY    = ("Arial", 11)
+        FONT_SMALL   = ("Arial", 9)
+
+        data      = self.database.get(project_path, {})
+        all_paths = [p for p in self.database if os.path.isdir(p)]
+        try:    nav_idx = all_paths.index(project_path)
+        except: nav_idx = 0
+        nav_tot = len(all_paths)
+
+        modal = tk.Toplevel(self.root)
+        modal.title("Laserflix — Detalhes")
+        modal.state("zoomed")
+        modal.configure(bg=BG)
+        modal.transient(self.root)
+        modal.grab_set()
+        modal.bind("<Escape>", lambda e: modal.destroy())
+        modal.bind("<Left>",   lambda e: _nav(-1))
+        modal.bind("<Right>",  lambda e: _nav(+1))
+
+        def _nav(delta):
+            ni = nav_idx + delta
+            if 0 <= ni < nav_tot:
+                modal.destroy()
+                self.open_project_modal(all_paths[ni])
+
+        main = tk.Frame(modal, bg=BG)
+        main.pack(fill="both", expand=True)
+        main.columnconfigure(0, weight=1)
+        main.columnconfigure(1, weight=0)
+        main.columnconfigure(2, weight=1)
+        main.rowconfigure(0, weight=1)
+
+        # ── COLUNA ESQUERDA ──────────────────────────────────────────────────
+        left_outer = tk.Frame(main, bg=BG)
+        left_outer.grid(row=0, column=0, sticky="nsew")
+        lc  = tk.Canvas(left_outer, bg=BG, highlightthickness=0)
+        lsb = ttk.Scrollbar(left_outer, orient="vertical", command=lc.yview)
+        lp  = tk.Frame(lc, bg=BG)
+        lp.bind("<Configure>", lambda e: lc.configure(scrollregion=lc.bbox("all")))
+        lc_win = lc.create_window((0, 0), window=lp, anchor="nw")
+        lc.configure(yscrollcommand=lsb.set)
+        lc.pack(side="left", fill="both", expand=True)
+        lsb.pack(side="right", fill="y")
+        lc.bind("<MouseWheel>", lambda ev: lc.yview_scroll(int(-1*(ev.delta/120)), "units"))
+
+        _desc_lbl_ref = [None]
+
+        def _on_left_resize(e):
+            w = e.width - 18
+            if w < 60: return
+            lc.itemconfig(lc_win, width=w)
+            lbl = _desc_lbl_ref[0]
+            if lbl:
+                lbl.config(wraplength=w - PAD * 2 - 24)
+        left_outer.bind("<Configure>", _on_left_resize)
+
+        def _section_label(text):
+            tk.Label(lp, text=text.upper(), font=FONT_SECTION,
+                     bg=BG, fg=FG_TER, anchor="w").pack(fill="x", padx=PAD, pady=(20, 6))
+
+        def _sep():
+            tk.Frame(lp, bg=SEP_CLR, height=1).pack(fill="x", padx=PAD, pady=(4, 0))
+
+        # 1. ORIGEM + NOME
+        tk.Frame(lp, bg=BG, height=8).pack()
+        origin      = data.get("origin", "Desconhecido")
+        col_map     = {"Creative Fabrica":"#FF6B35","Etsy":"#F7931E","Diversos":"#4ECDC4"}
+        origin_color = col_map.get(origin, "#9B59B6")
+        tk.Label(lp, text="  " + origin + "  ", font=FONT_SMALL,
+                 bg=origin_color, fg="#FFFFFF").pack(anchor="w", padx=PAD, pady=(8,4))
+        tk.Label(lp, text=data.get("name", "Sem nome"),
+                 font=FONT_TITLE, bg=BG, fg=FG_PRI,
+                 wraplength=500, justify="left", anchor="w").pack(fill="x", padx=PAD, pady=(0,4))
+
+        # 2. MARCADORES
+        _sep()
+        _section_label("Marcadores")
+        act = tk.Frame(lp, bg=BG)
+        act.pack(anchor="w", padx=PAD, pady=(0,4))
+
+        def _make_toggle(parent, emoji, label, key, active_fg):
+            is_on = data.get(key, False)
+            f = tk.Frame(parent, bg=BG_CARD, cursor="hand2")
+            f.pack(side="left", padx=(0,6), pady=4)
+            inner_f = tk.Frame(f, bg=BG_CARD, padx=10, pady=7)
+            inner_f.pack()
+            il = tk.Label(inner_f, text=emoji, font=("Arial",13), bg=BG_CARD,
+                          fg=active_fg if is_on else FG_TER)
+            il.pack()
+            tl = tk.Label(inner_f, text=label, font=("Arial",8), bg=BG_CARD,
+                          fg=FG_SEC if is_on else FG_TER)
+            tl.pack()
+            all_w = [f, inner_f, il, tl]
+            def _toggle(ev=None):
+                nv = not self.database.get(project_path, {}).get(key, False)
+                if project_path in self.database:
+                    if key == "good" and nv: self.database[project_path]["bad"]  = False
+                    if key == "bad"  and nv: self.database[project_path]["good"] = False
+                    self.database[project_path][key] = nv
+                    self.db_manager.save_database()
+                    il.config(fg=active_fg if nv else FG_TER)
+                    tl.config(fg=FG_SEC    if nv else FG_TER)
+                    self.display_projects()
+            def _enter(ev, ws=all_w): [w.config(bg=BG_HOVER) for w in ws]
+            def _leave(ev, ws=all_w): [w.config(bg=BG_CARD)  for w in ws]
+            for w in all_w:
+                w.bind("<Button-1>", _toggle)
+                w.bind("<Enter>", _enter)
+                w.bind("<Leave>", _leave)
+
+        _make_toggle(act, "⭐", "Favorito", "favorite", "#FFD700")
+        _make_toggle(act, "✓",  "Feito",    "done",     "#1DB954")
+        _make_toggle(act, "👍", "Bom",      "good",     "#4FC3F7")
+        _make_toggle(act, "👎", "Ruim",     "bad",      "#EF5350")
+
+        # 3. DESCRIÇÃO IA
+        _sep()
+        _section_label("Descrição IA")
+        desc_text = (data.get("ai_description") or "").strip()
+        desc_box  = tk.Frame(lp, bg=BG_CARD)
+        desc_box.pack(fill="x", padx=PAD, pady=(0,8))
+        desc_lbl  = tk.Label(
+            desc_box,
+            text=desc_text if desc_text else "Nenhuma descrição gerada ainda.",
+            font=FONT_BODY, bg=BG_CARD,
+            fg=FG_SEC if desc_text else FG_TER,
+            justify="left", anchor="nw",
+            wraplength=480, padx=16, pady=14,
+        )
+        desc_lbl.pack(fill="both", expand=True)
+        _desc_lbl_ref[0] = desc_lbl
+
+        def _gen_desc():
+            gen_btn.config(state="disabled", text="Gerando...")
+            desc_lbl.config(text="Gerando descrição com IA...", fg=FG_TER)
+            modal.update()
+            def _t():
+                modal.after(0, modal.destroy)
+                modal.after(50, lambda: self.open_project_modal(project_path))
+            threading.Thread(target=_t, daemon=True).start()
+
+        gen_btn = tk.Button(lp, text="🤖  Gerar com IA", command=_gen_desc,
+                            bg=GREEN, fg="#FFFFFF", font=("Arial",10,"bold"),
+                            relief="flat", cursor="hand2", padx=16, pady=9, bd=0)
+        gen_btn.pack(anchor="w", padx=PAD, pady=(0,4))
+
+        # 4. CATEGORIAS
+        _sep()
+        _section_label("Categorias")
+        cats_row = tk.Frame(lp, bg=BG)
+        cats_row.pack(anchor="w", padx=PAD, fill="x", pady=(0,4))
+        cats = data.get("categories", []) or []
+        if cats:
+            for cat in cats:
+                tk.Label(cats_row, text=cat, font=FONT_SMALL,
+                         bg="#1E3A2F", fg="#1DB954",
+                         padx=10, pady=5).pack(side="left", padx=(0,6), pady=2)
+        else:
+            tk.Label(cats_row, text="Sem categoria", font=FONT_SMALL,
+                     bg=BG, fg=FG_TER).pack(anchor="w")
+
+        # 5. TAGS
+        _sep()
+        _section_label("Tags")
+        tw = tk.Frame(lp, bg=BG)
+        tw.pack(anchor="w", padx=PAD, fill="x", pady=(0,4))
+        for tag in (data.get("tags", []) or ["Nenhuma tag"]):
+            t = tk.Label(tw, text=tag, font=FONT_SMALL,
+                         bg=BG_CARD, fg=FG_SEC, padx=10, pady=5, cursor="hand2")
+            t.pack(side="left", padx=(0,4), pady=3)
+            t.bind("<Enter>", lambda e, w=t: w.config(bg=ACCENT, fg="#FFFFFF"))
+            t.bind("<Leave>", lambda e, w=t: w.config(bg=BG_CARD, fg=FG_SEC))
+            t.bind("<Button-1>", lambda e, tg=tag: (modal.destroy(), self.set_tag_filter(tg)))
+
+        # 6. ARQUIVOS
+        _sep()
+        _section_label("Arquivos")
+        struct = data.get("structure") or self.scanner.analyze_project_structure(project_path)
+        fmt_row = tk.Frame(lp, bg=BG)
+        fmt_row.pack(anchor="w", padx=PAD, pady=(0,4))
+        for lbl_t, lbl_c, present in [
+            ("SVG", "#FF6B6B", struct.get("has_svg")),
+            ("PDF", "#4ECDC4", struct.get("has_pdf")),
+            ("DXF", "#95E1D3", struct.get("has_dxf")),
+            ("AI",  "#F7DC6F", struct.get("has_ai")),
+        ]:
+            tk.Label(fmt_row, text=lbl_t, font=("Arial",9,"bold"),
+                     bg=BG_CARD if present else BG,
+                     fg=lbl_c if present else FG_TER,
+                     padx=10, pady=5).pack(side="left", padx=(0,4))
+        tf  = struct.get("total_files", 0)
+        sf  = struct.get("total_subfolders", 0)
+        suf = "s" if tf != 1 else ""
+        tk.Label(lp, text=f"{tf} arquivo{suf}  ·  {sf} subpasta(s)",
+                 font=FONT_SMALL, bg=BG, fg=FG_TER).pack(anchor="w", padx=PAD, pady=(4,4))
+
+        # 7. LOCALIZAÇÃO
+        _sep()
+        _section_label("Localização")
+        par_f = os.path.basename(os.path.dirname(project_path))
+        prj_n = os.path.basename(project_path)
+        lr = tk.Frame(lp, bg=BG)
+        lr.pack(fill="x", padx=PAD, pady=(0,4))
+        tk.Label(lr, text=f"{par_f} / {prj_n}", font=FONT_SMALL,
+                 bg=BG, fg=FG_SEC).pack(side="left")
+        def _copy_path():
+            modal.clipboard_clear()
+            modal.clipboard_append(project_path)
+            cp_btn.config(text="✅ Copiado!")
+            modal.after(1500, lambda: cp_btn.config(text="📋 Copiar"))
+        cp_btn = tk.Button(lr, text="📋 Copiar", command=_copy_path,
+                           bg=BG_CARD, fg=FG_SEC, font=FONT_SMALL,
+                           relief="flat", cursor="hand2", padx=8, pady=3, bd=0)
+        cp_btn.pack(side="left", padx=10)
+        added   = (data.get("added_date") or "")[:10] or "—"
+        model_u = data.get("analyzed_model", "não analisado")
+        tk.Label(lp, text=f"Adicionado: {added}   ·   Modelo IA: {model_u}",
+                 font=FONT_SMALL, bg=BG, fg=FG_TER).pack(anchor="w", padx=PAD, pady=(2,4))
+
+        # 8. BARRA DE AÇÕES
+        tk.Frame(lp, bg=SEP_CLR, height=1).pack(fill="x", pady=(16,0))
+        action_bar = tk.Frame(lp, bg=BG)
+        action_bar.pack(fill="x", padx=PAD, pady=12)
+        BTN_PRIMARY = dict(bg=ACCENT,  fg="#FFFFFF", font=("Arial",10,"bold"), relief="flat", cursor="hand2", padx=16, pady=9, bd=0)
+        BTN_GHOST   = dict(bg=BG_CARD, fg=FG_PRI,   font=("Arial",10),        relief="flat", cursor="hand2", padx=16, pady=9, bd=0)
+        BTN_NAV     = dict(bg=BG_CARD, fg=FG_SEC,   font=("Arial",11),        relief="flat", cursor="hand2", padx=14, pady=9, bd=0)
+        tk.Button(action_bar, text="✏️  Editar",
+                  command=lambda: self.open_edit_mode(modal, project_path, data),
+                  **BTN_PRIMARY).pack(side="left", padx=(0,6))
+        tk.Button(action_bar, text="📂  Pasta",
+                  command=lambda: self.open_folder(project_path),
+                  **BTN_GHOST).pack(side="left", padx=(0,6))
+        tk.Button(action_bar, text="🤖  Reanalisar",
+                  command=lambda: [modal.destroy(), self.analyze_single_project(project_path)],
+                  **BTN_GHOST).pack(side="left", padx=(0,6))
+        tk.Button(action_bar, text="✕",
+                  command=modal.destroy,
+                  bg=BG, fg=FG_TER, font=("Arial",14),
+                  relief="flat", cursor="hand2", padx=10, pady=9, bd=0).pack(side="right")
+        tk.Label(action_bar, text=f"{nav_idx+1} / {nav_tot}",
+                 font=FONT_SMALL, bg=BG, fg=FG_TER).pack(side="right", padx=8)
+        tk.Button(action_bar, text="▶", command=lambda: _nav(+1),
+                  state="normal" if nav_idx < nav_tot-1 else "disabled",
+                  **BTN_NAV).pack(side="right", padx=(0,2))
+        tk.Button(action_bar, text="◀", command=lambda: _nav(-1),
+                  state="normal" if nav_idx > 0 else "disabled",
+                  **BTN_NAV).pack(side="right", padx=(0,4))
+
+        # ── SEPARADOR VERTICAL ───────────────────────────────────────────────
+        tk.Frame(main, bg=SEP_CLR, width=1).grid(row=0, column=1, sticky="ns")
+
+        # ── COLUNA DIREITA — imagens ─────────────────────────────────────────
+        right_outer = tk.Frame(main, bg="#0A0A0A")
+        right_outer.grid(row=0, column=2, sticky="nsew")
+        rc  = tk.Canvas(right_outer, bg="#0A0A0A", highlightthickness=0, bd=0)
+        rsb = ttk.Scrollbar(right_outer, orient="vertical", command=rc.yview)
+        rp  = tk.Frame(rc, bg="#0A0A0A")
+        rp.bind("<Configure>", lambda e: rc.configure(scrollregion=rc.bbox("all")))
+        rc_win = rc.create_window((0, 0), window=rp, anchor="nw")
+        rc.configure(yscrollcommand=rsb.set)
+        rc.pack(side="left", fill="both", expand=True)
+        rsb.pack(side="right", fill="y")
+        rc.bind("<MouseWheel>", lambda ev: rc.yview_scroll(int(-1*(ev.delta/120)), "units"))
+
+        images = self.cache.get_all_project_images(project_path)
+
+        if not images:
+            tk.Label(rp, text="🖼️", font=("Arial",64),
+                     bg="#0A0A0A", fg="#1E1E1E").pack(expand=True, pady=100)
+            tk.Label(rp, text="Sem imagens nesta pasta",
+                     font=FONT_BODY, bg="#0A0A0A", fg=FG_TER).pack()
+        else:
+            cover_lbl = tk.Label(rp, bg="#0A0A0A", cursor="hand2", bd=0)
+            cover_lbl.pack(fill="x")
+            cover_lbl.bind("<Button-1>", lambda e, p=images[0]: self.open_image(p))
+
+            def _redraw_cover(cw=None, _lbl=cover_lbl, _path=images[0]):
+                if cw is None:
+                    cw = rc.winfo_width() - 18
+                if cw < 10: return
+                try:
+                    img   = Image.open(_path).convert("RGB")
+                    ratio = cw / img.width
+                    img   = img.resize((cw, max(1, int(img.height * ratio))), Image.Resampling.LANCZOS)
+                    photo = ImageTk.PhotoImage(img)
+                    _lbl.config(image=photo)
+                    _lbl.image = photo
+                except Exception:
+                    pass
+
+            def _on_right_resize(e):
+                cw = e.width - 18
+                if cw < 10: return
+                rc.itemconfig(rc_win, width=cw)
+                _redraw_cover(cw)
+            right_outer.bind("<Configure>", _on_right_resize)
+            modal.after(80, _redraw_cover)
+
+            rest = images[1:]
+            if rest:
+                tk.Frame(rp, bg=SEP_CLR, height=1).pack(fill="x", pady=8)
+                tk.Label(rp, text=f"MAIS IMAGENS  ({len(rest)})",
+                         font=FONT_SECTION, bg="#0A0A0A", fg=FG_TER,
+                         anchor="w").pack(fill="x", padx=12, pady=(0,6))
+                gf = tk.Frame(rp, bg="#0A0A0A")
+                gf.pack(fill="x", padx=6)
+                THUMB = 200
+                col_idx = row_idx = 0
+                for img_path in rest[:30]:
+                    try:
+                        img = Image.open(img_path)
+                        img.thumbnail((THUMB, THUMB), Image.Resampling.LANCZOS)
+                        photo = ImageTk.PhotoImage(img)
+                        lbl = tk.Label(gf, image=photo, bg="#0A0A0A", cursor="hand2", bd=0)
+                        lbl.image = photo
+                        lbl.grid(row=row_idx, column=col_idx, padx=3, pady=3, sticky="nw")
+                        lbl.bind("<Button-1>", lambda e, p=img_path: self.open_image(p))
+                        col_idx += 1
+                        if col_idx >= 2:
+                            col_idx = 0
+                            row_idx += 1
+                    except Exception:
+                        pass
+            tk.Frame(rp, bg="#0A0A0A", height=24).pack()
+
+    # =========================================================================
+    # EDIÇÃO DE PROJETO
+    # =========================================================================
+
+    def open_edit_mode(self, parent_modal, project_path, data):
+        parent_modal.destroy()
+        edit_win = tk.Toplevel(self.root)
+        edit_win.title("✏️ Editar Projeto")
+        edit_win.state("zoomed")
+        edit_win.configure(bg="#181818")
+        edit_win.transient(self.root)
+        edit_win.grab_set()
+
+        tk.Label(edit_win, text="✏️ Editar Projeto", font=("Arial",20,"bold"),
+                 bg="#181818", fg="#E50914").pack(pady=20)
+
+        tk.Label(edit_win, text="📁 Nome do Projeto", font=("Arial",12,"bold"),
+                 bg="#181818", fg="#FFFFFF").pack(anchor="w", padx=30, pady=(10,5))
+        name_text = tk.Text(edit_win, height=2, bg="#2A2A2A", fg="#FFFFFF",
+                            font=("Arial",11), relief="flat", wrap="word")
+        name_text.insert("1.0", data.get("name",""))
+        name_text.config(state="disabled")
+        name_text.pack(fill="x", padx=30, pady=(0,15))
+
+        tk.Label(edit_win, text="📂 Categorias (separadas por vírgula)", font=("Arial",12,"bold"),
+                 bg="#181818", fg="#FFFFFF").pack(anchor="w", padx=30, pady=(10,5))
+        categories_text = tk.Text(edit_win, height=3, bg="#2A2A2A", fg="#FFFFFF",
+                                  font=("Arial",11), relief="flat", wrap="word")
+        categories_text.insert("1.0", ", ".join(data.get("categories",[])))
+        categories_text.pack(fill="x", padx=30, pady=(0,15))
+
+        tk.Label(edit_win, text="🏷️ Tags", font=("Arial",12,"bold"),
+                 bg="#181818", fg="#FFFFFF").pack(anchor="w", padx=30, pady=(10,5))
+        tags_container = tk.Frame(edit_win, bg="#181818")
+        tags_container.pack(fill="x", padx=30, pady=(0,10))
+        tags_list_frame = tk.Frame(tags_container, bg="#2A2A2A")
+        tags_list_frame.pack(side="left", fill="both", expand=True, padx=(0,10))
+        tags_scrollbar = ttk.Scrollbar(tags_list_frame, orient="vertical")
+        tags_listbox = tk.Listbox(tags_list_frame, bg="#2A2A2A", fg="#FFFFFF",
+                                  font=("Arial",10), height=6,
+                                  yscrollcommand=tags_scrollbar.set,
+                                  selectmode=tk.SINGLE, relief="flat")
+        tags_scrollbar.config(command=tags_listbox.yview)
+        tags_listbox.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+        tags_scrollbar.pack(side="right", fill="y")
+        for tag in data.get("tags",[]): tags_listbox.insert(tk.END, tag)
+
+        tags_buttons_frame = tk.Frame(tags_container, bg="#181818")
+        tags_buttons_frame.pack(side="right")
+        for text, cmd, color in [
+            ("➕ Add",     lambda: self._add_tag_to_listbox(tags_listbox),    "#1DB954"),
+            ("➖ Remover", lambda: self._remove_tag_from_listbox(tags_listbox),"#E50914"),
+            ("🗑️ Limpar",  lambda: tags_listbox.delete(0, tk.END),            "#666666"),
+        ]:
+            tk.Button(tags_buttons_frame, text=text, command=cmd,
+                      bg=color, fg="#FFFFFF", font=("Arial",10),
+                      relief="flat", cursor="hand2", padx=10, pady=8, width=10
+                      ).pack(pady=2)
+
+        final_buttons = tk.Frame(edit_win, bg="#181818")
+        final_buttons.pack(fill="x", padx=30, pady=30)
+        tk.Button(final_buttons, text="💾 Salvar e Fechar",
+                  command=lambda: self._save_edit_modal(edit_win, project_path, categories_text, tags_listbox),
+                  bg="#1DB954", fg="#FFFFFF", font=("Arial",12,"bold"),
+                  relief="flat", cursor="hand2", padx=20, pady=12).pack(side="left", padx=5)
+        tk.Button(final_buttons, text="✕ Cancelar", command=edit_win.destroy,
+                  bg="#E50914", fg="#FFFFFF", font=("Arial",12,"bold"),
+                  relief="flat", cursor="hand2", padx=20, pady=12).pack(side="right", padx=5)
+
+    def _add_tag_to_listbox(self, listbox):
+        new_tag = simpledialog.askstring("Nova Tag", "Digite a nova tag:", parent=self.root)
+        if new_tag and new_tag.strip():
+            new_tag = new_tag.strip()
+            if new_tag not in listbox.get(0, tk.END):
+                listbox.insert(tk.END, new_tag)
+
+    def _remove_tag_from_listbox(self, listbox):
+        selection = listbox.curselection()
+        if selection:
+            listbox.delete(selection[0])
+
+    def _save_edit_modal(self, modal, project_path, categories_text, tags_listbox):
+        if project_path in self.database:
+            cats_str = categories_text.get("1.0","end-1c").strip()
+            new_cats = [c.strip() for c in cats_str.split(",") if c.strip()]
+            if new_cats:
+                self.database[project_path]["categories"] = new_cats
+            self.database[project_path]["tags"] = list(tags_listbox.get(0, tk.END))
+            self.database[project_path]["analyzed"] = True
+            self.db_manager.save_database()
+            self.update_sidebar()
+            self.display_projects()
+            modal.destroy()
+            self.status_bar.config(text="✓ Projeto atualizado!")
+
+    # =========================================================================
+    # PARTE 2 — IA: ANÁLISE (categorias + tags)  ← próximo passo
+    # =========================================================================
+
+    def show_progress_ui(self):
+        self.progress_bar.pack(side="left", padx=10)
+        self.stop_btn.pack(side="right", padx=10)
+        self.progress_bar["value"] = 0
+
+    def hide_progress_ui(self):
+        self.progress_bar.pack_forget()
+        self.stop_btn.pack_forget()
+
+    def update_progress(self, current, total, message=""):
+        pct = (current / total) * 100
+        self.progress_bar["value"] = pct
+        self.status_bar.config(text=f"{message} ({current}/{total} — {pct:.1f}%)")
+        self.root.update_idletasks()
+
     def analyze_single_project(self, project_path):
-        messagebox.showinfo("🤖 TODO", f"Análise individual:\n{os.path.basename(project_path)}")
+        messagebox.showinfo("🤖 Em breve", "Análise individual — Parte 2 (próximo passo)")
 
     def analyze_only_new(self):
-        messagebox.showinfo("🤖 TODO", "Analisar apenas novos")
+        messagebox.showinfo("🤖 Em breve", "Analisar novos — Parte 2 (próximo passo)")
 
     def reanalyze_all(self):
-        messagebox.showinfo("🤖 TODO", "Reanalisar todos")
+        messagebox.showinfo("🤖 Em breve", "Reanalisar todos — Parte 2 (próximo passo)")
 
     def generate_descriptions_for_new(self):
-        messagebox.showinfo("📝 TODO", "Gerar descrições para novos")
+        messagebox.showinfo("📝 Em breve", "Descrições (novos) — Parte 3")
 
     def generate_descriptions_for_all(self):
-        messagebox.showinfo("📝 TODO", "Gerar descrições para todos")
+        messagebox.showinfo("📝 Em breve", "Descrições (todos) — Parte 3")
 
-    def open_project_modal(self, project_path):
-        messagebox.showinfo("📁 TODO", f"Modal: {os.path.basename(project_path)}")
+    def stop_analysis_process(self):
+        self.stop_analysis = True
+        self.status_bar.config(text="⏹ Parando análise...")
+
+    # =========================================================================
+    # UTILITÁRIOS
+    # =========================================================================
+
+    def open_image(self, image_path):
+        try:
+            if platform.system() == "Windows":
+                os.startfile(image_path)
+            elif platform.system() == "Darwin":
+                subprocess.run(["open", image_path])
+            else:
+                subprocess.run(["xdg-open", image_path])
+        except Exception:
+            messagebox.showerror("Erro", "Erro ao abrir imagem")
+
+    def open_folder(self, folder_path):
+        try:
+            if not os.path.exists(folder_path):
+                messagebox.showerror("Erro", f"Pasta não encontrada:\n{folder_path}")
+                return
+            if platform.system() == "Windows":
+                os.startfile(os.path.abspath(folder_path))
+            elif platform.system() == "Darwin":
+                subprocess.run(["open", folder_path])
+            else:
+                subprocess.run(["xdg-open", folder_path])
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao abrir pasta:\n{e}")
 
     def open_categories_picker(self):
-        messagebox.showinfo("📂 TODO", "Ver todas as categorias")
+        all_cats = {}
+        for d in self.database.values():
+            for c in d.get("categories", []):
+                c = (c or "").strip()
+                if c and c != "Sem Categoria":
+                    all_cats[c] = all_cats.get(c, 0) + 1
+        cats_sorted = sorted(all_cats.items(), key=lambda x: x[1], reverse=True)
+        win = tk.Toplevel(self.root)
+        win.title("Todas as Categorias")
+        win.configure(bg="#141414")
+        win.geometry("400x600")
+        win.transient(self.root)
+        win.grab_set()
+        tk.Label(win, text="Selecione uma categoria", font=("Arial",13,"bold"),
+                 bg="#141414", fg="#FFFFFF").pack(pady=10)
+        frm = tk.Frame(win, bg="#141414")
+        frm.pack(fill="both", expand=True, padx=10, pady=5)
+        cv = tk.Canvas(frm, bg="#141414", highlightthickness=0)
+        sb = ttk.Scrollbar(frm, orient="vertical", command=cv.yview)
+        inner = tk.Frame(cv, bg="#141414")
+        inner.bind("<Configure>", lambda e: cv.configure(scrollregion=cv.bbox("all")))
+        cv.create_window((0,0), window=inner, anchor="nw")
+        cv.configure(yscrollcommand=sb.set)
+        cv.pack(side="left", fill="both", expand=True)
+        sb.pack(side="right", fill="y")
+        cv.bind("<MouseWheel>", lambda e: cv.yview_scroll(int(-1*(e.delta/120)), "units"))
+        for cat, count in cats_sorted:
+            b = tk.Button(inner, text=f"{cat} ({count})",
+                          command=lambda c=cat: (self.set_category_filter([c]), win.destroy()),
+                          bg="#2A2A2A", fg="#FFFFFF", font=("Arial",10),
+                          relief="flat", cursor="hand2", anchor="w", padx=12, pady=8)
+            b.pack(fill="x", pady=2, padx=5)
+            b.bind("<Enter>", lambda e, w=b: w.config(bg="#E50914"))
+            b.bind("<Leave>", lambda e, w=b: w.config(bg="#2A2A2A"))
+        tk.Button(win, text="Fechar", command=win.destroy,
+                  bg="#555555", fg="#FFFFFF", font=("Arial",11,"bold"),
+                  relief="flat", cursor="hand2", padx=14, pady=8).pack(pady=10)
 
     def open_model_settings(self):
-        messagebox.showinfo("⚙️ TODO", "Configurar modelos IA")
+        messagebox.showinfo("⚙️ Em breve", "Configurar modelos IA — Parte 4")
 
     def export_database(self):
         path = filedialog.asksaveasfilename(
@@ -680,24 +1172,6 @@ class LaserflixMainWindow:
     def manual_backup(self):
         self.db_manager.auto_backup()
         messagebox.showinfo("✅ Backup", "Backup criado com sucesso!")
-
-    def stop_analysis_process(self):
-        self.stop_analysis = True
-        self.status_bar.config(text="⏹ Parando análise...")
-
-    def open_folder(self, folder_path):
-        try:
-            if not os.path.exists(folder_path):
-                messagebox.showerror("Erro", f"Pasta não encontrada:\n{folder_path}")
-                return
-            if platform.system() == "Windows":
-                os.startfile(os.path.abspath(folder_path))
-            elif platform.system() == "Darwin":
-                subprocess.run(["open", folder_path])
-            else:
-                subprocess.run(["xdg-open", folder_path])
-        except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao abrir pasta:\n{e}")
 
     def darken_color(self, hex_color):
         h = hex_color.lstrip("#")
