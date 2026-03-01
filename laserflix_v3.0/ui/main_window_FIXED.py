@@ -45,8 +45,13 @@ class LaserflixMainWindow:
 
         self.ollama = OllamaClient(self.db_manager.config.get("models"))
         self.image_analyzer = ImageAnalyzer(self.ollama)
-        self.text_generator = TextGenerator(self.ollama, self.image_analyzer, self.scanner)
         self.fallback_generator = FallbackGenerator(self.scanner)
+        self.text_generator = TextGenerator(
+            self.ollama,
+            self.image_analyzer,
+            self.scanner,
+            self.fallback_generator,
+        )
 
         self.folders = self.db_manager.config.get("folders", [])
         self.database = self.db_manager.database
