@@ -37,6 +37,80 @@ class TextGenerator:
             return "text_fast"
         return "text_quality"
 
+    def _ensure_minimum_categories(self, categories, project_name):
+        """
+        Garante que SEMPRE existam no mínimo 3 categorias.
+        Aplica validação em cascata com 4 níveis de segurança.
+        
+        Args:
+            categories: Lista de categorias retornadas
+            project_name: Nome do projeto (para logs)
+        
+        Returns:
+            Lista com NO MÍNIMO 3 categorias (garantido)
+        """
+        original_count = len(categories)
+        
+        # NÍVEL 1: Se já tem 3+, apenas loga sucesso
+        if original_count >= 3:
+            self.logger.info(
+                "✅ [CAT-OK] %s: %d categorias geradas pela IA",
+                project_name, original_count
+            )
+            return categories
+        
+        # NÍVEL 2: Tenta completar com fallback_categories
+        self.logger.warning(
+            "⚠️ [CAT-FALTA] %s: IA retornou apenas %d cats, chamando fallback",
+            project_name, original_count
+        )
+        
+        # Cria caminho fake para fallback (ele só usa o basename)
+        fake_path = f"/fake/{project_name}"
+        fallback_cats = self.fallback.fallback_categories(fake_path, categories)
+        
+        if len(fallback_cats) >= 3:
+            self.logger.info(
+                "✅ [CAT-FALLBACK] %s: Fallback completou para %d categorias",
+                project_name, len(fallback_cats)
+            )
+            return fallback_cats
+        
+        # NÍVEL 3: Fallback falhou, usa defaults hardcoded
+        self.logger.error(
+            "❌ [CAT-FALHA] %s: Fallback só retornou %d cats, forçando defaults",
+            project_name, len(fallback_cats)
+        )
+        
+        defaults = ["Aniversário", "Diversos", "Diversos"]
+        
+        # Começa com o que já temos (pode ser vazio)
+        result = list(fallback_cats) if fallback_cats else []
+        
+        # Completa com defaults até ter 3
+        idx = 0
+        while len(result) < 3:
+            result.append(defaults[idx])
+            idx += 1
+            if idx >= len(defaults):
+                idx = 0  # Repete se necessário
+        
+        # NÍVEL 4: Garantia final (paranoia)
+        if len(result) < 3:
+            self.logger.critical(
+                "🚨 [CAT-CRITICO] %s: Mesmo após defaults ainda tem %d cats!",
+                project_name, len(result)
+            )
+            # Força brutalmente
+            result.extend(defaults)
+        
+        self.logger.info(
+            "✅ [CAT-GARANTIDO] %s: Garantidas %d categorias (original: %d)",
+            project_name, len(result), original_count
+        )
+        
+        return result[:8]  # Limita a 8 no máximo
+
     def analyze_project(self, project_path, batch_size=1):
         """
         Analisa projeto e retorna (categories, tags).
@@ -51,10 +125,11 @@ class TextGenerator:
              [0] Data comemorativa
              [1] Função/Tipo
              [2] Ambiente
-          ✅ Sistema de validação em cascata:
+          ✅ Sistema de validação em cascata com 4 níveis:
              1° Parse da IA
              2° fallback_categories() se < 3
              3° Defaults hardcoded se ainda < 3
+             4° Garantia final paranoia
 
         Args:
             project_path: Caminho completo do projeto
@@ -98,9 +173,9 @@ class TextGenerator:
             # Escolhe modelo baseado no batch_size
             role = self._choose_model_role(batch_size)
 
-            # ════════════════════════════════════════════════════════════════════
+            # ══════════════════════════════════════════════════════════════════
             # PROMPT REFINADO: Nomes compostos + Inferência de ambiente contextual
-            # ════════════════════════════════════════════════════════════════════
+            # ══════════════════════════════════════════════════════════════════
             prompt = f"""Analise este produto de corte laser e responda EXATAMENTE no formato solicitado.
 
 📁 NOME: {name}
@@ -196,34 +271,10 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
                 # Deduplica e limita
                 tags = list(dict.fromkeys(tags))[:10]
 
-                # ══════════════════════════════════════════════════════════════
-                # VALIDAÇÃO EM CASCATA (garantia de 3 categorias SEMPRE)
-                # ══════════════════════════════════════════════════════════════
-                
-                # 1° VALIDAÇÃO: Se IA retornou < 3, completa com fallback
-                if len(categories) < 3:
-                    self.logger.warning(
-                        "⚠️ IA retornou apenas %d categorias para %s, completando com fallback",
-                        len(categories), name
-                    )
-                    categories = self.fallback.fallback_categories(project_path, categories)
-                
-                # 2° VALIDAÇÃO: Se fallback não completou, usa defaults hardcoded
-                if len(categories) < 3:
-                    self.logger.error(
-                        "❌ Fallback falhou para %s (retornou %d cats), usando defaults",
-                        name, len(categories)
-                    )
-                    # Defaults hardcoded (último recurso)
-                    defaults = ["Aniversário", "Diversos", "Diversos"]
-                    while len(categories) < 3:
-                        categories.append(defaults[len(categories)])
-                
-                # 3° GARANTIA FINAL: Log de sucesso
-                self.logger.info(
-                    "✅ Categorias validadas para %s: %d categorias geradas",
-                    name, len(categories)
-                )
+                # ═══════════════════════════════════════════════════════
+                # VALIDAÇÃO REFORÇADA (garantia de 3 categorias SEMPRE)
+                # ═══════════════════════════════════════════════════════
+                categories = self._ensure_minimum_categories(categories, name)
 
                 return categories[:8], tags
 
@@ -239,9 +290,9 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
         """
         Gera descrição comercial personalizada.
         
-        ═══════════════════════════════════════════════════════════════════════
+        ═══════════════════════════════════════════════════════════════════
         LÓGICA REFINADA v740 (3 SEMANAS DE TESTES)
-        ═══════════════════════════════════════════════════════════════════════
+        ═══════════════════════════════════════════════════════════════════
         
         HIERARQUIA INVIOLÁVEL:
           1° NOME da peça — âncora absoluta. Define o que o produto É.
@@ -262,7 +313,7 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
           • Proíbe mencionar arquivos/formatos/etapas de produção
           • Proíbe palavra "projeto" (é uma PEÇA física)
         
-        ═══════════════════════════════════════════════════════════════════════
+        ═══════════════════════════════════════════════════════════════════
 
         Formato de saída:
             NOME DA PEÇA
@@ -285,15 +336,15 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
             return self.fallback.fallback_description(project_path, project_data, structure)
 
         try:
-            # ══════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════
             # 1° NOME — âncora absoluta
-            # ══════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════
             raw_name = project_data.get("name", os.path.basename(project_path) or "Sem nome")
             clean_name = self._clean_name(raw_name)
 
-            # ══════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════
             # 2° VISÃO — só se imagem passa no filtro de qualidade
-            # ══════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════
             vision_context = ""
             cover_img = self._find_first_image(project_path)
             if cover_img:
@@ -312,33 +363,33 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
                 structure = self._get_structure(project_path, project_data)
                 return self.fallback.fallback_description(project_path, project_data, structure)
 
-            # ══════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════
             # PROMPT COM RACIOCÍNIO ESTRUTURADO (v740 refinado)
-            # ══════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════
             prompt = (
                 "Você é especialista em peças físicas de corte a laser — placas, espelhos, "
                 "porta-retratos, tabuletas, cabides, calendários, nomes decorativos e similares.\n\n"
                 "NOME DA PEÇA (use isso como verdade absoluta sobre o que é o produto): "
                 + clean_name + vision_context + "\n\n"
                 
-                # ──────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────
                 # REGRA FUNDAMENTAL (v740)
-                # ──────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────
                 "### REGRA FUNDAMENTAL:\n"
                 "O NOME define o que é o produto. O detalhe visual apenas complementa.\n"
                 "Nunca invente função ou formato que contradiga o nome.\n\n"
                 
-                # ──────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────
                 # RACIOCÍNIO ESTRUTURADO EM 3 ETAPAS (v740)
-                # ──────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────
                 "### RACIOCINE antes de escrever:\n"
                 "1. O que exatamente é esta peça física, baseado no nome? (tipo de objeto)\n"
                 "2. Para que serve na prática? (uso real no dia a dia)\n"
                 "3. Que emoção ou momento ela representa? (conexão afetiva)\n\n"
                 
-                # ──────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────
                 # FORMATO DE SAÍDA
-                # ──────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────
                 "### ESCREVA a descrição EXATAMENTE neste formato (sem nada além disso):\n\n"
                 + clean_name + "\n\n"
                 "🎨 Por Que Este Produto é Especial:\n"
@@ -347,9 +398,9 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
                 "💖 Perfeito Para:\n"
                 "[2 a 3 frases práticas com exemplos reais de uso e ocasião para ESTA peça específica.]\n\n"
                 
-                # ──────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────
                 # REGRAS ANTI-GENERICIDADE (v740 reforçado)
-                # ──────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────
                 "### REGRAS OBRIGATÓRIAS:\n"
                 "- Escreva em português brasileiro\n"
                 "- Nunca use a palavra projeto — esta é uma PEÇA ou PRODUTO físico\n"
@@ -360,9 +411,9 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
                 "- Responda APENAS com o texto no formato acima, sem comentários adicionais"
             )
 
-            # ══════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════
             # GERAÇÃO COM TEMPERATURE 0.78 (v740 - criatividade controlada)
-            # ══════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════
             response_text = self.ollama.generate_text(
                 prompt,
                 role="text_quality",
@@ -401,9 +452,9 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
             structure = self._get_structure(project_path, project_data)
             return self.fallback.fallback_description(project_path, project_data, structure)
 
-    # ──────────────────────────────────────────────────────────────────────
+    # ────────────────────────────────────────────────────────────────────
     # HELPERS INTERNOS
-    # ──────────────────────────────────────────────────────────────────────
+    # ────────────────────────────────────────────────────────────────────
 
     def _get_structure(self, project_path, project_data):
         """Retorna estrutura do projeto (do cache ou analisa ao vivo)."""
