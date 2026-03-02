@@ -16,6 +16,7 @@ from PIL import Image, ImageTk
 # Config
 from config.settings import VERSION
 from config.constants import COLORS, FONTS
+from config.card_layout import COLS, CARD_W, CARD_H, COVER_H, CARD_PAD  # ← edite card_layout.py
 
 # Core
 from core.database import DatabaseManager
@@ -30,15 +31,6 @@ from ai.fallbacks import FallbackGenerator
 
 # Utils
 from utils.logging_setup import LOGGER
-
-# ---------------------------------------------------------------------------
-# CONSTANTES DE LAYOUT DO GRID DE CARDS
-# ---------------------------------------------------------------------------
-COLS     = 6        # número fixo de colunas
-CARD_W   = 200      # largura fixa de cada card (px)
-CARD_H   = 410      # altura fixa de cada card (px)
-COVER_H  = 180      # altura da capa dentro do card
-CARD_PAD = 8        # espaçamento entre cards (padx e pady)
 
 # Strings que não devem aparecer como tag visível no card
 _CARD_BANNED = {
@@ -173,7 +165,6 @@ class LaserflixMainWindow:
         self.content_canvas.pack(side="left", fill="both", expand=True, padx=10, pady=10)
         content_sb.pack(side="right", fill="y")
 
-        # configura as 6 colunas do grid com peso e uniform iguais
         for i in range(COLS):
             self.scrollable_frame.columnconfigure(i, weight=1, uniform="card")
 
@@ -182,7 +173,6 @@ class LaserflixMainWindow:
         self.content_canvas.bind("<Enter>", lambda e: self.content_canvas.bind("<MouseWheel>", _mw))
         self.content_canvas.bind("<Leave>", lambda e: self.content_canvas.unbind("<MouseWheel>"))
 
-        # Status bar
         self.status_frame = tk.Frame(self.root, bg="#000000", height=40)
         self.status_frame.pack(side="bottom", fill="x")
         self.status_frame.pack_propagate(False)
@@ -381,14 +371,12 @@ class LaserflixMainWindow:
                 row += 1
 
     def create_project_card(self, project_path, data, row, col):
-        # Frame com dimensões FIXAS — grid_propagate(False) impede expansão
         card = tk.Frame(self.scrollable_frame, bg="#2A2A2A",
                         width=CARD_W, height=CARD_H)
         card.grid(row=row, column=col,
                   padx=CARD_PAD, pady=CARD_PAD, sticky="n")
         card.grid_propagate(False)
 
-        # --- capa ---
         cover_frame = tk.Frame(card, bg="#1A1A1A",
                                width=CARD_W, height=COVER_H)
         cover_frame.pack(fill="x")
@@ -408,7 +396,6 @@ class LaserflixMainWindow:
             ph.pack(expand=True)
             ph.bind("<Button-1>", lambda e: self.open_project_modal(project_path))
 
-        # --- info ---
         info = tk.Frame(card, bg="#2A2A2A")
         info.pack(fill="both", expand=True, padx=8, pady=6)
 
@@ -421,7 +408,6 @@ class LaserflixMainWindow:
         nl.pack(anchor="w")
         nl.bind("<Button-1>", lambda e: self.open_project_modal(project_path))
 
-        # categorias (sanitizadas)
         raw_cats = data.get("categories", []) or []
         cats = [c for c in raw_cats
                 if c and c.strip() and c.strip().lower() not in _CARD_BANNED]
@@ -439,7 +425,6 @@ class LaserflixMainWindow:
                 b.bind("<Enter>", lambda e, bt=b, cl=c: bt.config(bg=self.darken_color(cl)))
                 b.bind("<Leave>", lambda e, bt=b, cl=c: bt.config(bg=cl))
 
-        # tags
         tags = data.get("tags", [])
         if tags:
             tf = tk.Frame(info, bg="#2A2A2A")
@@ -454,7 +439,6 @@ class LaserflixMainWindow:
                 b.bind("<Enter>", lambda e, w=b: w.config(bg="#E50914"))
                 b.bind("<Leave>", lambda e, w=b: w.config(bg="#3A3A3A"))
 
-        # origem
         origin = data.get("origin", "Desconhecido")
         oc = {"Creative Fabrica":"#FF6B35", "Etsy":"#F7931E", "Diversos":"#4ECDC4"}
         tk.Button(info, text=origin, font=("Arial", 7),
@@ -463,7 +447,6 @@ class LaserflixMainWindow:
                   command=lambda o=origin: self.set_origin_filter(o)
                   ).pack(anchor="w", pady=(4, 0))
 
-        # ações
         af = tk.Frame(info, bg="#2A2A2A")
         af.pack(fill="x", pady=(6, 0))
 
