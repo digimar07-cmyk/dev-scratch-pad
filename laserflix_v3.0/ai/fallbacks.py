@@ -7,6 +7,11 @@ GARANTIAS ABSOLUTAS:
   2. Date NUNCA retorna string genérica — usa DATE_INFER_MAP se necessário
   3. NUNCA retorna "Diversos", "Data Especial" ou qualquer termo genérico
   4. name_pt SEMPRE gerado e disponível para o card/modal
+
+LÓGICA REFINADA v740:
+  - Detecção inteligente por keywords no nome+tags
+  - Templates específicos para cada tipo de peça
+  - Cascata: keyword > data > ambiente > função > genérico
 """
 import os
 import re
@@ -272,180 +277,209 @@ class FallbackGenerator:
 
         return unique[:10]
 
-    # ------------------------------------------------------------------
-    # DESCRIÇÃO FALLBACK (template sem IA)
-    # ------------------------------------------------------------------
+    # ══════════════════════════════════════════════════════════════════
+    # DESCRIÇÃO FALLBACK (LÓGICA REFINADA v740)
+    # ══════════════════════════════════════════════════════════════════
     def fallback_description(self, project_path, project_data, structure):
+        """
+        Gera descrição sem IA usando detecção inteligente por keywords.
+        
+        CASCATA DE DETECÇÃO (v740 refinado):
+          1° Palavras-chave específicas (cabide, espelho, calendário, porta-retrato, etc)
+          2° Data comemorativa (natal, páscoa, casamento)
+          3° Ambiente/Público (bebê, infantil)
+          4° Função genérica (pela categoria)
+          5° Fallback genérico (último recurso)
+        
+        NUNCA retorna frase padrão igual para todos — sempre contextual.
+        """
         raw_name   = project_data.get("name", "Sem nome")
         clean_name = self._clean_name(raw_name)
         name_norm  = normalize_project_name(raw_name)
 
-        tags     = project_data.get("tags", [])
-        combined = name_norm + " " + normalize_project_name(" ".join(tags))
+        tags       = project_data.get("tags", [])
+        tags_lower = " ".join(tags).lower()
+        name_lower = clean_name.lower()
+        
+        # Combina nome + tags para detecção
+        combined_text = name_lower + " " + tags_lower
 
-        func = _match(combined, FUNCTION_MAP) or FINAL_FALLBACK_FUNCTION
-        date = _match(combined, DATE_MAP)
-        env  = _match(combined, AMBIENTE_MAP)
-
-        templates = {
-            "Luminária": (
-                "Uma luminária de corte laser que transforma qualquer ambiente com "
-                "luz acolhedora e design exclusivo, tornando cada momento especial.",
-                "Decorar quartos, salas e escritórios com estilo. "
-                "Presente perfeito para quem aprecia um toque único."
-            ),
-            "Porta-Retrato": (
-                "Uma peça artesanal que transforma memórias em arte, "
-                "criando um objeto único cheio de afeto e significado.",
-                "Exaltar momentos especiais em qualquer ambiente. "
-                "Presente ideal para aniversários e datas comemorativas."
-            ),
-            "Caixa Organizadora": (
-                "Uma caixa organizadora cortada a laser que une "
-                "funcionalidade e beleza para manter seus objetos no lugar.",
-                "Organizar escritórios, quartos e cozinhas com charme. "
-                "Presente criativo e prático para qualquer ocasião."
-            ),
-            "Caixa Presente": (
-                "Uma caixa presente artesanal que valoriza o gesto de presentear, "
-                "tornando o momento da entrega tão especial quanto o presente.",
-                "Empacotar presentes de aniversário, casamento ou qualquer "
-                "data especial com elegância e personalidade."
-            ),
-            "Nome Decorativo": (
-                "Um nome decorativo único, cortado a laser com precisão milímetro a "
-                "milímetro, que personaliza qualquer ambiente com identidade própria.",
-                "Decorar quartos infantis, quarto de bebê ou salas com o nome da "
-                "família. Lembrancinha especial para aniversários e chá de bebê."
-            ),
-            "Topo de Bolo": (
-                "Um topo de bolo personalizado que transforma qualquer comemoração "
-                "em um momento único e inesquecível para toda a família.",
-                "Festas de aniversário, casamentos, formaturas e qualquer "
-                "celebração que mereça um toque artesanal especial."
-            ),
-            "Lembrancinha": (
-                "Uma lembrancinha delicada e personalizada, cortada a laser com "
-                "atenção a cada detalhe, perfeita para guardar com carinho.",
-                "Distribuir em festas, casamentos e eventos especiais "
-                "como lembrança afetiva para os convidados."
-            ),
-            "Plaquinha": (
-                "Uma plaquinha exclusiva com design moderno e mensagem afetiva, "
-                "criando identidade e personalidade para qualquer espaço.",
-                "Sinalizar ambientes em casa ou eventos com estilo. "
-                "Presente original e personalizado para quem você ama."
-            ),
-            "Mandala": (
-                "Uma mandala cortada a laser com geometria precisa e rica em detalhes, "
-                "trazendo equilíbrio visual e energia positiva para o ambiente.",
-                "Decorar salas, quartos e escritórios com arte e simbolismo. "
-                "Presente significativo para quem valoriza espiritualidade e design."
-            ),
-            "Porta-Chaves": (
-                "Um porta-chaves artesanal que organiza sua entrada com estilo, "
-                "unindo praticidade e decoração em uma única peça exclusiva.",
-                "Organizar a entrada de casas e apartamentos com charme. "
-                "Presente funcional e diferenciado para qualquer ocasião."
-            ),
-            "Relógio": (
-                "Um relógio artesanal de corte laser que dá personalidade única "
-                "a qualquer parede, unindo design e funcionalidade.",
-                "Presente sofisticado e decorativo para salas, escritórios "
-                "ou qualquer ambiente que precise de um toque especial."
-            ),
-            "Brinquedo Educativo": (
-                "Um brinquedo educativo de madeira cortado a laser que estimula "
-                "o desenvolvimento cognitivo e a criatividade das crianças.",
-                "Crianças de 1 a 10 anos que aprendem brincando. "
-                "Presente perfeito que alia diversão e aprendizado."
-            ),
-            "Jogo de Mesa": (
-                "Um jogo de mesa artesanal em madeira, feito com precisão laser, "
-                "que proporciona momentos de diversão e união para toda a família.",
-                "Famílias, amigos e gamers que valorizam jogos únicos e artesanais. "
-                "Presente original para qualquer idade."
-            ),
-            "Porta-Joias": (
-                "Uma porta-joias artesanal que organiza suas joias e bijuterias "
-                "com charme e estilo, sendo peça decorativa ela mesma.",
-                "Presente especial para o Dia das Mães, Dia dos Namorados "
-                "ou qualquer mulher que merece um mimo exclusivo."
-            ),
-            "Porta-Vinho": (
-                "Um porta-vinho artesanal em madeira que eleva qualquer ambiente "
-                "com sofisticação, unindo funcionalidade e design exclusivo.",
-                "Decorar áreas gourmet, salas de jantar e home bars. "
-                "Presente premium para apreciadores de bons momentos."
-            ),
-        }
-
-        if func in templates:
-            especial, perfeito = templates[func]
-        elif not date:
-            # Infere data para usar no texto
-            date = self._build_categories(name_norm)[0]
+        # ══════════════════════════════════════════════════════════════
+        # 1° DETECÇÃO POR PALAVRAS-CHAVE ESPECÍFICAS (v740)
+        # ══════════════════════════════════════════════════════════════
+        
+        # CABIDE / HANGER / COAT HANGER
+        if any(w in combined_text for w in ["hanger", "coat hanger", "cabide"]):
             especial = (
-                f"Uma peça artesanal de corte a laser criada para tornar "
-                f"{date} ainda mais especial e inesquecível."
+                "Um cabide infantil encantador que transforma o quarto da criança "
+                "em um cantinho cheio de personalidade e organização."
             )
             perfeito = (
-                f"Presentear ou decorar com muito carinho para {date}. "
-                "Cada detalhe feito com precisão e afeto."
+                "Perfeito para organizar roupinhas no quarto infantil com charme. "
+                "Ótimo presente para bebês e crianças em aniversários ou chá de bebê."
             )
-        elif date == "Natal":
+        
+        # ESPELHO / MIRROR
+        elif any(w in combined_text for w in ["mirror", "espelho"]):
             especial = (
-                "Uma peça natalina que traz o espírito do Natal para o ambiente, "
-                "criando memórias afetivas para toda a família."
+                "Um espelho decorativo único, cortado a laser com precisão, "
+                "que combina funcionalidade e arte para o ambiente infantil."
             )
             perfeito = (
-                "Decorar a casa no Natal, presentear com afeto "
-                "ou como lembrancinha da época festiva."
+                "Ideal para decorar quarto de bebê ou quarto infantil com estilo. "
+                "Um presente memorável para maternidades e enxovais."
             )
-        elif date == "Páscoa":
+        
+        # CALENDÁRIO / CALENDAR
+        elif any(w in combined_text for w in ["calendar", "calendário", "calendario"]):
             especial = (
-                "Uma decoração de Páscoa artesanal que enche o ambiente de alegria "
-                "e aconchego, perfeita para celebrar com a família."
+                "Um calendário decorativo que une organização e arte, "
+                "tornando cada dia especial com detalhes únicos e lúdicos."
             )
             perfeito = (
-                "Decorar mesas e ambientes na Páscoa ou presentear "
-                "com uma lembrancinha exclusiva e cheia de carinho."
+                "Perfeito para quartos infantis, escritórios ou como presente criativo. "
+                "Ideal para datas especiais e presentes personalizados."
             )
-        elif date == "Casamento":
+        
+        # PORTA-RETRATO / FRAME / PHOTO FRAME
+        elif any(w in combined_text for w in ["frame", "quadro", "porta-retrato", "porta retrato"]):
             especial = (
-                "Uma peça elegante que celebra o amor e marca para sempre "
-                "o dia mais especial do casal."
+                "Um porta-retrato artesanal que transforma memórias em arte, "
+                "criando um objeto único cheio de afeto e significado."
             )
             perfeito = (
-                "Decoração de cerimônia, recepção de convidados "
-                "ou como presente inesquecível para os noivos."
+                "Exaltar momentos especiais na decoração de qualquer ambiente. "
+                "Presente ideal para aniversários, casamentos e datas comemorativas."
             )
-        elif env in ("Quarto de Bebê", "Quarto Infantil"):
+        
+        # ══════════════════════════════════════════════════════════════
+        # 2° DETECÇÃO POR DATA COMEMORATIVA (v740)
+        # ══════════════════════════════════════════════════════════════
+        
+        # BEBÊ / BABY / NURSERY / MATERNIDADE
+        elif any(w in combined_text for w in ["bebe", "baby", "nursery", "maternidade"]):
             especial = (
                 "Uma peça especial que marca os primeiros momentos da vida, "
                 "cheia de carinho e significado para toda a família."
             )
             perfeito = (
-                "Decoração de quarto de bebê ou lembrança afetiva "
-                "dos primeiros anos de vida."
+                "Presente perfeito para chá de bebê, decoração de quarto de bebê "
+                "ou como lembrança afetiva dos primeiros anos."
             )
-        else:
-            cats = project_data.get("categories", [])
-            cat_display = " | ".join(cats[:3]) if cats else "produto personalizado"
+        
+        # CASAMENTO / WEDDING / NOIVA
+        elif any(w in combined_text for w in ["wedding", "casamento", "noiva"]):
             especial = (
-                f"Uma peça de corte a laser — {cat_display} — "
-                "criada para ser única e transmitir afeto em cada detalhe."
+                "Uma peça elegante que celebra o amor e marca para sempre "
+                "o dia mais especial do casal."
             )
             perfeito = (
-                "Presente personalizado, decoração de ambiente "
-                "ou lembrança especial para quem você ama."
+                "Ideal para decoração de cerimônia, recepção de convidados "
+                "ou como presente inesquecível para os noivos."
             )
+        
+        # NATAL / CHRISTMAS
+        elif any(w in combined_text for w in ["natal", "christmas", "noel"]):
+            especial = (
+                "Uma peça que traz o espírito do Natal para o ambiente, "
+                "criando memórias afetivas para toda a família."
+            )
+            perfeito = (
+                "Ideal para decoração sazonal, presente personalizado "
+                "ou lembrancinha especial da época."
+            )
+        
+        # PÁSCOA / EASTER / COELHO
+        elif any(w in combined_text for w in ["pascoa", "easter", "coelho"]):
+            especial = (
+                "Uma decoração de Páscoa artesanal que enche o ambiente de alegria "
+                "e aconchego, perfeita para celebrar com a família."
+            )
+            perfeito = (
+                "Ideal para decorar mesas e ambientes na Páscoa ou presentear "
+                "com uma lembrancinha exclusiva e cheia de carinho."
+            )
+        
+        # ══════════════════════════════════════════════════════════════
+        # 3° DETECÇÃO POR FUNÇÃO/CATEGORIA (fallback contextual)
+        # ══════════════════════════════════════════════════════════════
+        else:
+            # Tenta detectar pela categoria principal
+            categories  = project_data.get("categories", ["Diversos"])
+            cat_display = " | ".join(categories[:3]) if categories else "Produto personalizado"
+            
+            # Extrai função (categoria[1] se disponível)
+            func = categories[1] if len(categories) > 1 else "Diversos"
+            
+            # Templates por função
+            templates_by_func = {
+                "Luminária": (
+                    "Uma luminária de corte laser que transforma qualquer ambiente com "
+                    "luz acolhedora e design exclusivo, tornando cada momento especial.",
+                    "Decorar quartos, salas e escritórios com estilo. "
+                    "Presente perfeito para quem aprecia um toque único."
+                ),
+                "Caixa Organizadora": (
+                    "Uma caixa organizadora cortada a laser que une "
+                    "funcionalidade e beleza para manter seus objetos no lugar.",
+                    "Organizar escritórios, quartos e cozinhas com charme. "
+                    "Presente criativo e prático para qualquer ocasião."
+                ),
+                "Nome Decorativo": (
+                    "Um nome decorativo único, cortado a laser com precisão milímetro a "
+                    "milímetro, que personaliza qualquer ambiente com identidade própria.",
+                    "Decorar quartos infantis, quarto de bebê ou salas com o nome da "
+                    "família. Lembrancinha especial para aniversários e chá de bebê."
+                ),
+                "Topo de Bolo": (
+                    "Um topo de bolo personalizado que transforma qualquer comemoração "
+                    "em um momento único e inesquecível para toda a família.",
+                    "Festas de aniversário, casamentos, formaturas e qualquer "
+                    "celebração que mereça um toque artesanal especial."
+                ),
+                "Lembrancinha": (
+                    "Uma lembrancinha delicada e personalizada, cortada a laser com "
+                    "atenção a cada detalhe, perfeita para guardar com carinho.",
+                    "Distribuir em festas, casamentos e eventos especiais "
+                    "como lembrança afetiva para os convidados."
+                ),
+                "Plaquinha": (
+                    "Uma plaquinha exclusiva com design moderno e mensagem afetiva, "
+                    "criando identidade e personalidade para qualquer espaço.",
+                    "Sinalizar ambientes em casa ou eventos com estilo. "
+                    "Presente original e personalizado para quem você ama."
+                ),
+                "Mandala": (
+                    "Uma mandala cortada a laser com geometria precisa e rica em detalhes, "
+                    "trazendo equilíbrio visual e energia positiva para o ambiente.",
+                    "Decorar salas, quartos e escritórios com arte e simbolismo. "
+                    "Presente significativo para quem valoriza espiritualidade e design."
+                ),
+            }
+            
+            if func in templates_by_func:
+                especial, perfeito = templates_by_func[func]
+            else:
+                # Fallback genérico final (usa categorias para contexto)
+                especial = (
+                    f"Uma peça de corte a laser em {cat_display}, "
+                    "criada para ser única e transmitir afeto em cada detalhe."
+                )
+                perfeito = (
+                    "Ideal como presente personalizado, decoração de ambiente "
+                    "ou lembrança especial para quem você ama."
+                )
 
-        return (
+        # Monta descrição final no formato padrão
+        description = (
             clean_name + "\n\n"
-            "🎨 Por Que Este Produto é Especial:\n" + especial + "\n\n"
-            "💖 Perfeito Para:\n" + perfeito
+            "🎨 Por Que Este Produto é Especial:\n"
+            + especial + "\n\n"
+            "💖 Perfeito Para:\n"
+            + perfeito
         )
+        
+        return description
 
     def _clean_name(self, raw_name):
         clean = raw_name
