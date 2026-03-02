@@ -31,6 +31,15 @@ from ai.fallbacks import FallbackGenerator
 # Utils
 from utils.logging_setup import LOGGER
 
+# ---------------------------------------------------------------------------
+# CONSTANTES DE LAYOUT DO GRID DE CARDS
+# ---------------------------------------------------------------------------
+COLS     = 6        # número fixo de colunas
+CARD_W   = 200      # largura fixa de cada card (px)
+CARD_H   = 410      # altura fixa de cada card (px)
+COVER_H  = 180      # altura da capa dentro do card
+CARD_PAD = 8        # espaçamento entre cards (padx e pady)
+
 # Strings que não devem aparecer como tag visível no card
 _CARD_BANNED = {
     "diversos", "data especial", "ambiente doméstico",
@@ -81,7 +90,7 @@ class LaserflixMainWindow:
         self.logger.info("✨ Laserflix v%s iniciado", VERSION)
 
     # =========================================================================
-    # UI - LAYOUT EXATO DO v740
+    # UI
     # =========================================================================
 
     def create_ui(self):
@@ -161,8 +170,12 @@ class LaserflixMainWindow:
             lambda e: self.content_canvas.configure(scrollregion=self.content_canvas.bbox("all")))
         self.content_canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
         self.content_canvas.configure(yscrollcommand=content_sb.set)
-        self.content_canvas.pack(side="left", fill="both", expand=True, padx=20, pady=20)
+        self.content_canvas.pack(side="left", fill="both", expand=True, padx=10, pady=10)
         content_sb.pack(side="right", fill="y")
+
+        # configura as 6 colunas do grid com peso e uniform iguais
+        for i in range(COLS):
+            self.scrollable_frame.columnconfigure(i, weight=1, uniform="card")
 
         def _mw(e):
             self.content_canvas.yview_scroll(int(-1*(e.delta/120)), "units")
@@ -343,134 +356,159 @@ class LaserflixMainWindow:
 
         tk.Label(self.scrollable_frame, text=title_text, font=("Arial",20,"bold"),
                  bg="#141414", fg="#FFFFFF", anchor="w"
-                 ).grid(row=0, column=0, columnspan=5, sticky="w", padx=10, pady=(0,5))
+                 ).grid(row=0, column=0, columnspan=COLS, sticky="w", padx=10, pady=(0,5))
 
         filtered = [(p, self.database[p]) for p in self.get_filtered_projects() if p in self.database]
 
         tk.Label(self.scrollable_frame, text=f"{len(filtered)} projeto(s)",
                  font=("Arial",12), bg="#141414", fg="#999999"
-                 ).grid(row=1, column=0, columnspan=5, sticky="w", padx=10, pady=(0,15))
+                 ).grid(row=1, column=0, columnspan=COLS, sticky="w", padx=10, pady=(0,15))
 
         if not filtered:
             tk.Label(self.scrollable_frame,
                      text="Nenhum projeto.\nClique em '+ Pastas' para adicionar.",
                      font=("Arial",14), bg="#141414", fg="#666666",
                      justify="center"
-                     ).grid(row=2, column=0, columnspan=5, pady=80)
+                     ).grid(row=2, column=0, columnspan=COLS, pady=80)
             return
 
         row, col = 2, 0
         for project_path, data in filtered:
             self.create_project_card(project_path, data, row, col)
             col += 1
-            if col >= 5:
+            if col >= COLS:
                 col = 0
                 row += 1
 
     def create_project_card(self, project_path, data, row, col):
-        card = tk.Frame(self.scrollable_frame, bg="#2A2A2A", width=220, height=420)
-        card.grid(row=row, column=col, padx=10, pady=10, sticky="n")
+        # Frame com dimensões FIXAS — grid_propagate(False) impede expansão
+        card = tk.Frame(self.scrollable_frame, bg="#2A2A2A",
+                        width=CARD_W, height=CARD_H)
+        card.grid(row=row, column=col,
+                  padx=CARD_PAD, pady=CARD_PAD, sticky="n")
         card.grid_propagate(False)
 
-        cover_frame = tk.Frame(card, bg="#1A1A1A", width=220, height=200)
+        # --- capa ---
+        cover_frame = tk.Frame(card, bg="#1A1A1A",
+                               width=CARD_W, height=COVER_H)
         cover_frame.pack(fill="x")
         cover_frame.pack_propagate(False)
         cover_frame.bind("<Button-1>", lambda e: self.open_project_modal(project_path))
 
         cover_image = self.cache.get_cover_image(project_path)
         if cover_image:
-            lbl = tk.Label(cover_frame, image=cover_image, bg="#1A1A1A", cursor="hand2")
+            lbl = tk.Label(cover_frame, image=cover_image,
+                           bg="#1A1A1A", cursor="hand2")
             lbl.image = cover_image
             lbl.pack(expand=True)
             lbl.bind("<Button-1>", lambda e: self.open_project_modal(project_path))
         else:
-            ph = tk.Label(cover_frame, text="📁", font=("Arial",60),
+            ph = tk.Label(cover_frame, text="📁", font=("Arial", 52),
                           bg="#1A1A1A", fg="#666666", cursor="hand2")
             ph.pack(expand=True)
             ph.bind("<Button-1>", lambda e: self.open_project_modal(project_path))
 
+        # --- info ---
         info = tk.Frame(card, bg="#2A2A2A")
-        info.pack(fill="both", expand=True, padx=10, pady=8)
+        info.pack(fill="both", expand=True, padx=8, pady=6)
 
         name = data.get("name", "Sem nome")
-        nm = (name[:27]+"...") if len(name) > 30 else name
-        nl = tk.Label(info, text=nm, font=("Arial",11,"bold"), bg="#2A2A2A",
-                      fg="#FFFFFF", wraplength=200, justify="left", cursor="hand2")
+        nm   = (name[:24] + "...") if len(name) > 27 else name
+        nl   = tk.Label(info, text=nm, font=("Arial", 10, "bold"),
+                        bg="#2A2A2A", fg="#FFFFFF",
+                        wraplength=CARD_W - 20,
+                        justify="left", cursor="hand2")
         nl.pack(anchor="w")
         nl.bind("<Button-1>", lambda e: self.open_project_modal(project_path))
 
-        # fix: sanitiza cats antes de renderizar — remove vazias e banidas
+        # categorias (sanitizadas)
         raw_cats = data.get("categories", []) or []
-        cats = [c for c in raw_cats if c and c.strip() and c.strip().lower() not in _CARD_BANNED]
+        cats = [c for c in raw_cats
+                if c and c.strip() and c.strip().lower() not in _CARD_BANNED]
         if cats:
             cf = tk.Frame(info, bg="#2A2A2A")
-            cf.pack(anchor="w", pady=(5,0), fill="x")
+            cf.pack(anchor="w", pady=(4, 0), fill="x")
             colors = ["#FF6B6B", "#4ECDC4", "#95E1D3"]
             for i, cat in enumerate(cats[:3]):
                 c = colors[i]
-                b = tk.Button(cf, text=cat[:12], command=lambda cc=cat: self.set_category_filter([cc]),
-                              bg=c, fg="#000000", font=("Arial",8,"bold"),
-                              relief="flat", cursor="hand2", padx=6, pady=3)
-                b.pack(side="left", padx=2, pady=2)
+                b = tk.Button(cf, text=cat[:11],
+                              command=lambda cc=cat: self.set_category_filter([cc]),
+                              bg=c, fg="#000000", font=("Arial", 7, "bold"),
+                              relief="flat", cursor="hand2", padx=4, pady=2)
+                b.pack(side="left", padx=2, pady=1)
                 b.bind("<Enter>", lambda e, bt=b, cl=c: bt.config(bg=self.darken_color(cl)))
                 b.bind("<Leave>", lambda e, bt=b, cl=c: bt.config(bg=cl))
 
+        # tags
         tags = data.get("tags", [])
         if tags:
             tf = tk.Frame(info, bg="#2A2A2A")
-            tf.pack(anchor="w", pady=(4,0), fill="x")
+            tf.pack(anchor="w", pady=(3, 0), fill="x")
             for tag in tags[:3]:
-                disp = (tag[:10]+"...") if len(tag) > 12 else tag
-                b = tk.Button(tf, text=disp, command=lambda t=tag: self.set_tag_filter(t),
-                              bg="#3A3A3A", fg="#FFFFFF", font=("Arial",8),
-                              relief="flat", cursor="hand2", padx=6, pady=2)
-                b.pack(side="left", padx=2, pady=2)
+                disp = (tag[:9] + "...") if len(tag) > 11 else tag
+                b = tk.Button(tf, text=disp,
+                              command=lambda t=tag: self.set_tag_filter(t),
+                              bg="#3A3A3A", fg="#FFFFFF", font=("Arial", 7),
+                              relief="flat", cursor="hand2", padx=4, pady=1)
+                b.pack(side="left", padx=2, pady=1)
                 b.bind("<Enter>", lambda e, w=b: w.config(bg="#E50914"))
                 b.bind("<Leave>", lambda e, w=b: w.config(bg="#3A3A3A"))
 
+        # origem
         origin = data.get("origin", "Desconhecido")
-        oc = {"Creative Fabrica":"#FF6B35","Etsy":"#F7931E","Diversos":"#4ECDC4"}
-        tk.Button(info, text=origin, font=("Arial",8),
-                  bg=oc.get(origin,"#9B59B6"), fg="#FFFFFF",
-                  padx=5, pady=2, relief="flat", cursor="hand2",
+        oc = {"Creative Fabrica":"#FF6B35", "Etsy":"#F7931E", "Diversos":"#4ECDC4"}
+        tk.Button(info, text=origin, font=("Arial", 7),
+                  bg=oc.get(origin, "#9B59B6"), fg="#FFFFFF",
+                  padx=4, pady=2, relief="flat", cursor="hand2",
                   command=lambda o=origin: self.set_origin_filter(o)
-                  ).pack(anchor="w", pady=(5,0))
+                  ).pack(anchor="w", pady=(4, 0))
 
+        # ações
         af = tk.Frame(info, bg="#2A2A2A")
-        af.pack(fill="x", pady=(8,0))
+        af.pack(fill="x", pady=(6, 0))
 
-        tk.Button(af, text="📂", font=("Arial",14),
+        tk.Button(af, text="📂", font=("Arial", 12),
                   command=lambda: self.open_folder(project_path),
                   bg="#2A2A2A", fg="#FFD700", relief="flat", cursor="hand2"
-                  ).pack(side="left", padx=2)
+                  ).pack(side="left", padx=1)
 
-        btn_fav = tk.Button(af, font=("Arial",14), bg="#2A2A2A", relief="flat", cursor="hand2")
-        btn_fav.config(text="⭐" if data.get("favorite") else "☆",
-                       fg="#FFD700" if data.get("favorite") else "#666666",
-                       command=lambda b=btn_fav: self.toggle_favorite(project_path, b))
-        btn_fav.pack(side="left", padx=2)
+        btn_fav = tk.Button(af, font=("Arial", 12), bg="#2A2A2A",
+                            relief="flat", cursor="hand2")
+        btn_fav.config(
+            text="⭐" if data.get("favorite") else "☆",
+            fg="#FFD700" if data.get("favorite") else "#666666",
+            command=lambda b=btn_fav: self.toggle_favorite(project_path, b))
+        btn_fav.pack(side="left", padx=1)
 
-        btn_done = tk.Button(af, font=("Arial",14), bg="#2A2A2A", relief="flat", cursor="hand2")
-        btn_done.config(text="✓" if data.get("done") else "○",
-                        fg="#00FF00" if data.get("done") else "#666666",
-                        command=lambda b=btn_done: self.toggle_done(project_path, b))
-        btn_done.pack(side="left", padx=2)
+        btn_done = tk.Button(af, font=("Arial", 12), bg="#2A2A2A",
+                             relief="flat", cursor="hand2")
+        btn_done.config(
+            text="✓" if data.get("done") else "○",
+            fg="#00FF00" if data.get("done") else "#666666",
+            command=lambda b=btn_done: self.toggle_done(project_path, b))
+        btn_done.pack(side="left", padx=1)
 
-        btn_good = tk.Button(af, font=("Arial",14), bg="#2A2A2A", relief="flat", cursor="hand2")
-        btn_good.config(text="👍", fg="#00FF00" if data.get("good") else "#666666",
-                        command=lambda b=btn_good: self.toggle_good(project_path, b))
-        btn_good.pack(side="left", padx=2)
+        btn_good = tk.Button(af, font=("Arial", 12), bg="#2A2A2A",
+                             relief="flat", cursor="hand2")
+        btn_good.config(
+            text="👍",
+            fg="#00FF00" if data.get("good") else "#666666",
+            command=lambda b=btn_good: self.toggle_good(project_path, b))
+        btn_good.pack(side="left", padx=1)
 
-        btn_bad = tk.Button(af, font=("Arial",14), bg="#2A2A2A", relief="flat", cursor="hand2")
-        btn_bad.config(text="👎", fg="#FF0000" if data.get("bad") else "#666666",
-                       command=lambda b=btn_bad: self.toggle_bad(project_path, b))
-        btn_bad.pack(side="left", padx=2)
+        btn_bad = tk.Button(af, font=("Arial", 12), bg="#2A2A2A",
+                            relief="flat", cursor="hand2")
+        btn_bad.config(
+            text="👎",
+            fg="#FF0000" if data.get("bad") else "#666666",
+            command=lambda b=btn_bad: self.toggle_bad(project_path, b))
+        btn_bad.pack(side="left", padx=1)
 
         if not data.get("analyzed"):
-            tk.Button(af, text="🤖", font=("Arial",14),
+            tk.Button(af, text="🤖", font=("Arial", 12),
                       command=lambda p=project_path: self.analyze_single_project(p),
                       bg="#2A2A2A", fg="#1DB954", relief="flat", cursor="hand2"
-                      ).pack(side="left", padx=2)
+                      ).pack(side="left", padx=1)
 
     # =========================================================================
     # FILTROS
@@ -608,7 +646,7 @@ class LaserflixMainWindow:
                 btn.config(fg="#FF0000" if new_val else "#666666")
 
     # =========================================================================
-    # ✅ PARTE 1.1 — MODAL DE DETALHES DO PROJETO
+    # MODAL DE DETALHES DO PROJETO
     # =========================================================================
 
     def open_project_modal(self, project_path):
@@ -656,7 +694,6 @@ class LaserflixMainWindow:
         main.columnconfigure(2, weight=1)
         main.rowconfigure(0, weight=1)
 
-        # ── COLUNA ESQUERDA ──────────────────────────────────────────────────────────────────────
         left_outer = tk.Frame(main, bg=BG)
         left_outer.grid(row=0, column=0, sticky="nsew")
         lc  = tk.Canvas(left_outer, bg=BG, highlightthickness=0)
@@ -687,10 +724,9 @@ class LaserflixMainWindow:
         def _sep():
             tk.Frame(lp, bg=SEP_CLR, height=1).pack(fill="x", padx=PAD, pady=(4, 0))
 
-        # 1. ORIGEM + NOME
         tk.Frame(lp, bg=BG, height=8).pack()
-        origin      = data.get("origin", "Desconhecido")
-        col_map     = {"Creative Fabrica":"#FF6B35","Etsy":"#F7931E","Diversos":"#4ECDC4"}
+        origin       = data.get("origin", "Desconhecido")
+        col_map      = {"Creative Fabrica":"#FF6B35","Etsy":"#F7931E","Diversos":"#4ECDC4"}
         origin_color = col_map.get(origin, "#9B59B6")
         tk.Label(lp, text="  " + origin + "  ", font=FONT_SMALL,
                  bg=origin_color, fg="#FFFFFF").pack(anchor="w", padx=PAD, pady=(8,4))
@@ -698,7 +734,6 @@ class LaserflixMainWindow:
                  font=FONT_TITLE, bg=BG, fg=FG_PRI,
                  wraplength=500, justify="left", anchor="w").pack(fill="x", padx=PAD, pady=(0,4))
 
-        # 2. MARCADORES
         _sep()
         _section_label("Marcadores")
         act = tk.Frame(lp, bg=BG)
@@ -739,7 +774,6 @@ class LaserflixMainWindow:
         _make_toggle(act, "👍", "Bom",      "good",     "#4FC3F7")
         _make_toggle(act, "👎", "Ruim",     "bad",      "#EF5350")
 
-        # 3. DESCRIÇÃO IA
         _sep()
         _section_label("Descrição IA")
         desc_text = (data.get("ai_description") or "").strip()
@@ -770,7 +804,6 @@ class LaserflixMainWindow:
                             relief="flat", cursor="hand2", padx=16, pady=9, bd=0)
         gen_btn.pack(anchor="w", padx=PAD, pady=(0,4))
 
-        # 4. CATEGORIAS
         _sep()
         _section_label("Categorias")
         cats_row = tk.Frame(lp, bg=BG)
@@ -785,7 +818,6 @@ class LaserflixMainWindow:
             tk.Label(cats_row, text="Sem categoria", font=FONT_SMALL,
                      bg=BG, fg=FG_TER).pack(anchor="w")
 
-        # 5. TAGS
         _sep()
         _section_label("Tags")
         tw = tk.Frame(lp, bg=BG)
@@ -798,7 +830,6 @@ class LaserflixMainWindow:
             t.bind("<Leave>", lambda e, w=t: w.config(bg=BG_CARD, fg=FG_SEC))
             t.bind("<Button-1>", lambda e, tg=tag: (modal.destroy(), self.set_tag_filter(tg)))
 
-        # 6. ARQUIVOS
         _sep()
         _section_label("Arquivos")
         struct = data.get("structure") or self.scanner.analyze_project_structure(project_path)
@@ -820,7 +851,6 @@ class LaserflixMainWindow:
         tk.Label(lp, text=f"{tf} arquivo{suf}  ·  {sf} subpasta(s)",
                  font=FONT_SMALL, bg=BG, fg=FG_TER).pack(anchor="w", padx=PAD, pady=(4,4))
 
-        # 7. LOCALIZAÇÃO
         _sep()
         _section_label("Localização")
         par_f = os.path.basename(os.path.dirname(project_path))
@@ -843,7 +873,6 @@ class LaserflixMainWindow:
         tk.Label(lp, text=f"Adicionado: {added}   ·   Modelo IA: {model_u}",
                  font=FONT_SMALL, bg=BG, fg=FG_TER).pack(anchor="w", padx=PAD, pady=(2,4))
 
-        # 8. BARRA DE AÇÕES
         tk.Frame(lp, bg=SEP_CLR, height=1).pack(fill="x", pady=(16,0))
         action_bar = tk.Frame(lp, bg=BG)
         action_bar.pack(fill="x", padx=PAD, pady=12)
@@ -872,10 +901,8 @@ class LaserflixMainWindow:
                   state="normal" if nav_idx > 0 else "disabled",
                   **BTN_NAV).pack(side="right", padx=(0,4))
 
-        # ── SEPARADOR VERTICAL ──────────────────────────────────────────────────────────────────────────
         tk.Frame(main, bg=SEP_CLR, width=1).grid(row=0, column=1, sticky="ns")
 
-        # ── COLUNA DIREITA — imagens ─────────────────────────────────────────────────────────────────────
         right_outer = tk.Frame(main, bg="#0A0A0A")
         right_outer.grid(row=0, column=2, sticky="nsew")
         rc  = tk.Canvas(right_outer, bg="#0A0A0A", highlightthickness=0, bd=0)
@@ -964,7 +991,6 @@ class LaserflixMainWindow:
 
         tk.Label(edit_win, text="✏️ Editar Projeto", font=("Arial",20,"bold"),
                  bg="#181818", fg="#E50914").pack(pady=20)
-
         tk.Label(edit_win, text="📁 Nome do Projeto", font=("Arial",12,"bold"),
                  bg="#181818", fg="#FFFFFF").pack(anchor="w", padx=30, pady=(10,5))
         name_text = tk.Text(edit_win, height=2, bg="#2A2A2A", fg="#FFFFFF",
@@ -1045,7 +1071,7 @@ class LaserflixMainWindow:
             self.status_bar.config(text="✓ Projeto atualizado!")
 
     # =========================================================================
-    # ✅ PARTE 2 — IA: ANÁLISE (categorias + tags)
+    # IA: ANÁLISE
     # =========================================================================
 
     def show_progress_ui(self):
@@ -1069,18 +1095,11 @@ class LaserflixMainWindow:
         self.ollama.stop_flag = True
         self.status_bar.config(text="⏹ Interrompendo...")
 
-    # ------------------------------------------------------------------
-    # 2.1 — Analisar projeto único (botão 🤖 no card / modal)
-    # ------------------------------------------------------------------
     def analyze_single_project(self, project_path):
-        """Analisa um único projeto em thread dedicada."""
         if self.analyzing:
-            messagebox.showwarning(
-                "⚠️ Análise em andamento",
-                "Aguarde a análise atual terminar antes de iniciar outra."
-            )
+            messagebox.showwarning("⚠️ Análise em andamento",
+                                   "Aguarde a análise atual terminar antes de iniciar outra.")
             return
-
         self.analyzing = True
         self.stop_analysis = False
         self.ollama.stop_flag = False
@@ -1091,16 +1110,13 @@ class LaserflixMainWindow:
 
         def _worker():
             try:
-                cats, tags = self.text_generator.analyze_project(
-                    project_path, batch_size=1
-                )
+                cats, tags = self.text_generator.analyze_project(project_path, batch_size=1)
                 if project_path in self.database:
-                    self.database[project_path]["categories"]     = cats
-                    self.database[project_path]["tags"]            = tags
-                    self.database[project_path]["analyzed"]        = True
-                    self.database[project_path]["analyzed_model"]  = (
-                        self.ollama.active_models.get("text_quality", "fallback")
-                    )
+                    self.database[project_path]["categories"]    = cats
+                    self.database[project_path]["tags"]           = tags
+                    self.database[project_path]["analyzed"]       = True
+                    self.database[project_path]["analyzed_model"] = (
+                        self.ollama.active_models.get("text_quality", "fallback"))
                     self.db_manager.save_database()
                 self.root.after(0, _done)
             except Exception as e:
@@ -1116,144 +1132,84 @@ class LaserflixMainWindow:
 
         threading.Thread(target=_worker, daemon=True).start()
 
-    # ------------------------------------------------------------------
-    # 2.2 — Analisar apenas projetos novos (sem analyzed=True)
-    # ------------------------------------------------------------------
     def analyze_only_new(self):
-        """Analisa apenas projetos que ainda não foram analisados."""
-        targets = [
-            p for p, d in self.database.items()
-            if not d.get("analyzed") and os.path.isdir(p)
-        ]
+        targets = [p for p, d in self.database.items()
+                   if not d.get("analyzed") and os.path.isdir(p)]
         if not targets:
-            messagebox.showinfo(
-                "✅ Tudo analisado",
-                "Todos os projetos já foram analisados!"
-            )
+            messagebox.showinfo("✅ Tudo analisado", "Todos os projetos já foram analisados!")
             return
-        confirm = messagebox.askyesno(
-            "🤖 Analisar novos",
-            f"Encontrei {len(targets)} projeto(s) sem análise.\n\nIniciar agora?"
-        )
-        if confirm:
+        if messagebox.askyesno("🤖 Analisar novos",
+                               f"Encontrei {len(targets)} projeto(s) sem análise.\n\nIniciar agora?"):
             self._run_analysis_batch(targets)
 
-    # ------------------------------------------------------------------
-    # 2.3 — Reanalisar todos os projetos
-    # ------------------------------------------------------------------
     def reanalyze_all(self):
-        """Reanalisar TODOS os projetos (sobrescreve análises existentes)."""
         targets = [p for p in self.database if os.path.isdir(p)]
         if not targets:
             messagebox.showinfo("Vazio", "Nenhum projeto encontrado.")
             return
-        confirm = messagebox.askyesno(
-            "🔄 Reanalisar todos",
-            f"Isso vai reanalisar {len(targets)} projeto(s) e SUBSTITUIR\n"
-            "as categorias e tags existentes.\n\nConfirma?"
-        )
-        if confirm:
+        if messagebox.askyesno("🔄 Reanalisar todos",
+                               f"Isso vai reanalisar {len(targets)} projeto(s) e SUBSTITUIR\n"
+                               "as categorias e tags existentes.\n\nConfirma?"):
             self._run_analysis_batch(targets)
 
-    # ------------------------------------------------------------------
-    # 2.4 — Worker principal em thread + progress bar + stop_flag
-    # ------------------------------------------------------------------
     def _run_analysis_batch(self, targets):
-        """Executa análise de lote em thread, com progress e stop_flag."""
         if self.analyzing:
-            messagebox.showwarning(
-                "⚠️ Em andamento",
-                "Uma análise já está em curso. Aguarde ou pare a atual."
-            )
+            messagebox.showwarning("⚠️ Em andamento",
+                                   "Uma análise já está em curso. Aguarde ou pare a atual.")
             return
-
-        self.analyzing    = True
+        self.analyzing     = True
         self.stop_analysis = False
         self.ollama.stop_flag = False
-        total = len(targets)
-        batch_size = total  # TextGenerator usa isso para escolher modelo
-
+        total      = len(targets)
+        batch_size = total
         self.show_progress_ui()
         self.root.update_idletasks()
 
         def _worker():
-            done = 0
-            skipped = 0
+            done = skipped = 0
             for project_path in targets:
-                # ── verifica stop ───────────────────────────────────────────────────────
                 if self.stop_analysis or self.ollama.stop_flag:
                     break
-
-                # ── verifica se pasta ainda existe ─────────────────────────────────
                 if not os.path.isdir(project_path):
                     skipped += 1
                     continue
-
                 name = self.database.get(project_path, {}).get(
-                    "name", os.path.basename(project_path)
-                )
-
-                # Atualiza UI antes de cada projeto
-                self.root.after(
-                    0,
-                    lambda n=name, d=done, t=total:
-                        self.update_progress(d, t, f"🤖 {n}")
-                )
-
+                    "name", os.path.basename(project_path))
+                self.root.after(0, lambda n=name, d=done, t=total:
+                                self.update_progress(d, t, f"🤖 {n}"))
                 try:
                     cats, tags = self.text_generator.analyze_project(
-                        project_path, batch_size=batch_size
-                    )
-
+                        project_path, batch_size=batch_size)
                     if project_path in self.database:
-                        # escolhe label do modelo usado
                         from config.settings import FAST_MODEL_THRESHOLD
-                        role = (
-                            "text_fast"
-                            if batch_size > FAST_MODEL_THRESHOLD
-                            else "text_quality"
-                        )
-                        model_label = self.ollama.active_models.get(role, "fallback")
-
+                        role = "text_fast" if batch_size > FAST_MODEL_THRESHOLD else "text_quality"
                         self.database[project_path]["categories"]    = cats
                         self.database[project_path]["tags"]           = tags
                         self.database[project_path]["analyzed"]       = True
-                        self.database[project_path]["analyzed_model"] = model_label
-
+                        self.database[project_path]["analyzed_model"] = \
+                            self.ollama.active_models.get(role, "fallback")
                 except Exception as e:
-                    self.logger.exception(
-                        "Erro ao analisar %s: %s", project_path, e
-                    )
-
+                    self.logger.exception("Erro ao analisar %s: %s", project_path, e)
                 done += 1
-
-                # Salva a cada 10 projetos para não perder progresso
                 if done % 10 == 0:
                     self.db_manager.save_database()
-
-            # Salva o restante
             self.db_manager.save_database()
             self.root.after(0, lambda d=done, s=skipped: _done(d, s))
 
         def _done(done, skipped):
-            self.analyzing = False
-            self.ollama.stop_flag = False
-            self.stop_analysis = False
+            self.analyzing = self.stop_analysis = self.ollama.stop_flag = False
             self.hide_progress_ui()
             self.update_sidebar()
             self.display_projects()
             msg = f"✅ Análise concluída: {done}/{total} projeto(s)"
-            if skipped:
-                msg += f" ({skipped} pulados — pasta não encontrada)"
-            if self.stop_analysis:
-                msg = f"⏹ Análise interrompida: {done}/{total} concluídos"
+            if skipped: msg += f" ({skipped} pulados)"
             self.status_bar.config(text=msg)
             self.logger.info(msg)
 
         threading.Thread(target=_worker, daemon=True).start()
 
     # =========================================================================
-    # PARTE 3 — DESCRIÇÕES IA  (próximo passo)
+    # DESCRIÇÕES IA
     # =========================================================================
 
     def generate_descriptions_for_new(self):
@@ -1268,12 +1224,9 @@ class LaserflixMainWindow:
 
     def open_image(self, image_path):
         try:
-            if platform.system() == "Windows":
-                os.startfile(image_path)
-            elif platform.system() == "Darwin":
-                subprocess.run(["open", image_path])
-            else:
-                subprocess.run(["xdg-open", image_path])
+            if platform.system() == "Windows":   os.startfile(image_path)
+            elif platform.system() == "Darwin":  subprocess.run(["open", image_path])
+            else:                                 subprocess.run(["xdg-open", image_path])
         except Exception:
             messagebox.showerror("Erro", "Erro ao abrir imagem")
 
@@ -1282,12 +1235,9 @@ class LaserflixMainWindow:
             if not os.path.exists(folder_path):
                 messagebox.showerror("Erro", f"Pasta não encontrada:\n{folder_path}")
                 return
-            if platform.system() == "Windows":
-                os.startfile(os.path.abspath(folder_path))
-            elif platform.system() == "Darwin":
-                subprocess.run(["open", folder_path])
-            else:
-                subprocess.run(["xdg-open", folder_path])
+            if platform.system() == "Windows":   os.startfile(os.path.abspath(folder_path))
+            elif platform.system() == "Darwin":  subprocess.run(["open", folder_path])
+            else:                                 subprocess.run(["xdg-open", folder_path])
         except Exception as e:
             messagebox.showerror("Erro", f"Erro ao abrir pasta:\n{e}")
 
@@ -1335,10 +1285,8 @@ class LaserflixMainWindow:
 
     def export_database(self):
         path = filedialog.asksaveasfilename(
-            defaultextension=".json",
-            filetypes=[("JSON","*.json")],
-            title="Exportar banco de dados"
-        )
+            defaultextension=".json", filetypes=[("JSON","*.json")],
+            title="Exportar banco de dados")
         if path:
             import shutil
             shutil.copy2("laserflix_database.json", path)
@@ -1346,9 +1294,7 @@ class LaserflixMainWindow:
 
     def import_database(self):
         path = filedialog.askopenfilename(
-            filetypes=[("JSON","*.json")],
-            title="Importar banco de dados"
-        )
+            filetypes=[("JSON","*.json")], title="Importar banco de dados")
         if path:
             import shutil
             shutil.copy2(path, "laserflix_database.json")
@@ -1364,5 +1310,5 @@ class LaserflixMainWindow:
 
     def darken_color(self, hex_color):
         h = hex_color.lstrip("#")
-        r,g,b = tuple(int(h[i:i+2],16) for i in (0,2,4))
+        r, g, b = tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
         return f"#{max(0,int(r*.8)):02x}{max(0,int(g*.8)):02x}{max(0,int(b*.8)):02x}"
