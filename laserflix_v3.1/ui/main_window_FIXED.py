@@ -11,38 +11,30 @@ from PIL import Image, ImageTk
 from config.settings import VERSION
 from config.card_layout import COLS, CARD_W, CARD_H, COVER_H, CARD_PAD
 from config.ui_constants import (
-    # Truncamento
     CARD_NAME_MAX_LENGTH, CARD_NAME_TRUNCATE_AT,
     CARD_TAG_MAX_LENGTH, CARD_TAG_TRUNCATE_AT,
     CARD_CATEGORY_MAX_LENGTH,
-    # Limites
     SIDEBAR_MAX_CATEGORIES, SIDEBAR_MAX_TAGS,
     CARD_MAX_CATEGORIES, CARD_MAX_TAGS,
     MODAL_MAX_GRID_IMAGES, MODAL_THUMBNAIL_SIZE, MODAL_GRID_COLUMNS,
-    # Cores
     BG_PRIMARY, BG_SECONDARY, BG_CARD, BG_HOVER, BG_SEPARATOR,
     ACCENT_RED, ACCENT_GREEN, ACCENT_GOLD,
     FG_PRIMARY, FG_SECONDARY, FG_TERTIARY,
     ORIGIN_COLORS, CATEGORY_COLORS,
-    # Strings proibidas
     CARD_BANNED_STRINGS,
-    # Comportamento
     SCROLL_SPEED,
 )
 
-# Core
 from core.database import DatabaseManager
 from core.thumbnail_cache import ThumbnailCache
 from core.project_scanner import ProjectScanner
 
-# AI
 from ai.ollama_client import OllamaClient
 from ai.image_analyzer import ImageAnalyzer
 from ai.text_generator import TextGenerator
 from ai.fallbacks import FallbackGenerator
 from ai.analysis_manager import AnalysisManager
 
-# Utils
 from utils.logging_setup import LOGGER
 from utils.platform_utils import open_file, open_folder
 
@@ -69,7 +61,6 @@ class LaserflixMainWindow:
             self.fallback_generator,
         )
 
-        # Analysis Manager (encapsula lógica de análise)
         self.analysis_manager = AnalysisManager(
             self.text_generator,
             self.db_manager,
@@ -95,14 +86,12 @@ class LaserflixMainWindow:
         self.logger.info("✨ Laserflix v%s iniciado", VERSION)
 
     def _setup_analysis_callbacks(self):
-        """Configura callbacks do AnalysisManager para UI."""
         self.analysis_manager.on_start = self.show_progress_ui
         self.analysis_manager.on_progress = self.update_progress
         self.analysis_manager.on_complete = self._on_analysis_complete
         self.analysis_manager.on_error = self._on_analysis_error
 
     def _on_analysis_complete(self, done, skipped):
-        """Callback quando análise termina."""
         self.hide_progress_ui()
         self.update_sidebar()
         self.display_projects()
@@ -113,12 +102,7 @@ class LaserflixMainWindow:
         self.logger.info(msg)
 
     def _on_analysis_error(self, error_msg):
-        """Callback quando ocorre erro na análise."""
         messagebox.showwarning("⚠️ Erro", error_msg)
-
-    # =========================================================================
-    # UI
-    # =========================================================================
 
     def create_ui(self):
         header = tk.Frame(self.root, bg="#000000", height=70)
@@ -169,7 +153,6 @@ class LaserflixMainWindow:
                   bg=ACCENT_RED, fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                   relief="flat", cursor="hand2", padx=15, pady=8).pack(side="left", padx=5)
 
-        # Botão 1: Análise IA (categorias/tags)
         ai_btn = tk.Menubutton(extras_frame, text="🤖 Análise", bg=ACCENT_GREEN,
                                 fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                                 relief="flat", cursor="hand2", padx=15, pady=8)
@@ -180,7 +163,6 @@ class LaserflixMainWindow:
         ai_menu.add_command(label="🆕 Analisar apenas novos", command=self.analyze_only_new)
         ai_menu.add_command(label="🔄 Reanalisar todos", command=self.reanalyze_all)
 
-        # Botão 2: Descrições IA
         desc_btn = tk.Menubutton(extras_frame, text="📝 Descrições", bg="#3A7BD5",
                                   fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                                   relief="flat", cursor="hand2", padx=15, pady=8)
@@ -234,10 +216,6 @@ class LaserflixMainWindow:
                                    command=self.analysis_manager.stop,
                                    bg=ACCENT_RED, fg=FG_PRIMARY,
                                    font=("Arial", 10, "bold"), relief="flat", cursor="hand2")
-
-    # =========================================================================
-    # SIDEBAR
-    # ========================================================================= 
 
     def create_sidebar(self, parent):
         sidebar_container = tk.Frame(parent, bg=BG_SECONDARY, width=250)
@@ -368,10 +346,6 @@ class LaserflixMainWindow:
             btn.bind("<Enter>", lambda e, w=btn: w.config(bg=BG_CARD))
             btn.bind("<Leave>", lambda e, w=btn: w.config(bg=BG_SECONDARY))
         self._bind_sidebar_scroll(self.tags_frame)
-
-    # =========================================================================
-    # DISPLAY DE PROJETOS
-    # =========================================================================
 
     def display_projects(self):
         for w in self.scrollable_frame.winfo_children():
@@ -535,10 +509,6 @@ class LaserflixMainWindow:
                       bg=BG_CARD, fg=ACCENT_GREEN, relief="flat", cursor="hand2"
                       ).pack(side="left", padx=1)
 
-    # =========================================================================
-    # FILTROS
-    # =========================================================================
-
     def set_filter(self, filter_type):
         self.current_filter = filter_type
         self.current_categories = []
@@ -596,10 +566,6 @@ class LaserflixMainWindow:
             filtered.append(project_path)
         return filtered
 
-    # =========================================================================
-    # ADD FOLDERS
-    # =========================================================================
-
     def add_folders(self):
         while True:
             folder = filedialog.askdirectory(
@@ -627,10 +593,6 @@ class LaserflixMainWindow:
                 break
         self.update_sidebar()
         self.display_projects()
-
-    # =========================================================================
-    # TOGGLES
-    # =========================================================================
 
     def toggle_favorite(self, project_path, btn=None):
         if project_path in self.database:
@@ -670,34 +632,285 @@ class LaserflixMainWindow:
             if btn:
                 btn.config(fg="#FF0000" if new_val else FG_TERTIARY)
 
-    # =========================================================================
-    # MODAL DE DETALHES DO PROJETO
-    # =========================================================================
-
     def open_project_modal(self, project_path):
-        # (Implementação completa no código restaurado - 700+ linhas)
-        pass
+        if project_path not in self.database:
+            return
+        data = self.database[project_path]
+        modal = tk.Toplevel(self.root)
+        modal.title(data.get("name", "Projeto"))
+        modal.state('zoomed')
+        modal.configure(bg=BG_PRIMARY)
+        modal.transient(self.root)
+        modal.grab_set()
 
-    # =========================================================================
-    # EDIÇÃO DE PROJETO
-    # =========================================================================
+        header = tk.Frame(modal, bg="#000000", height=60)
+        header.pack(fill="x")
+        header.pack_propagate(False)
+
+        tk.Label(header, text=data.get("name", "Sem nome"),
+                 font=("Arial", 20, "bold"), bg="#000000", fg=FG_PRIMARY
+                 ).pack(side="left", padx=20, pady=10)
+
+        btn_frame = tk.Frame(header, bg="#000000")
+        btn_frame.pack(side="right", padx=20)
+
+        tk.Button(btn_frame, text="📂 Abrir Pasta",
+                  command=lambda: open_folder(project_path),
+                  bg=ACCENT_GOLD, fg="#000000", font=("Arial", 10, "bold"),
+                  relief="flat", cursor="hand2", padx=10, pady=5).pack(side="left", padx=5)
+
+        tk.Button(btn_frame, text="✏️ Editar",
+                  command=lambda: self.open_edit_mode(modal, project_path, data),
+                  bg="#3A7BD5", fg=FG_PRIMARY, font=("Arial", 10, "bold"),
+                  relief="flat", cursor="hand2", padx=10, pady=5).pack(side="left", padx=5)
+
+        tk.Button(btn_frame, text="❌ Fechar",
+                  command=modal.destroy,
+                  bg=ACCENT_RED, fg=FG_PRIMARY, font=("Arial", 10, "bold"),
+                  relief="flat", cursor="hand2", padx=10, pady=5).pack(side="left", padx=5)
+
+        main_frame = tk.Frame(modal, bg=BG_PRIMARY)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=10)
+
+        left_col = tk.Frame(main_frame, bg=BG_PRIMARY)
+        left_col.pack(side="left", fill="both", expand=True, padx=(0,10))
+
+        img_section = tk.Frame(left_col, bg=BG_CARD)
+        img_section.pack(fill="both", expand=True, pady=(0,10))
+
+        tk.Label(img_section, text="🖼️ Imagens do Projeto",
+                 font=("Arial", 14, "bold"), bg=BG_CARD, fg=FG_PRIMARY,
+                 anchor="w").pack(fill="x", padx=15, pady=(10,5))
+
+        img_canvas = tk.Canvas(img_section, bg=BG_CARD, highlightthickness=0)
+        img_sb = ttk.Scrollbar(img_section, orient="vertical", command=img_canvas.yview)
+        img_scroll_frame = tk.Frame(img_canvas, bg=BG_CARD)
+        img_scroll_frame.bind("<Configure>",
+            lambda e: img_canvas.configure(scrollregion=img_canvas.bbox("all")))
+        img_canvas.create_window((0, 0), window=img_scroll_frame, anchor="nw")
+        img_canvas.configure(yscrollcommand=img_sb.set)
+        img_canvas.pack(side="left", fill="both", expand=True, padx=10, pady=(0,10))
+        img_sb.pack(side="right", fill="y", pady=(0,10))
+
+        img_canvas.bind("<MouseWheel>",
+            lambda e: img_canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+
+        images = self.scanner.get_project_images(project_path)
+        if images:
+            grid_frame = tk.Frame(img_scroll_frame, bg=BG_CARD)
+            grid_frame.pack(fill="both", expand=True)
+            for idx, img_path in enumerate(images[:MODAL_MAX_GRID_IMAGES]):
+                try:
+                    img = Image.open(img_path)
+                    img.thumbnail((MODAL_THUMBNAIL_SIZE, MODAL_THUMBNAIL_SIZE), Image.Resampling.LANCZOS)
+                    photo = ImageTk.PhotoImage(img)
+                    lbl = tk.Label(grid_frame, image=photo, bg=BG_CARD, cursor="hand2")
+                    lbl.image = photo
+                    lbl.grid(row=idx//MODAL_GRID_COLUMNS, column=idx%MODAL_GRID_COLUMNS,
+                             padx=5, pady=5)
+                    lbl.bind("<Button-1>", lambda e, p=img_path: open_file(p))
+                except Exception as ex:
+                    self.logger.warning("Erro ao carregar thumb %s: %s", img_path, ex)
+        else:
+            tk.Label(img_scroll_frame, text="Sem imagens",
+                     font=("Arial", 12), bg=BG_CARD, fg=FG_TERTIARY
+                     ).pack(pady=20)
+
+        right_col = tk.Frame(main_frame, bg=BG_PRIMARY, width=400)
+        right_col.pack(side="right", fill="both")
+        right_col.pack_propagate(False)
+
+        info_section = tk.Frame(right_col, bg=BG_CARD)
+        info_section.pack(fill="both", expand=True)
+
+        tk.Label(info_section, text="📝 Detalhes",
+                 font=("Arial", 14, "bold"), bg=BG_CARD, fg=FG_PRIMARY,
+                 anchor="w").pack(fill="x", padx=15, pady=(10,10))
+
+        detail_canvas = tk.Canvas(info_section, bg=BG_CARD, highlightthickness=0)
+        detail_sb = ttk.Scrollbar(info_section, orient="vertical", command=detail_canvas.yview)
+        detail_scroll = tk.Frame(detail_canvas, bg=BG_CARD)
+        detail_scroll.bind("<Configure>",
+            lambda e: detail_canvas.configure(scrollregion=detail_canvas.bbox("all")))
+        detail_canvas.create_window((0,0), window=detail_scroll, anchor="nw", width=370)
+        detail_canvas.configure(yscrollcommand=detail_sb.set)
+        detail_canvas.pack(side="left", fill="both", expand=True, padx=10, pady=(0,10))
+        detail_sb.pack(side="right", fill="y", pady=(0,10))
+
+        detail_canvas.bind("<MouseWheel>",
+            lambda e: detail_canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+
+        def _bind_scroll_recursive(w):
+            w.bind("<MouseWheel>",
+                lambda e: detail_canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+            for child in w.winfo_children():
+                _bind_scroll_recursive(child)
+
+        _bind_scroll_recursive(detail_scroll)
+
+        origin = data.get("origin", "Desconhecido")
+        origin_color = ORIGIN_COLORS.get(origin, ORIGIN_COLORS["default"])
+        origin_frame = tk.Frame(detail_scroll, bg=BG_CARD)
+        origin_frame.pack(fill="x", padx=10, pady=(0,10))
+        tk.Label(origin_frame, text="🌐 Origem:",
+                 font=("Arial", 10, "bold"), bg=BG_CARD, fg=FG_SECONDARY,
+                 anchor="w").pack(side="left")
+        tk.Label(origin_frame, text=origin,
+                 font=("Arial", 10), bg=origin_color, fg=FG_PRIMARY,
+                 padx=8, pady=4).pack(side="left", padx=(10,0))
+
+        cat_frame = tk.Frame(detail_scroll, bg=BG_CARD)
+        cat_frame.pack(fill="x", padx=10, pady=(0,10))
+        tk.Label(cat_frame, text="📂 Categorias:",
+                 font=("Arial", 10, "bold"), bg=BG_CARD, fg=FG_SECONDARY,
+                 anchor="w").pack(anchor="w")
+        cats = data.get("categories", [])
+        if cats:
+            cat_wrap = tk.Frame(cat_frame, bg=BG_CARD)
+            cat_wrap.pack(fill="x", pady=(5,0))
+            for i, c in enumerate(cats):
+                color = CATEGORY_COLORS[i % len(CATEGORY_COLORS)]
+                tk.Label(cat_wrap, text=c, bg=color, fg="#000000",
+                         font=("Arial", 9, "bold"), padx=6, pady=3
+                         ).pack(side="left", padx=2, pady=2)
+        else:
+            tk.Label(cat_frame, text="Sem categorias",
+                     font=("Arial", 9, "italic"), bg=BG_CARD, fg=FG_TERTIARY
+                     ).pack(anchor="w", pady=(5,0))
+
+        tag_frame = tk.Frame(detail_scroll, bg=BG_CARD)
+        tag_frame.pack(fill="x", padx=10, pady=(0,10))
+        tk.Label(tag_frame, text="🏷️ Tags:",
+                 font=("Arial", 10, "bold"), bg=BG_CARD, fg=FG_SECONDARY,
+                 anchor="w").pack(anchor="w")
+        tags = data.get("tags", [])
+        if tags:
+            tag_wrap = tk.Frame(tag_frame, bg=BG_CARD)
+            tag_wrap.pack(fill="x", pady=(5,0))
+            for t in tags:
+                tk.Label(tag_wrap, text=t, bg="#3A3A3A", fg=FG_PRIMARY,
+                         font=("Arial", 8), padx=6, pady=3
+                         ).pack(side="left", padx=2, pady=2)
+        else:
+            tk.Label(tag_frame, text="Sem tags",
+                     font=("Arial", 9, "italic"), bg=BG_CARD, fg=FG_TERTIARY
+                     ).pack(anchor="w", pady=(5,0))
+
+        desc_frame = tk.Frame(detail_scroll, bg=BG_CARD)
+        desc_frame.pack(fill="x", padx=10, pady=(0,10))
+        tk.Label(desc_frame, text="💬 Descrição:",
+                 font=("Arial", 10, "bold"), bg=BG_CARD, fg=FG_SECONDARY,
+                 anchor="w").pack(anchor="w")
+
+        desc_text = data.get("description", "")
+        desc_lbl = tk.Label(desc_frame, text=desc_text if desc_text else "Sem descrição",
+                            font=("Arial", 9, "italic" if not desc_text else "normal"),
+                            bg=BG_CARD, fg=FG_PRIMARY if desc_text else FG_TERTIARY,
+                            justify="left", wraplength=350, anchor="w")
+        desc_lbl.pack(anchor="w", pady=(5,5))
+
+        gen_btn = tk.Button(desc_frame, text="🤖 Gerar com IA",
+                            bg=ACCENT_GREEN, fg=FG_PRIMARY, font=("Arial", 9, "bold"),
+                            relief="flat", cursor="hand2", padx=10, pady=5)
+        gen_btn.pack(anchor="w", pady=(5,0))
+
+        def _gen_desc():
+            gen_btn.config(state="disabled", text="Gerando...")
+            desc_lbl.config(text="Gerando descrição com IA...", fg=FG_TERTIARY)
+            modal.update_idletasks()
+
+            def _worker():
+                try:
+                    desc = self.text_generator.generate_description(project_path, data)
+                    if desc and desc.strip():
+                        self.database[project_path]["description"] = desc
+                        self.db_manager.save_database()
+                        modal.after(0, lambda: desc_lbl.config(text=desc, fg=FG_PRIMARY, font=("Arial", 9)))
+                        modal.after(0, lambda: gen_btn.config(state="normal", text="🤖 Gerar com IA"))
+                    else:
+                        modal.after(0, lambda: desc_lbl.config(text="Erro ao gerar descrição", fg=ACCENT_RED))
+                        modal.after(0, lambda: gen_btn.config(state="normal", text="🤖 Gerar com IA"))
+                except Exception as e:
+                    self.logger.error("Erro ao gerar descrição: %s", e)
+                    modal.after(0, lambda: desc_lbl.config(text=f"Erro: {e}", fg=ACCENT_RED))
+                    modal.after(0, lambda: gen_btn.config(state="normal", text="🤖 Gerar com IA"))
+
+            import threading
+            threading.Thread(target=_worker, daemon=True).start()
+
+        gen_btn.config(command=_gen_desc)
+
+        action_frame = tk.Frame(detail_scroll, bg=BG_CARD)
+        action_frame.pack(fill="x", padx=10, pady=(10,10))
+
+        tk.Label(action_frame, text="⚙️ Ações:",
+                 font=("Arial", 10, "bold"), bg=BG_CARD, fg=FG_SECONDARY,
+                 anchor="w").pack(anchor="w", pady=(0,5))
+
+        acts = tk.Frame(action_frame, bg=BG_CARD)
+        acts.pack(fill="x")
+
+        btn_fav_modal = tk.Button(acts, font=("Arial", 12), bg=BG_CARD,
+                                  relief="flat", cursor="hand2", text="Favorito",
+                                  compound="left", anchor="w")
+        btn_fav_modal.config(
+            text=("⭐ Favorito" if data.get("favorite") else "☆ Favorito"),
+            fg=ACCENT_GOLD if data.get("favorite") else FG_TERTIARY,
+            command=lambda: self._toggle_modal_btn(project_path, "favorite", btn_fav_modal, modal))
+        btn_fav_modal.pack(fill="x", pady=2)
+
+        btn_done_modal = tk.Button(acts, font=("Arial", 12), bg=BG_CARD,
+                                   relief="flat", cursor="hand2", text="Feito",
+                                   compound="left", anchor="w")
+        btn_done_modal.config(
+            text=("✓ Feito" if data.get("done") else "○ Feito"),
+            fg="#00FF00" if data.get("done") else FG_TERTIARY,
+            command=lambda: self._toggle_modal_btn(project_path, "done", btn_done_modal, modal))
+        btn_done_modal.pack(fill="x", pady=2)
+
+        btn_good_modal = tk.Button(acts, font=("Arial", 12), bg=BG_CARD,
+                                   relief="flat", cursor="hand2", text="Bom",
+                                   compound="left", anchor="w")
+        btn_good_modal.config(
+            text=("👍 Bom" if data.get("good") else "👍 Bom"),
+            fg="#00FF00" if data.get("good") else FG_TERTIARY,
+            command=lambda: self._toggle_modal_btn(project_path, "good", btn_good_modal, modal))
+        btn_good_modal.pack(fill="x", pady=2)
+
+        btn_bad_modal = tk.Button(acts, font=("Arial", 12), bg=BG_CARD,
+                                  relief="flat", cursor="hand2", text="Ruim",
+                                  compound="left", anchor="w")
+        btn_bad_modal.config(
+            text=("👎 Ruim" if data.get("bad") else "👎 Ruim"),
+            fg="#FF0000" if data.get("bad") else FG_TERTIARY,
+            command=lambda: self._toggle_modal_btn(project_path, "bad", btn_bad_modal, modal))
+        btn_bad_modal.pack(fill="x", pady=2)
+
+    def _toggle_modal_btn(self, project_path, field, btn, modal):
+        if project_path not in self.database:
+            return
+        data = self.database[project_path]
+        new_val = not data.get(field, False)
+        data[field] = new_val
+        if field == "good" and new_val:
+            data["bad"] = False
+        if field == "bad" and new_val:
+            data["good"] = False
+        self.db_manager.save_database()
+
+        if field == "favorite":
+            btn.config(text=("⭐ Favorito" if new_val else "☆ Favorito"),
+                       fg=ACCENT_GOLD if new_val else FG_TERTIARY)
+        elif field == "done":
+            btn.config(text=("✓ Feito" if new_val else "○ Feito"),
+                       fg="#00FF00" if new_val else FG_TERTIARY)
+        elif field == "good":
+            btn.config(fg="#00FF00" if new_val else FG_TERTIARY)
+        elif field == "bad":
+            btn.config(fg="#FF0000" if new_val else FG_TERTIARY)
 
     def open_edit_mode(self, parent_modal, project_path, data):
-        # (Implementação completa no código restaurado)
         pass
-
-    def _add_tag_to_listbox(self, listbox):
-        pass
-
-    def _remove_tag_from_listbox(self, listbox):
-        pass
-
-    def _save_edit_modal(self, modal, project_path, categories_text, tags_listbox):
-        pass
-
-    # =========================================================================
-    # IA: ANÁLISE
-    # =========================================================================
 
     def show_progress_ui(self):
         pass
@@ -717,10 +930,6 @@ class LaserflixMainWindow:
     def reanalyze_all(self):
         pass
 
-    # =========================================================================
-    # DESCRIÇÕES IA
-    # =========================================================================
-
     def _batch_generate_descriptions(self, targets):
         pass
 
@@ -729,10 +938,6 @@ class LaserflixMainWindow:
 
     def generate_descriptions_for_all(self):
         pass
-
-    # =========================================================================
-    # UTILITÁRIOS
-    # =========================================================================
 
     def open_categories_picker(self):
         pass
@@ -750,7 +955,6 @@ class LaserflixMainWindow:
         pass
 
     def darken_color(self, hex_color):
-        """Escurece uma cor hexadecimal em 20%."""
         rgb = tuple(int(hex_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
         darker = tuple(int(c * 0.8) for c in rgb)
         return f"#{darker[0]:02x}{darker[1]:02x}{darker[2]:02x}"
