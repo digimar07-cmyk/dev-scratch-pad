@@ -1,4 +1,4 @@
-# 🎬 LASERFLIX v3.0 — Layout Corrigido
+# 🎬 LASERFLIX v3.1 — Layout Corrigido
 
 ## 🔴 PROBLEMA IDENTIFICADO
 
@@ -343,3 +343,4 @@ Problemas? Consulte:
 1. [LAYOUT_CHECKLIST.md](LAYOUT_CHECKLIST.md) — Checklist de comparação
 2. Código v740 original como referência
 3. Logs em `laserflix.log`
+
