@@ -53,9 +53,9 @@ THUMBNAIL_SIZE = (220, 200)
 # QUALIDADE DE IMAGEM (FILTRO PARA VISÃO)
 # ============================================================================
 IMAGE_QUALITY_THRESHOLDS = {
-    "max_brightness": 210,      # Rejeita se brilho médio > 210
-    "min_saturation": 25,       # Rejeita se saturação < 25
-    "max_white_pct": 50,        # Rejeita se > 50% pixels brancos
+    "max_brightness": 210,
+    "min_saturation": 25,
+    "max_white_pct": 50,
 }
 
 # ============================================================================
@@ -63,13 +63,6 @@ IMAGE_QUALITY_THRESHOLDS = {
 # ============================================================================
 AUTO_BACKUP_INTERVAL_MS = 1800000  # 30 minutos
 MAX_AUTO_BACKUPS = 10
-
-# ============================================================================
-# UI - GRID DE PROJETOS
-# ============================================================================
-GRID_COLUMNS = 5
-CARD_WIDTH = 220
-CARD_HEIGHT = 420
 
 # ============================================================================
 # LOGGING
