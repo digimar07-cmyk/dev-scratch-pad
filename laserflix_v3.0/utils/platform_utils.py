@@ -15,7 +15,7 @@ def open_folder(folder_path):
         if not os.path.exists(folder_path):
             messagebox.showerror("Erro", f"Pasta não encontrada:\n{folder_path}")
             return
-        
+
         system = platform.system()
         if system == "Windows":
             os.startfile(os.path.abspath(folder_path))
@@ -27,21 +27,21 @@ def open_folder(folder_path):
         messagebox.showerror("Erro", f"Erro ao abrir pasta:\n{e}")
 
 
-def open_image(image_path):
+def open_file(file_path):
     """
-    Abre imagem no visualizador padrão do SO.
+    Abre arquivo (imagem ou qualquer outro) no aplicativo padrão do SO.
     """
     try:
-        if not os.path.exists(image_path):
-            messagebox.showerror("Erro", f"Imagem não encontrada:\n{image_path}")
+        if not os.path.exists(file_path):
+            messagebox.showerror("Erro", f"Arquivo não encontrado:\n{file_path}")
             return
-        
+
         system = platform.system()
         if system == "Windows":
-            os.startfile(image_path)
+            os.startfile(file_path)
         elif system == "Darwin":  # macOS
-            subprocess.run(["open", image_path])
+            subprocess.run(["open", file_path])
         else:  # Linux
-            subprocess.run(["xdg-open", image_path])
+            subprocess.run(["xdg-open", file_path])
     except Exception as e:
-        messagebox.showerror("Erro", f"Erro ao abrir imagem:\n{e}")
+        messagebox.showerror("Erro", f"Erro ao abrir arquivo:\n{e}")
