@@ -4,7 +4,6 @@ Mantém estrutura modular mas replica visualmente o v740 100%
 """
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
-from tkinter.scrolledtext import ScrolledText
 import threading
 import os
 from datetime import datetime
