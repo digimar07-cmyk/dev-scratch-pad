@@ -1,5 +1,5 @@
 """
-Janela principal CORRIGIDA - Layout IDÊNTICO ao v740
+Janela principal CORRIGIDA - Layout IDÊATICO ao v740
 Mantém estrutura modular mas replica visualmente o v740 100%
 """
 import tkinter as tk
@@ -30,6 +30,13 @@ from ai.fallbacks import FallbackGenerator
 
 # Utils
 from utils.logging_setup import LOGGER
+
+# Strings que não devem aparecer como tag visível no card
+_CARD_BANNED = {
+    "diversos", "data especial", "ambiente doméstico",
+    "ambiente domestico", "sem categoria", "general",
+    "miscellaneous", "uncategorized",
+}
 
 
 class LaserflixMainWindow:
@@ -392,13 +399,15 @@ class LaserflixMainWindow:
         nl.pack(anchor="w")
         nl.bind("<Button-1>", lambda e: self.open_project_modal(project_path))
 
-        cats = data.get("categories", [])
+        # fix: sanitiza cats antes de renderizar — remove vazias e banidas
+        raw_cats = data.get("categories", []) or []
+        cats = [c for c in raw_cats if c and c.strip() and c.strip().lower() not in _CARD_BANNED]
         if cats:
             cf = tk.Frame(info, bg="#2A2A2A")
             cf.pack(anchor="w", pady=(5,0), fill="x")
-            colors = ["#FF6B6B","#4ECDC4","#95E1D3"]
+            colors = ["#FF6B6B", "#4ECDC4", "#95E1D3"]
             for i, cat in enumerate(cats[:3]):
-                c = colors[i] if i < 3 else "#9B59B6"
+                c = colors[i]
                 b = tk.Button(cf, text=cat[:12], command=lambda cc=cat: self.set_category_filter([cc]),
                               bg=c, fg="#000000", font=("Arial",8,"bold"),
                               relief="flat", cursor="hand2", padx=6, pady=3)
@@ -647,7 +656,7 @@ class LaserflixMainWindow:
         main.columnconfigure(2, weight=1)
         main.rowconfigure(0, weight=1)
 
-        # ── COLUNA ESQUERDA ──────────────────────────────────────────────────
+        # ── COLUNA ESQUERDA ──────────────────────────────────────────────────────────────────────
         left_outer = tk.Frame(main, bg=BG)
         left_outer.grid(row=0, column=0, sticky="nsew")
         lc  = tk.Canvas(left_outer, bg=BG, highlightthickness=0)
@@ -859,14 +868,14 @@ class LaserflixMainWindow:
         tk.Button(action_bar, text="▶", command=lambda: _nav(+1),
                   state="normal" if nav_idx < nav_tot-1 else "disabled",
                   **BTN_NAV).pack(side="right", padx=(0,2))
-        tk.Button(action_bar, text="◀", command=lambda: _nav(-1),
+        tk.Button(action_bar, text="◄", command=lambda: _nav(-1),
                   state="normal" if nav_idx > 0 else "disabled",
                   **BTN_NAV).pack(side="right", padx=(0,4))
 
-        # ── SEPARADOR VERTICAL ───────────────────────────────────────────────
+        # ── SEPARADOR VERTICAL ──────────────────────────────────────────────────────────────────────────
         tk.Frame(main, bg=SEP_CLR, width=1).grid(row=0, column=1, sticky="ns")
 
-        # ── COLUNA DIREITA — imagens ─────────────────────────────────────────
+        # ── COLUNA DIREITA — imagens ─────────────────────────────────────────────────────────────────────
         right_outer = tk.Frame(main, bg="#0A0A0A")
         right_outer.grid(row=0, column=2, sticky="nsew")
         rc  = tk.Canvas(right_outer, bg="#0A0A0A", highlightthickness=0, bd=0)
@@ -1171,11 +1180,11 @@ class LaserflixMainWindow:
             done = 0
             skipped = 0
             for project_path in targets:
-                # ── verifica stop ──────────────────────────────────────
+                # ── verifica stop ───────────────────────────────────────────────────────
                 if self.stop_analysis or self.ollama.stop_flag:
                     break
 
-                # ── verifica se pasta ainda existe ─────────────────────
+                # ── verifica se pasta ainda existe ─────────────────────────────────
                 if not os.path.isdir(project_path):
                     skipped += 1
                     continue
