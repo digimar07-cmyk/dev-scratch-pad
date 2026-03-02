@@ -1,5 +1,7 @@
 """
-Constantes de UI - Cores, fontes e dimensões
+Constantes de UI - Cores e fontes
+
+NOTA: Dimensões de card/grid ficam em config/card_layout.py
 """
 
 # ============================================================================
@@ -13,31 +15,31 @@ COLORS = {
     "bg_hover":     "#3A3A3A",  # Hover state
     "bg_header":    "#000000",  # Header
     "bg_modal":     "#0F0F0F",  # Modal overlay
-    
+
     # Foregrounds
     "fg_primary":   "#FFFFFF",  # Texto principal
     "fg_secondary": "#CCCCCC",  # Texto secundário
     "fg_tertiary":  "#999999",  # Texto terciário
     "fg_disabled":  "#666666",  # Texto desabilitado
-    
+
     # Accent colors
     "accent":       "#E50914",  # Vermelho Netflix (primary action)
     "accent_dark":  "#B20710",  # Vermelho escuro (hover)
     "success":      "#1DB954",  # Verde Spotify (success)
     "warning":      "#FF6B35",  # Laranja (warning)
     "info":         "#4ECDC4",  # Azul claro (info)
-    
+
     # Status colors
     "favorite":     "#FFD700",  # Dourado (estrela)
     "good":         "#00FF00",  # Verde (thumb up)
     "bad":          "#FF0000",  # Vermelho (thumb down)
     "done":         "#1DB954",  # Verde (checkmark)
-    
+
     # Origin colors
     "origin_cf":    "#FF6B35",  # Creative Fabrica
     "origin_etsy":  "#F7931E",  # Etsy
     "origin_other": "#4ECDC4",  # Outros
-    
+
     # Separators
     "separator":    "#2A2A2A",  # Linhas de separação
 }
@@ -64,35 +66,6 @@ FONTS = {
 }
 
 # ============================================================================
-# DIMENSÕES
-# ============================================================================
-DIMENSIONS = {
-    # Header
-    "header_height": 70,
-    
-    # Sidebar
-    "sidebar_width": 250,
-    
-    # Cards
-    "card_width":    220,
-    "card_height":   420,
-    "cover_height":  200,
-    
-    # Thumbnails
-    "thumbnail_width":  220,
-    "thumbnail_height": 200,
-    
-    # Modal
-    "modal_hero_max_width": 800,
-    "modal_thumb_size":     200,
-    
-    # Padding/Spacing
-    "padding_small":  5,
-    "padding_medium": 10,
-    "padding_large":  20,
-}
-
-# ============================================================================
 # EXTENSÕES DE ARQUIVO
 # ============================================================================
 FILE_EXTENSIONS = {
@@ -100,5 +73,5 @@ FILE_EXTENSIONS = {
     "vectors":   (".svg", ".ai", ".eps"),
     "cad":       (".dxf", ".dwg"),
     "documents": (".pdf", ".txt", ".doc", ".docx"),
-    "archives":   (".zip", ".rar", ".7z"),
+    "archives":  (".zip", ".rar", ".7z"),
 }
