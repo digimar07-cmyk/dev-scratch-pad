@@ -1,4 +1,4 @@
-"""
+"""  
 Janela principal CORRIGIDA - Layout IDÊATICO ao v740
 Mantém estrutura modular mas replica visualmente o v740 100%
 """
@@ -169,18 +169,27 @@ class LaserflixMainWindow:
                   bg=ACCENT_RED, fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                   relief="flat", cursor="hand2", padx=15, pady=8).pack(side="left", padx=5)
 
-        ai_btn = tk.Menubutton(extras_frame, text="🤖 Analisar", bg=ACCENT_GREEN,
+        # Botão 1: Análise IA (categorias/tags)
+        ai_btn = tk.Menubutton(extras_frame, text="🤖 Análise", bg=ACCENT_GREEN,
                                 fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                                 relief="flat", cursor="hand2", padx=15, pady=8)
         ai_btn.pack(side="left", padx=5)
         ai_menu = tk.Menu(ai_btn, tearoff=0, bg=BG_CARD, fg=FG_PRIMARY,
                           activebackground=ACCENT_RED, activeforeground=FG_PRIMARY)
         ai_btn["menu"] = ai_menu
-        ai_menu.add_command(label="🆕 Analisar apenas novos",    command=self.analyze_only_new)
-        ai_menu.add_command(label="🔄 Reanalisar todos",          command=self.reanalyze_all)
-        ai_menu.add_separator()
-        ai_menu.add_command(label="📝 Gerar descrições (novos)", command=self.generate_descriptions_for_new)
-        ai_menu.add_command(label="📝 Gerar descrições (todos)", command=self.generate_descriptions_for_all)
+        ai_menu.add_command(label="🆕 Analisar apenas novos", command=self.analyze_only_new)
+        ai_menu.add_command(label="🔄 Reanalisar todos", command=self.reanalyze_all)
+
+        # Botão 2: Descrições IA
+        desc_btn = tk.Menubutton(extras_frame, text="📝 Descrições", bg="#3A7BD5",
+                                  fg=FG_PRIMARY, font=("Arial", 11, "bold"),
+                                  relief="flat", cursor="hand2", padx=15, pady=8)
+        desc_btn.pack(side="left", padx=5)
+        desc_menu = tk.Menu(desc_btn, tearoff=0, bg=BG_CARD, fg=FG_PRIMARY,
+                            activebackground=ACCENT_RED, activeforeground=FG_PRIMARY)
+        desc_btn["menu"] = desc_menu
+        desc_menu.add_command(label="📝 Gerar para novos", command=self.generate_descriptions_for_new)
+        desc_menu.add_command(label="📝 Gerar para todos", command=self.generate_descriptions_for_all)
 
         main_container = tk.Frame(self.root, bg=BG_PRIMARY)
         main_container.pack(fill="both", expand=True)
@@ -228,7 +237,7 @@ class LaserflixMainWindow:
 
     # =========================================================================
     # SIDEBAR
-    # =========================================================================
+    # ========================================================================= 
 
     def create_sidebar(self, parent):
         sidebar_container = tk.Frame(parent, bg=BG_SECONDARY, width=250)
@@ -806,14 +815,43 @@ class LaserflixMainWindow:
         _desc_lbl_ref[0] = desc_lbl
 
         def _gen_desc():
-            gen_btn.config(state="disabled", text="Gerando...")
-            desc_lbl.config(text="Gerando descrição com IA...", fg=FG_TER)
+            if not project_path or project_path not in self.database:
+                return
+                
+            gen_btn.config(state="disabled", text="⏳ Gerando...")
+            desc_lbl.config(text="⏳ Gerando descrição com IA...", fg=FG_TER)
             modal.update()
-            def _t():
-                modal.after(0, modal.destroy)
-                modal.after(50, lambda: self.open_project_modal(project_path))
+            
+            def _generate_in_thread():
+                try:
+                    # Gera descrição
+                    description = self.text_generator.generate_description(
+                        project_path, 
+                        self.database[project_path]
+                    )
+                    
+                    # Salva no banco
+                    self.database[project_path]["ai_description"] = description
+                    self.db_manager.save_database()
+                    
+                    # Recarrega modal na thread principal
+                    modal.after(0, modal.destroy)
+                    modal.after(50, lambda: self.open_project_modal(project_path))
+                    
+                except Exception as e:
+                    self.logger.error(f"Erro ao gerar descrição: {e}")
+                    # Mostra erro na UI
+                    modal.after(0, lambda: desc_lbl.config(
+                        text="❌ Erro ao gerar descrição", 
+                        fg="#EF5350"
+                    ))
+                    modal.after(0, lambda: gen_btn.config(
+                        state="normal", 
+                        text="🤖  Gerar com IA"
+                    ))
+            
             import threading
-            threading.Thread(target=_t, daemon=True).start()
+            threading.Thread(target=_generate_in_thread, daemon=True).start()
 
         gen_btn = tk.Button(lp, text="🤖  Gerar com IA", command=_gen_desc,
                             bg=GREEN, fg=FG_PRIMARY, font=("Arial",10,"bold"),
@@ -1137,11 +1175,88 @@ class LaserflixMainWindow:
     # DESCRIÇÕES IA
     # =========================================================================
 
+    def _batch_generate_descriptions(self, targets):
+        """Gera descrições em lote com barra de progresso."""
+        self.show_progress_ui()
+        
+        def _generate_batch():
+            done = 0
+            skipped = 0
+            
+            for i, project_path in enumerate(targets, 1):
+                if self.ollama.stop_flag:
+                    break
+                    
+                if not os.path.isdir(project_path):
+                    skipped += 1
+                    continue
+                
+                try:
+                    self.update_progress(
+                        i, len(targets), 
+                        f"📝 Gerando descrição para {os.path.basename(project_path)}"
+                    )
+                    
+                    description = self.text_generator.generate_description(
+                        project_path,
+                        self.database[project_path]
+                    )
+                    
+                    self.database[project_path]["ai_description"] = description
+                    done += 1
+                    
+                    # Auto-save a cada 5 descrições
+                    if done % 5 == 0:
+                        self.db_manager.save_database()
+                        
+                except Exception as e:
+                    self.logger.error(f"Erro ao gerar descrição para {project_path}: {e}")
+                    skipped += 1
+            
+            # Salva tudo no final
+            self.db_manager.save_database()
+            self.hide_progress_ui()
+            self.display_projects()
+            
+            msg = f"✅ {done} descrição(ões) gerada(s)"
+            if skipped:
+                msg += f" ({skipped} puladas)"
+            self.status_bar.config(text=msg)
+            self.logger.info(msg)
+        
+        import threading
+        threading.Thread(target=_generate_batch, daemon=True).start()
+
     def generate_descriptions_for_new(self):
-        messagebox.showinfo("📝 Em breve", "Descrições (novos) — Parte 3")
+        """Gera descrições apenas para projetos sem descrição."""
+        targets = [
+            path for path, data in self.database.items()
+            if not data.get("ai_description", "").strip()
+        ]
+        
+        if not targets:
+            messagebox.showinfo("✅ Completo", "Todos os projetos já têm descrição!")
+            return
+        
+        if messagebox.askyesno(
+            "📝 Gerar descrições",
+            f"Encontrei {len(targets)} projeto(s) sem descrição.\n\nGerar agora?"
+        ):
+            self._batch_generate_descriptions(targets)
 
     def generate_descriptions_for_all(self):
-        messagebox.showinfo("📝 Em breve", "Descrições (todos) — Parte 3")
+        """Gera descrições para TODOS os projetos (sobrescreve existentes)."""
+        targets = list(self.database.keys())
+        
+        if not targets:
+            messagebox.showinfo("Vazio", "Nenhum projeto encontrado.")
+            return
+        
+        if messagebox.askyesno(
+            "📝 Gerar todas descrições",
+            f"Isso vai gerar descrições para {len(targets)} projeto(s).\n\nConfirma?"
+        ):
+            self._batch_generate_descriptions(targets)
 
     # =========================================================================
     # UTILITÁRIOS
