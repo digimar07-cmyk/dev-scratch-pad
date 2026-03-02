@@ -10,8 +10,8 @@ GARANTIAS ABSOLUTAS:
 """
 import os
 import re
-import unicodedata
 from utils.logging_setup import LOGGER
+from utils.text_utils import normalize_project_name, remove_accents
 
 from ai.keyword_maps import (
     DATE_MAP, FUNCTION_MAP, AMBIENTE_MAP,
@@ -29,31 +29,11 @@ _BANNED = {
 }
 
 
-def _remove_accents(text):
-    """Remove acentos para normalizar busca sem depender de locale."""
-    return ''.join(
-        c for c in unicodedata.normalize('NFD', text)
-        if unicodedata.category(c) != 'Mn'
-    )
-
-
-def _normalize(text):
-    """Lowercase + sem acento + sem extensões + separadores → espaço."""
-    t = text.lower()
-    for ext in [".zip", ".rar", ".svg", ".pdf", ".dxf", ".cdr", ".ai", ".eps"]:
-        t = t.replace(ext, "")
-    t = _remove_accents(t)
-    t = re.sub(r"[\-_]",  " ", t)
-    t = re.sub(r"\d{5,}", "",  t)   # remove códigos longos (IDs de produto)
-    t = re.sub(r"\s+",    " ",  t).strip()
-    return t
-
-
 def _match(name_norm, mapping):
     """Retorna rótulo do primeiro grupo de keywords que bater. None se nenhuma."""
     for keywords, label in mapping:
         for kw in keywords:
-            kw_norm = _remove_accents(kw.lower())
+            kw_norm = remove_accents(kw.lower())
             if kw_norm in name_norm:
                 return label
     return None
@@ -87,7 +67,7 @@ class FallbackGenerator:
         """Retorna (categories: list[str], tags: list[str])."""
         raw_name  = os.path.basename(project_path)
         name_tags = self.scanner.extract_tags_from_name(raw_name)
-        name_norm = _normalize(raw_name)
+        name_norm = normalize_project_name(raw_name)
 
         cats = self._build_categories(name_norm)
         tags = self._build_tags(name_norm, name_tags)
@@ -110,7 +90,7 @@ class FallbackGenerator:
         words, changed = clean.split(), False
         result_words = []
         for word in words:
-            key = _remove_accents(word.lower().strip(",.!?"))
+            key = remove_accents(word.lower().strip(",.!?"))
             if key in TRANSLATION_MAP:
                 result_words.append(TRANSLATION_MAP[key].title())
                 changed = True
@@ -137,7 +117,7 @@ class FallbackGenerator:
           3. Remove banidos e limita a 8.
         """
         raw_name  = os.path.basename(project_path)
-        name_norm = _normalize(raw_name)
+        name_norm = normalize_project_name(raw_name)
         full      = self._build_categories(name_norm)  # [date, func, env, ...]
 
         DATE_VALS = {v for _, v in DATE_MAP}
@@ -298,10 +278,10 @@ class FallbackGenerator:
     def fallback_description(self, project_path, project_data, structure):
         raw_name   = project_data.get("name", "Sem nome")
         clean_name = self._clean_name(raw_name)
-        name_norm  = _normalize(raw_name)
+        name_norm  = normalize_project_name(raw_name)
 
         tags     = project_data.get("tags", [])
-        combined = name_norm + " " + _normalize(" ".join(tags))
+        combined = name_norm + " " + normalize_project_name(" ".join(tags))
 
         func = _match(combined, FUNCTION_MAP) or FINAL_FALLBACK_FUNCTION
         date = _match(combined, DATE_MAP)
