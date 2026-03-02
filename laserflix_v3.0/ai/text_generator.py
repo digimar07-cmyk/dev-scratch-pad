@@ -1,5 +1,6 @@
 """
 Gerador de texto com IA - Análises e descrições
+Restaurado com lógica refinada da v740 (3 semanas de testes)
 """
 import os
 import re
@@ -11,6 +12,12 @@ class TextGenerator:
     """
     Gera análises (categorias/tags) e descrições de projetos usando Ollama.
     Funciona com ou sem Ollama rodando — fallbacks garantem resultado sempre.
+    
+    LÓGICA REFINADA v740:
+      - Raciocínio estruturado em 3 etapas antes de escrever
+      - Hierarquia NOME > Visão rigorosamente aplicada
+      - Prompts cirúrgicos para evitar genericidade
+      - Temperature 0.78 para criatividade controlada
     """
 
     def __init__(self, ollama_client, image_analyzer, project_scanner, fallback_generator):
@@ -70,13 +77,13 @@ class TextGenerator:
             if structure["has_ai"]:  tech_context.append("Adobe Illustrator")
             tech_str = ", ".join(tech_context) if tech_context else "formatos variados"
 
-            # Tenta descrição visual com moondream (só se Ollama disponível)
+            # Tenta descrição visual com moondream (filtro de qualidade aplicado no image_analyzer)
             vision_line = ""
             cover_img = self._find_first_image(project_path)
             if cover_img:
                 vision_desc = self.image_analyzer.analyze_cover(cover_img)
                 if vision_desc:
-                    vision_line = f"\n\U0001f5bc\ufe0f DESCRIÇÃO VISUAL DA CAPA: {vision_desc}"
+                    vision_line = f"\n🖼️ DESCRIÇÃO VISUAL DA CAPA: {vision_desc}"
 
             # Escolhe modelo baseado no batch_size
             role = self._choose_model_role(batch_size)
@@ -84,10 +91,10 @@ class TextGenerator:
             # Prompt otimizado para Qwen2.5-Instruct
             prompt = f"""Analise este produto de corte laser e responda EXATAMENTE no formato solicitado.
 
-\U0001f4c1 NOME: {name}
-\U0001f4ca ARQUIVOS: {structure['total_files']} arquivos | Subpastas: {subfolders_str}
-\U0001f5c2\ufe0f TIPOS: {file_types_str}
-\U0001f527 FORMATOS: {tech_str}{vision_line}
+📁 NOME: {name}
+📊 ARQUIVOS: {structure['total_files']} arquivos | Subpastas: {subfolders_str}
+🗂️ TIPOS: {file_types_str}
+🔧 FORMATOS: {tech_str}{vision_line}
 
 ### TAREFA 1 — CATEGORIAS
 Atribua de 3 a 5 categorias, OBRIGATORIAMENTE nesta ordem:
@@ -157,24 +164,40 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
     def generate_description(self, project_path, project_data):
         """
         Gera descrição comercial personalizada.
-
-        HIERARQUIA (inviolável):
+        
+        ═══════════════════════════════════════════════════════════════════════
+        LÓGICA REFINADA v740 (3 SEMANAS DE TESTES)
+        ═══════════════════════════════════════════════════════════════════════
+        
+        HIERARQUIA INVIOLÁVEL:
           1° NOME da peça — âncora absoluta. Define o que o produto É.
-          2° VISÃO (moondream) — detalhe visual SECUNDÁRIO, só se a imagem
-             passa no filtro de qualidade. Nunca contradiz nem substitui o nome.
-
-        Funciona com ou sem Ollama:
-          - COM Ollama: gera descrição personalizada via IA
-          - SEM Ollama: usa fallback_description baseado em templates + keywords
+          2° VISÃO (moondream) — detalhe visual SECUNDÁRIO.
+             • Só usado se imagem passa no filtro de qualidade
+             • NUNCA contradiz nem substitui o nome
+             • Apenas COMPLEMENTA com detalhes visuais
+        
+        RACIOCÍNIO ESTRUTURADO (3 etapas):
+          Antes de escrever, a IA deve responder internamente:
+            1. O que exatamente é esta peça física? (baseado no NOME)
+            2. Para que serve na prática? (uso real)
+            3. Que emoção ela representa? (conexão afetiva)
+        
+        ANTI-GENERICIDADE:
+          • Proíbe frases que servem para qualquer produto
+          • Exige especificidade sobre ESTA peça
+          • Proíbe mencionar arquivos/formatos/etapas de produção
+          • Proíbe palavra "projeto" (é uma PEÇA física)
+        
+        ═══════════════════════════════════════════════════════════════════════
 
         Formato de saída:
             NOME DA PEÇA
 
             🎨 Por Que Este Produto é Especial:
-            [2-3 frases afetivas e únicas]
+            [2-3 frases afetivas e únicas baseadas no nome + visual se disponível]
 
             💖 Perfeito Para:
-            [2-3 frases práticas com exemplos reais]
+            [2-3 frases práticas com exemplos reais de uso e ocasião]
 
         Args:
             project_path: Caminho do projeto
@@ -188,58 +211,88 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
             return self.fallback.fallback_description(project_path, project_data, structure)
 
         try:
+            # ══════════════════════════════════════════════════════════════
             # 1° NOME — âncora absoluta
+            # ══════════════════════════════════════════════════════════════
             raw_name = project_data.get("name", os.path.basename(project_path) or "Sem nome")
             clean_name = self._clean_name(raw_name)
 
-            # 2° VISÃO — só se imagem passa no filtro (filtro aplicado dentro de analyze_cover)
+            # ══════════════════════════════════════════════════════════════
+            # 2° VISÃO — só se imagem passa no filtro de qualidade
+            # ══════════════════════════════════════════════════════════════
             vision_context = ""
             cover_img = self._find_first_image(project_path)
             if cover_img:
+                # analyze_cover já aplica filtro de qualidade internamente
                 vision_desc = self.image_analyzer.analyze_cover(cover_img)
                 if vision_desc:
                     vision_context = (
                         "\n\nDETALHE VISUAL (use apenas para complementar, "
                         "nunca contradizer o nome): " + vision_desc
                     )
+                else:
+                    # Imagem não passou no filtro - log já feito no image_analyzer
+                    pass
 
             if self.ollama.stop_flag:
                 structure = self._get_structure(project_path, project_data)
                 return self.fallback.fallback_description(project_path, project_data, structure)
 
-            # Prompt de geração
+            # ══════════════════════════════════════════════════════════════
+            # PROMPT COM RACIOCÍNIO ESTRUTURADO (v740 refinado)
+            # ══════════════════════════════════════════════════════════════
             prompt = (
                 "Você é especialista em peças físicas de corte a laser — placas, espelhos, "
                 "porta-retratos, tabuletas, cabides, calendários, nomes decorativos e similares.\n\n"
                 "NOME DA PEÇA (use isso como verdade absoluta sobre o que é o produto): "
                 + clean_name + vision_context + "\n\n"
+                
+                # ──────────────────────────────────────────────────────────
+                # REGRA FUNDAMENTAL (v740)
+                # ──────────────────────────────────────────────────────────
                 "### REGRA FUNDAMENTAL:\n"
                 "O NOME define o que é o produto. O detalhe visual apenas complementa.\n"
                 "Nunca invente função ou formato que contradiga o nome.\n\n"
+                
+                # ──────────────────────────────────────────────────────────
+                # RACIOCÍNIO ESTRUTURADO EM 3 ETAPAS (v740)
+                # ──────────────────────────────────────────────────────────
                 "### RACIOCINE antes de escrever:\n"
                 "1. O que exatamente é esta peça física, baseado no nome? (tipo de objeto)\n"
                 "2. Para que serve na prática? (uso real no dia a dia)\n"
                 "3. Que emoção ou momento ela representa? (conexão afetiva)\n\n"
+                
+                # ──────────────────────────────────────────────────────────
+                # FORMATO DE SAÍDA
+                # ──────────────────────────────────────────────────────────
                 "### ESCREVA a descrição EXATAMENTE neste formato (sem nada além disso):\n\n"
                 + clean_name + "\n\n"
-                "\U0001f3a8 Por Que Este Produto é Especial:\n"
+                "🎨 Por Que Este Produto é Especial:\n"
                 "[2 a 3 frases afetivas e únicas. Fale sobre o que torna ESTA peça especial. "
                 "Nunca use frases genéricas que servem para qualquer produto.]\n\n"
-                "\U0001f496 Perfeito Para:\n"
+                "💖 Perfeito Para:\n"
                 "[2 a 3 frases práticas com exemplos reais de uso e ocasião para ESTA peça específica.]\n\n"
+                
+                # ──────────────────────────────────────────────────────────
+                # REGRAS ANTI-GENERICIDADE (v740 reforçado)
+                # ──────────────────────────────────────────────────────────
                 "### REGRAS OBRIGATÓRIAS:\n"
                 "- Escreva em português brasileiro\n"
                 "- Nunca use a palavra projeto — esta é uma PEÇA ou PRODUTO físico\n"
                 "- Nunca mencione arquivos, SVG, PDF, formatos ou etapas de produção\n"
                 "- Nunca repita frases que poderiam servir para qualquer outra peça\n"
+                "- Seja ESPECÍFICO sobre ESTA peça (não genérico)\n"
                 "- Máximo 120 palavras no total\n"
                 "- Responda APENAS com o texto no formato acima, sem comentários adicionais"
             )
 
+            # ══════════════════════════════════════════════════════════════
+            # GERAÇÃO COM TEMPERATURE 0.78 (v740 - criatividade controlada)
+            # ══════════════════════════════════════════════════════════════
             response_text = self.ollama.generate_text(
                 prompt,
                 role="text_quality",
-                temperature=0.78,
+                temperature=0.78,  # v740: criatividade sem alucinar
                 num_predict=250,
             )
 
@@ -247,20 +300,36 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
                 # Garante que começa com o nome
                 if not response_text.strip().startswith(clean_name[:15]):
                     response_text = clean_name + "\n\n" + response_text.strip()
+                
+                self.logger.info(
+                    "✅ Descrição gerada com sucesso para %s (%d chars)",
+                    os.path.basename(project_path),
+                    len(response_text)
+                )
+                
                 return response_text.strip()
 
             # Ollama retornou vazio — usa fallback de descrição
+            self.logger.warning(
+                "⚠️ Ollama retornou vazio para %s, usando fallback",
+                os.path.basename(project_path)
+            )
             structure = self._get_structure(project_path, project_data)
             return self.fallback.fallback_description(project_path, project_data, structure)
 
         except Exception as e:
-            self.logger.error("Erro ao gerar descrição para %s: %s", project_path, e, exc_info=True)
+            self.logger.error(
+                "❌ Erro ao gerar descrição para %s: %s",
+                os.path.basename(project_path),
+                e,
+                exc_info=True
+            )
             structure = self._get_structure(project_path, project_data)
             return self.fallback.fallback_description(project_path, project_data, structure)
 
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────
     # HELPERS INTERNOS
-    # ------------------------------------------------------------------
+    # ──────────────────────────────────────────────────────────────────────
 
     def _get_structure(self, project_path, project_data):
         """Retorna estrutura do projeto (do cache ou analisa ao vivo)."""
