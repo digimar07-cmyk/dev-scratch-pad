@@ -6,8 +6,6 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import threading
 import os
-from datetime import datetime
-from collections import Counter, OrderedDict
 from PIL import Image, ImageTk
 
 # Config
