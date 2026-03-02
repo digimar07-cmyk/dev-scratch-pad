@@ -89,20 +89,22 @@ class ThumbnailCache:
 
     def get_all_project_images(self, project_path, max_images=40):
         """
-        Retorna lista de caminhos de TODAS as imagens do projeto
-        (busca recursiva em subpastas), limitado a max_images.
+        Retorna lista de caminhos das imagens do projeto.
+        BUSCA APENAS NA PASTA RAIZ (não varre subpastas).
+        Limitado a max_images.
         Retorna lista de strings (caminhos absolutos).
         """
         valid_extensions = FILE_EXTENSIONS["images"]
         found = []
         try:
-            for root, dirs, files in os.walk(project_path):
-                dirs.sort()
-                for fname in sorted(files):
-                    if fname.lower().endswith(valid_extensions):
-                        found.append(os.path.join(root, fname))
-                        if len(found) >= max_images:
-                            return found
+            # Lista APENAS arquivos da pasta raiz (sem subpastas)
+            for fname in sorted(os.listdir(project_path)):
+                fpath = os.path.join(project_path, fname)
+                # Ignora subpastas, processa apenas arquivos
+                if os.path.isfile(fpath) and fname.lower().endswith(valid_extensions):
+                    found.append(fpath)
+                    if len(found) >= max_images:
+                        break
         except Exception:
             self.logger.exception("Falha ao listar imagens de %s", project_path)
         return found
