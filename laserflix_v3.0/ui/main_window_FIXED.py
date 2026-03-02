@@ -9,8 +9,6 @@ import threading
 import os
 from datetime import datetime
 from collections import Counter, OrderedDict
-import subprocess
-import platform
 from PIL import Image, ImageTk
 
 # Config
@@ -31,6 +29,7 @@ from ai.fallbacks import FallbackGenerator
 
 # Utils
 from utils.logging_setup import LOGGER
+from utils.platform_utils import open_file, open_folder
 
 # Strings que não devem aparecer como tag visível no card
 _CARD_BANNED = {
@@ -451,7 +450,7 @@ class LaserflixMainWindow:
         af.pack(fill="x", pady=(6, 0))
 
         tk.Button(af, text="📂", font=("Arial", 12),
-                  command=lambda: self.open_folder(project_path),
+                  command=lambda: open_folder(project_path),
                   bg="#2A2A2A", fg="#FFD700", relief="flat", cursor="hand2"
                   ).pack(side="left", padx=1)
 
@@ -866,7 +865,7 @@ class LaserflixMainWindow:
                   command=lambda: self.open_edit_mode(modal, project_path, data),
                   **BTN_PRIMARY).pack(side="left", padx=(0,6))
         tk.Button(action_bar, text="📂  Pasta",
-                  command=lambda: self.open_folder(project_path),
+                  command=lambda: open_folder(project_path),
                   **BTN_GHOST).pack(side="left", padx=(0,6))
         tk.Button(action_bar, text="🤖  Reanalisar",
                   command=lambda: [modal.destroy(), self.analyze_single_project(project_path)],
@@ -908,7 +907,7 @@ class LaserflixMainWindow:
         else:
             cover_lbl = tk.Label(rp, bg="#0A0A0A", cursor="hand2", bd=0)
             cover_lbl.pack(fill="x")
-            cover_lbl.bind("<Button-1>", lambda e, p=images[0]: self.open_image(p))
+            cover_lbl.bind("<Button-1>", lambda e, p=images[0]: open_file(p))
 
             def _redraw_cover(cw=None, _lbl=cover_lbl, _path=images[0]):
                 if cw is None:
@@ -950,7 +949,7 @@ class LaserflixMainWindow:
                         lbl = tk.Label(gf, image=photo, bg="#0A0A0A", cursor="hand2", bd=0)
                         lbl.image = photo
                         lbl.grid(row=row_idx, column=col_idx, padx=3, pady=3, sticky="nw")
-                        lbl.bind("<Button-1>", lambda e, p=img_path: self.open_image(p))
+                        lbl.bind("<Button-1>", lambda e, p=img_path: open_file(p))
                         col_idx += 1
                         if col_idx >= 2:
                             col_idx = 0
@@ -1204,25 +1203,6 @@ class LaserflixMainWindow:
     # =========================================================================
     # UTILITÁRIOS
     # =========================================================================
-
-    def open_image(self, image_path):
-        try:
-            if platform.system() == "Windows":   os.startfile(image_path)
-            elif platform.system() == "Darwin":  subprocess.run(["open", image_path])
-            else:                                 subprocess.run(["xdg-open", image_path])
-        except Exception:
-            messagebox.showerror("Erro", "Erro ao abrir imagem")
-
-    def open_folder(self, folder_path):
-        try:
-            if not os.path.exists(folder_path):
-                messagebox.showerror("Erro", f"Pasta não encontrada:\n{folder_path}")
-                return
-            if platform.system() == "Windows":   os.startfile(os.path.abspath(folder_path))
-            elif platform.system() == "Darwin":  subprocess.run(["open", folder_path])
-            else:                                 subprocess.run(["xdg-open", folder_path])
-        except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao abrir pasta:\n{e}")
 
     def open_categories_picker(self):
         all_cats = {}
