@@ -98,7 +98,9 @@ class TextGenerator:
             # Escolhe modelo baseado no batch_size
             role = self._choose_model_role(batch_size)
 
-            # Prompt otimizado para Qwen2.5-Instruct
+            # ════════════════════════════════════════════════════════════════════
+            # PROMPT REFINADO: Nomes compostos + Inferência de ambiente contextual
+            # ════════════════════════════════════════════════════════════════════
             prompt = f"""Analise este produto de corte laser e responda EXATAMENTE no formato solicitado.
 
 📁 NOME: {name}
@@ -106,17 +108,53 @@ class TextGenerator:
 🗂️ TIPOS: {file_types_str}
 🔧 FORMATOS: {tech_str}{vision_line}
 
+### INSTRUÇÕES IMPORTANTES ANTES DE COMEÇAR:
+
+1. NOMES COMPOSTOS:
+   - Leia o nome COMPLETO como uma UNIDADE, não separe palavras
+   - Exemplos corretos de interpretação:
+     * "Nook Book" = um nicho decorativo para estantes (NÃO é só "livro")
+     * "Bike-Mileage-Tracker" = quadro rastreador de quilometragem de bike (NÃO é só "bicicleta")
+     * "Book Stand" = suporte para livros (NÃO é só "livro" ou "suporte" isolados)
+     * "Wine Holder" = porta-vinho (NÃO é só "vinho")
+   - Sempre entenda o CONCEITO COMPLETO que o nome representa
+
+2. INFERÊNCIA DE AMBIENTE/LOCAL DE USO:
+   - Pense: "Onde as pessoas REALMENTE colocariam/usariam este produto no dia a dia?"
+   - Analise o NOME + FUNÇÃO juntos para inferir o local
+   - Exemplos de raciocínio correto:
+     * "Nook Book" (decoração de estante com livros) → Sala
+     * "Bike Tracker" (quadro motivacional de ciclismo) → Sala ou Escritório
+     * "Kitchen Organizer" (organizador de cozinha) → Cozinha
+     * "Bathroom Mirror" (espelho de banheiro) → Banheiro
+     * "Kids Name" (nome decorativo infantil) → Quarto Infantil
+     * "Wedding Topper" (topo de bolo casamento) → Festa
+
 ### TAREFA 1 — CATEGORIAS
 Atribua de 3 a 5 categorias, OBRIGATORIAMENTE nesta ordem:
-1. Data Comemorativa (escolha UMA): Páscoa, Natal, Dia das Mães, Dia dos Pais, Dia dos Namorados, Aniversário, Casamento, Chá de Bebê, Halloween, Dia das Crianças, Ano Novo, Formatura, Diversos
-2. Função/Tipo (escolha UMA): Porta-Retrato, Caixa Organizadora, Luminária, Porta-Joias, Porta-Chaves, Suporte, Quadro Decorativo, Painel de Parede, Mandala, Nome Decorativo, Letreiro, Lembrancinha, Chaveiro, Topo de Bolo, Centro de Mesa, Plaquinha, Brinquedo Educativo, Diversos
-3. Ambiente (escolha UM): Quarto, Sala, Cozinha, Banheiro, Escritório, Quarto Infantil, Quarto de Bebê, Área Externa, Festa, Diversos
+
+1. Data Comemorativa (escolha UMA):
+   Páscoa, Natal, Dia das Mães, Dia dos Pais, Dia dos Namorados, Aniversário, Casamento, 
+   Chá de Bebê, Halloween, Dia das Crianças, Ano Novo, Formatura, Diversos
+
+2. Função/Tipo (escolha UMA baseada no NOME COMPLETO):
+   Porta-Retrato, Caixa Organizadora, Luminária, Porta-Joias, Porta-Chaves, Suporte, 
+   Quadro Decorativo, Painel de Parede, Mandala, Nome Decorativo, Letreiro, Lembrancinha, 
+   Chaveiro, Topo de Bolo, Centro de Mesa, Plaquinha, Brinquedo Educativo, Diversos
+
+3. Ambiente/Local de Uso (escolha UM baseado em ONDE este produto seria USADO):
+   - Analise: "Qual cômodo/local físico este produto ficaria?"
+   - Use o raciocínio NOME + FUNÇÃO para inferir
+   - Opções: Quarto, Sala, Cozinha, Banheiro, Escritório, Quarto Infantil, 
+     Quarto de Bebê, Área Externa, Festa, Diversos
+
 4. Estilo OPCIONAL (ex: Minimalista, Rústico, Moderno, Vintage, Romântico, Elegante)
+
 5. Público OPCIONAL (ex: Bebê, Criança, Adulto, Casal, Família, Presente)
 
 ### TAREFA 2 — TAGS
 Crie exatamente 8 tags relevantes:
-- Primeiras 3: palavras-chave extraídas do nome "{name}" (sem códigos numéricos)
+- Primeiras 3: palavras-chave extraídas do nome COMPLETO "{name}" (mantenha conceitos compostos juntos)
 - Demais 5: emoção, ocasião, público, estilo, uso
 
 ### FORMATO DE RESPOSTA (siga exatamente):
@@ -233,7 +271,7 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
             [2-3 frases afetivas e únicas baseadas no nome + visual se disponível]
 
             💖 Perfeito Para:
-            [2-3 frases práticas com exemplos reais de uso e ocasão]
+            [2-3 frases práticas com exemplos reais de uso e ocasião]
 
         Args:
             project_path: Caminho do projeto
