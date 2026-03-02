@@ -126,30 +126,45 @@ class FallbackGenerator:
     # COMPLEMENTA categorias vindas da IA (quando IA retornou < 3)
     # ------------------------------------------------------------------
     def fallback_categories(self, project_path, existing_categories):
-        """Preenche categorias obrigatórias sem sobrescrever as da IA."""
+        """
+        Preenche os 3 slots obrigatórios (date, func, env) sem sobrescrever
+        os que a IA já retornou corretamente.
+
+        Estratégia:
+          1. Identifica quais slots já estão presentes nas categorias da IA.
+          2. Para cada slot ausente, injeta o valor do fallback na posição
+             correta (date=0, func=1, env=2), deslocando as demais.
+          3. Remove banidos e limita a 8.
+        """
         raw_name  = os.path.basename(project_path)
         name_norm = _normalize(raw_name)
-        full      = self._build_categories(name_norm)
-
-        result = list(existing_categories)
+        full      = self._build_categories(name_norm)  # [date, func, env, ...]
 
         DATE_VALS = {v for _, v in DATE_MAP}
         FUNC_VALS = {v for _, v in FUNCTION_MAP}
         ENV_VALS  = {v for _, v in AMBIENTE_MAP}
 
+        result = list(existing_categories)
+
+        # Remove banidos das categorias da IA antes de avaliar slots
+        result = [c for c in result if c.lower() not in _BANNED]
+
         has_date = any(c in DATE_VALS for c in result)
         has_func = any(c in FUNC_VALS for c in result)
         has_env  = any(c in ENV_VALS  for c in result)
 
-        if not has_date:
-            result.insert(0, full[0])
-        if not has_func:
-            result.insert(min(1, len(result)), full[1])
+        # Injeta slots ausentes em posições fixas (do fim para o início
+        # para não deslocar os índices dos inserts subsequentes)
         if not has_env:
-            result.append(full[2])
+            result.append(full[2])          # env sempre no final dos obrigatórios
 
-        # Remove termos banidos que possam ter vindo da IA
-        result = [c for c in result if c.lower() not in _BANNED]
+        if not has_func:
+            # func vai logo após date (posição 1 se date presente, senão 0)
+            func_idx = 1 if has_date else 0
+            result.insert(func_idx, full[1])
+
+        if not has_date:
+            result.insert(0, full[0])       # date sempre na posição 0
 
         return result[:8]
 
