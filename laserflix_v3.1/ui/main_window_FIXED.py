@@ -750,4 +750,7 @@ class LaserflixMainWindow:
         pass
 
     def darken_color(self, hex_color):
-        pass
+        """Escurece uma cor hexadecimal em 20%."""
+        rgb = tuple(int(hex_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+        darker = tuple(int(c * 0.8) for c in rgb)
+        return f"#{darker[0]:02x}{darker[1]:02x}{darker[2]:02x}"
