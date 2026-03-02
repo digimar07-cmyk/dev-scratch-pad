@@ -46,6 +46,16 @@ class TextGenerator:
           - COM Ollama: usa IA + visão + fallback_categories se retorno incompleto
           - SEM Ollama: usa fallback_analysis baseado em keywords do nome
 
+        GARANTIA ABSOLUTA:
+          ✅ SEMPRE retorna no mínimo 3 categorias obrigatórias:
+             [0] Data comemorativa
+             [1] Função/Tipo
+             [2] Ambiente
+          ✅ Sistema de validação em cascata:
+             1° Parse da IA
+             2° fallback_categories() se < 3
+             3° Defaults hardcoded se ainda < 3
+
         Args:
             project_path: Caminho completo do projeto
             batch_size: Tamanho do lote (para escolha de modelo)
@@ -148,13 +158,39 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
                 # Deduplica e limita
                 tags = list(dict.fromkeys(tags))[:10]
 
-                # Se IA retornou menos de 3 categorias, completa com fallback
+                # ══════════════════════════════════════════════════════════════
+                # VALIDAÇÃO EM CASCATA (garantia de 3 categorias SEMPRE)
+                # ══════════════════════════════════════════════════════════════
+                
+                # 1° VALIDAÇÃO: Se IA retornou < 3, completa com fallback
                 if len(categories) < 3:
+                    self.logger.warning(
+                        "⚠️ IA retornou apenas %d categorias para %s, completando com fallback",
+                        len(categories), name
+                    )
                     categories = self.fallback.fallback_categories(project_path, categories)
+                
+                # 2° VALIDAÇÃO: Se fallback não completou, usa defaults hardcoded
+                if len(categories) < 3:
+                    self.logger.error(
+                        "❌ Fallback falhou para %s (retornou %d cats), usando defaults",
+                        name, len(categories)
+                    )
+                    # Defaults hardcoded (último recurso)
+                    defaults = ["Aniversário", "Diversos", "Diversos"]
+                    while len(categories) < 3:
+                        categories.append(defaults[len(categories)])
+                
+                # 3° GARANTIA FINAL: Log de sucesso
+                self.logger.info(
+                    "✅ Categorias validadas para %s: %d categorias geradas",
+                    name, len(categories)
+                )
 
                 return categories[:8], tags
 
             # Ollama retornou vazio (indisponível ou timeout) — usa fallback completo
+            self.logger.warning("⚠️ Ollama indisponível para %s, usando fallback completo", name)
             return self.fallback.fallback_analysis(project_path)
 
         except Exception:
@@ -197,7 +233,7 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
             [2-3 frases afetivas e únicas baseadas no nome + visual se disponível]
 
             💖 Perfeito Para:
-            [2-3 frases práticas com exemplos reais de uso e ocasião]
+            [2-3 frases práticas com exemplos reais de uso e ocasão]
 
         Args:
             project_path: Caminho do projeto
