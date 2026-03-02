@@ -22,7 +22,7 @@ Dica rápida de proporção:
 # ---------------------------------------------------------------------------
 
 COLS     = 6      # colunas por linha  (ex: 4, 5, 6, 7)
-CARD_W   = 200    # largura do card    (ex: 180, 200, 220, 240)
+CARD_W   = 260    # largura do card    (ex: 180, 200, 220, 240)
 CARD_H   = 410    # altura do card     (ex: 380, 410, 440, 480)
 COVER_H  = 180    # altura da capa     (ex: 160, 180, 200, 220)
-CARD_PAD = 8      # gap entre cards    (ex: 5, 8, 10, 12)
+CARD_PAD = 3      # gap entre cards    (ex: 5, 8, 10, 12)
