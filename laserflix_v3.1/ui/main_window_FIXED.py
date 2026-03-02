@@ -969,9 +969,9 @@ class LaserflixMainWindow:
         rsb.pack(side="right", fill="y")
         rc.bind("<MouseWheel>", lambda ev: rc.yview_scroll(int(-1*(ev.delta/SCROLL_SPEED)), "units"))
 
-        images = self.cache.get_all_project_images(project_path)
+        cover_img = self.cache.find_first_image(project_path)
 
-        if not images:
+        if not cover_img:s:
             tk.Label(rp, text="🖼️", font=("Arial",64),
                      bg="#0A0A0A", fg="#1E1E1E").pack(expand=True, pady=100)
             tk.Label(rp, text="Sem imagens nesta pasta",
@@ -979,9 +979,9 @@ class LaserflixMainWindow:
         else:
             cover_lbl = tk.Label(rp, bg="#0A0A0A", cursor="hand2", bd=0)
             cover_lbl.pack(fill="x")
-            cover_lbl.bind("<Button-1>", lambda e, p=images[0]: open_file(p))
+            cover_lbl.bind("<Button-1>", lambda e, p=icover_imgn_file(p))
 
-            def _redraw_cover(cw=None, _lbl=cover_lbl, _path=images[0]):
+            def _redraw_cover(cw=None, _lbl=cover_lbl, _pathcover_img
                 if cw is None:
                     cw = rc.winfo_width() - 18
                 if cw < 10: return
@@ -1003,32 +1003,8 @@ class LaserflixMainWindow:
             right_outer.bind("<Configure>", _on_right_resize)
             modal.after(80, _redraw_cover)
 
-            rest = images[1:]
-            if rest:
-                tk.Frame(rp, bg=SEP_CLR, height=1).pack(fill="x", pady=8)
-                tk.Label(rp, text=f"MAIS IMAGENS  ({len(rest)})",
-                         font=FONT_SECTION, bg="#0A0A0A", fg=FG_TER,
-                         anchor="w").pack(fill="x", padx=12, pady=(0,6))
-                gf = tk.Frame(rp, bg="#0A0A0A")
-                gf.pack(fill="x", padx=6)
-                col_idx = row_idx = 0
-                for img_path in rest[:MODAL_MAX_GRID_IMAGES]:
-                    try:
-                        img = Image.open(img_path)
-                        img.thumbnail((MODAL_THUMBNAIL_SIZE, MODAL_THUMBNAIL_SIZE), Image.Resampling.LANCZOS)
-                        photo = ImageTk.PhotoImage(img)
-                        lbl = tk.Label(gf, image=photo, bg="#0A0A0A", cursor="hand2", bd=0)
-                        lbl.image = photo
-                        lbl.grid(row=row_idx, column=col_idx, padx=3, pady=3, sticky="nw")
-                        lbl.bind("<Button-1>", lambda e, p=img_path: open_file(p))
-                        col_idx += 1
-                        if col_idx >= MODAL_GRID_COLUMNS:
-                            col_idx = 0
-                            row_idx += 1
-                    except Exception:
-                        pass
-            tk.Frame(rp, bg="#0A0A0A", height=24).pack()
-
+       
+       
     # =========================================================================
     # EDIÇÃO DE PROJETO
     # =========================================================================
