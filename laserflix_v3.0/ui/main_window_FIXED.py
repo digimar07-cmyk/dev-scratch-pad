@@ -13,7 +13,6 @@ from PIL import Image, ImageTk
 
 # Config
 from config.settings import VERSION
-from config.constants import COLORS, FONTS
 from config.card_layout import COLS, CARD_W, CARD_H, COVER_H, CARD_PAD  # ← edite card_layout.py
 
 # Core
