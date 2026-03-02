@@ -4,7 +4,6 @@ Mantém estrutura modular mas replica visualmente o v740 100%
 """
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
-import threading
 import os
 from PIL import Image, ImageTk
 
@@ -41,6 +40,7 @@ from ai.ollama_client import OllamaClient
 from ai.image_analyzer import ImageAnalyzer
 from ai.text_generator import TextGenerator
 from ai.fallbacks import FallbackGenerator
+from ai.analysis_manager import AnalysisManager
 
 # Utils
 from utils.logging_setup import LOGGER
@@ -69,6 +69,14 @@ class LaserflixMainWindow:
             self.fallback_generator,
         )
 
+        # Analysis Manager (encapsula lógica de análise)
+        self.analysis_manager = AnalysisManager(
+            self.text_generator,
+            self.db_manager,
+            self.ollama
+        )
+        self._setup_analysis_callbacks()
+
         self.folders = self.db_manager.config.get("folders", [])
         self.database = self.db_manager.database
         self.current_filter = "all"
@@ -76,8 +84,6 @@ class LaserflixMainWindow:
         self.current_tag = None
         self.current_origin = "all"
         self.search_query = ""
-        self.analyzing = False
-        self.stop_analysis = False
         self._active_sidebar_btn = None
 
         self.root.title(f"LASERFLIX {VERSION}")
@@ -87,6 +93,28 @@ class LaserflixMainWindow:
         self.create_ui()
         self.display_projects()
         self.logger.info("✨ Laserflix v%s iniciado", VERSION)
+
+    def _setup_analysis_callbacks(self):
+        """Configura callbacks do AnalysisManager para UI."""
+        self.analysis_manager.on_start = self.show_progress_ui
+        self.analysis_manager.on_progress = self.update_progress
+        self.analysis_manager.on_complete = self._on_analysis_complete
+        self.analysis_manager.on_error = self._on_analysis_error
+
+    def _on_analysis_complete(self, done, skipped):
+        """Callback quando análise termina."""
+        self.hide_progress_ui()
+        self.update_sidebar()
+        self.display_projects()
+        msg = f"✅ Análise concluída: {done} projeto(s)"
+        if skipped:
+            msg += f" ({skipped} pulados)"
+        self.status_bar.config(text=msg)
+        self.logger.info(msg)
+
+    def _on_analysis_error(self, error_msg):
+        """Callback quando ocorre erro na análise."""
+        messagebox.showwarning("⚠️ Erro", error_msg)
 
     # =========================================================================
     # UI
@@ -194,7 +222,7 @@ class LaserflixMainWindow:
         self.progress_bar = ttk.Progressbar(self.status_frame, mode="determinate",
                                              length=300, style="G.Horizontal.TProgressbar")
         self.stop_btn = tk.Button(self.status_frame, text="⏹ Parar",
-                                   command=self.stop_analysis_process,
+                                   command=self.analysis_manager.stop,
                                    bg=ACCENT_RED, fg=FG_PRIMARY,
                                    font=("Arial", 10, "bold"), relief="flat", cursor="hand2")
 
@@ -784,6 +812,7 @@ class LaserflixMainWindow:
             def _t():
                 modal.after(0, modal.destroy)
                 modal.after(50, lambda: self.open_project_modal(project_path))
+            import threading
             threading.Thread(target=_t, daemon=True).start()
 
         gen_btn = tk.Button(lp, text="🤖  Gerar com IA", command=_gen_desc,
@@ -1057,142 +1086,52 @@ class LaserflixMainWindow:
             self.status_bar.config(text="✓ Projeto atualizado!")
 
     # =========================================================================
-    # IA: ANÁLISE
+    # IA: ANÁLISE (DELEGADAS PARA AnalysisManager)
     # =========================================================================
 
     def show_progress_ui(self):
+        """Mostra barra de progresso."""
         self.progress_bar.pack(side="left", padx=10)
         self.stop_btn.pack(side="right", padx=10)
         self.progress_bar["value"] = 0
 
     def hide_progress_ui(self):
+        """Esconde barra de progresso."""
         self.progress_bar.pack_forget()
         self.stop_btn.pack_forget()
 
     def update_progress(self, current, total, message=""):
+        """Atualiza barra de progresso."""
         pct = (current / total) * 100 if total else 0
         self.progress_bar["value"] = pct
         msg = f"{message} ({current}/{total} — {pct:.1f}%)"
         self.status_bar.config(text=msg)
         self.root.update_idletasks()
 
-    def stop_analysis_process(self):
-        self.stop_analysis = True
-        self.ollama.stop_flag = True
-        self.status_bar.config(text="⏹ Interrompendo...")
-
     def analyze_single_project(self, project_path):
-        if self.analyzing:
-            messagebox.showwarning("⚠️ Análise em andamento",
-                                   "Aguarde a análise atual terminar antes de iniciar outra.")
-            return
-        self.analyzing = True
-        self.stop_analysis = False
-        self.ollama.stop_flag = False
-        self.show_progress_ui()
-        name = self.database.get(project_path, {}).get("name", os.path.basename(project_path))
-        self.status_bar.config(text=f"🤖 Analisando: {name}...")
-        self.root.update_idletasks()
-
-        def _worker():
-            try:
-                cats, tags = self.text_generator.analyze_project(project_path, batch_size=1)
-                if project_path in self.database:
-                    self.database[project_path]["categories"]    = cats
-                    self.database[project_path]["tags"]           = tags
-                    self.database[project_path]["analyzed"]       = True
-                    self.database[project_path]["analyzed_model"] = (
-                        self.ollama.active_models.get("text_quality", "fallback"))
-                    self.db_manager.save_database()
-                self.root.after(0, _done)
-            except Exception as e:
-                self.logger.exception("Erro em analyze_single_project: %s", e)
-                self.root.after(0, _done)
-
-        def _done():
-            self.analyzing = False
-            self.hide_progress_ui()
-            self.update_sidebar()
-            self.display_projects()
-            self.status_bar.config(text=f"✅ Análise concluída: {name}")
-
-        threading.Thread(target=_worker, daemon=True).start()
+        """Analisa um único projeto (delega para AnalysisManager)."""
+        self.analysis_manager.analyze_single(project_path, self.database)
 
     def analyze_only_new(self):
-        targets = [p for p, d in self.database.items()
-                   if not d.get("analyzed") and os.path.isdir(p)]
+        """Analisa apenas projetos novos."""
+        targets = self.analysis_manager.get_unanalyzed_projects(self.database)
         if not targets:
             messagebox.showinfo("✅ Tudo analisado", "Todos os projetos já foram analisados!")
             return
         if messagebox.askyesno("🤖 Analisar novos",
                                f"Encontrei {len(targets)} projeto(s) sem análise.\n\nIniciar agora?"):
-            self._run_analysis_batch(targets)
+            self.analysis_manager.analyze_batch(targets, self.database)
 
     def reanalyze_all(self):
-        targets = [p for p in self.database if os.path.isdir(p)]
+        """Reanalisar todos os projetos."""
+        targets = self.analysis_manager.get_all_projects(self.database)
         if not targets:
             messagebox.showinfo("Vazio", "Nenhum projeto encontrado.")
             return
         if messagebox.askyesno("🔄 Reanalisar todos",
                                f"Isso vai reanalisar {len(targets)} projeto(s) e SUBSTITUIR\n"
                                "as categorias e tags existentes.\n\nConfirma?"):
-            self._run_analysis_batch(targets)
-
-    def _run_analysis_batch(self, targets):
-        if self.analyzing:
-            messagebox.showwarning("⚠️ Em andamento",
-                                   "Uma análise já está em curso. Aguarde ou pare a atual.")
-            return
-        self.analyzing     = True
-        self.stop_analysis = False
-        self.ollama.stop_flag = False
-        total      = len(targets)
-        batch_size = total
-        self.show_progress_ui()
-        self.root.update_idletasks()
-
-        def _worker():
-            done = skipped = 0
-            for project_path in targets:
-                if self.stop_analysis or self.ollama.stop_flag:
-                    break
-                if not os.path.isdir(project_path):
-                    skipped += 1
-                    continue
-                name = self.database.get(project_path, {}).get(
-                    "name", os.path.basename(project_path))
-                self.root.after(0, lambda n=name, d=done, t=total:
-                                self.update_progress(d, t, f"🤖 {n}"))
-                try:
-                    cats, tags = self.text_generator.analyze_project(
-                        project_path, batch_size=batch_size)
-                    if project_path in self.database:
-                        from config.settings import FAST_MODEL_THRESHOLD
-                        role = "text_fast" if batch_size > FAST_MODEL_THRESHOLD else "text_quality"
-                        self.database[project_path]["categories"]    = cats
-                        self.database[project_path]["tags"]           = tags
-                        self.database[project_path]["analyzed"]       = True
-                        self.database[project_path]["analyzed_model"] = \
-                            self.ollama.active_models.get(role, "fallback")
-                except Exception as e:
-                    self.logger.exception("Erro ao analisar %s: %s", project_path, e)
-                done += 1
-                if done % 10 == 0:
-                    self.db_manager.save_database()
-            self.db_manager.save_database()
-            self.root.after(0, lambda d=done, s=skipped: _done(d, s))
-
-        def _done(done, skipped):
-            self.analyzing = self.stop_analysis = self.ollama.stop_flag = False
-            self.hide_progress_ui()
-            self.update_sidebar()
-            self.display_projects()
-            msg = f"✅ Análise concluída: {done}/{total} projeto(s)"
-            if skipped: msg += f" ({skipped} pulados)"
-            self.status_bar.config(text=msg)
-            self.logger.info(msg)
-
-        threading.Thread(target=_worker, daemon=True).start()
+            self.analysis_manager.analyze_batch(targets, self.database)
 
     # =========================================================================
     # DESCRIÇÕES IA
