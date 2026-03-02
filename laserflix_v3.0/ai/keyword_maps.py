@@ -1,361 +1,366 @@
 """
-keyword_maps.py
-Dicionários de mapeamento keyword → rótulo para análise SEM Ollama.
+keyword_maps.py  —  SOMENTE DADOS, sem lógica.
+Edite aqui para expandir cobertura. A lógica fica em fallbacks.py.
 
-Este arquivo é SOMENTE DADOS — edite aqui para expandir a cobertura.
-A lógica de uso fica em fallbacks.py.
+ESTRUTURA: lista de tuplas (["kw1","kw2",...], "Rótulo PT-BR")
+  - keywords: substrings buscadas no nome normalizado (sem acento, lowercase)
+  - Rótulo: sempre PT-BR, nunca genérico
+  - Ordem: mais específico PRIMEIRO
 
-ESTRUTURA DE CADA MAPA:
-  lista de tuplas: (["keyword1", "keyword2", ...], "Rótulo PT-BR")
-  - keywords: substrings buscadas no nome normalizado (lowercase, sem acento)
-  - Rótulo: categoria/tag exibida ao usuário (sempre PT-BR)
-  - Ordem importa: mais específico PRIMEIRO
-
-CATEGORIAS OBRIGATÓRIAS (nesta ordem):
-  [0] DATE_MAP   → Data comemorativa
-  [1] FUNCTION_MAP → Função / tipo do produto
-  [2] AMBIENTE_MAP → Ambiente / cômodo
-CATEGORIAS OPCIONAIS:
-  [3] THEME_MAP  → Tema visual
-  [4] STYLE_MAP  → Estilo
-  [5] PUBLIC_MAP → Público-alvo
+REGRAS ABSOLUTAS:
+  1. NUNCA coloque "Diversos", "Data Especial", "Ambiente Doméstico" ou
+     qualquer outro termo genérico como rótulo — isso é tratado em fallbacks.py
+  2. Toda keyword deve ser lowercase e sem acento (a busca normaliza o texto)
+  3. Cada entrada deve ter pelo menos 2 keywords diferentes
 """
 
 # ===========================================================================
 # DATE_MAP — Data comemorativa (Cat 1 — OBRIGATÓRIA)
+# REGRA: o sistema NUNCA deve retornar "Data Especial" como rótulo final.
+#        Se o nome não bater aqui, fallbacks.py usa THEME→FUNCTION→PUBLIC
+#        para inferir a data mais provável antes de usar o fallback.
 # ===========================================================================
 DATE_MAP = [
-    # --- Páscoa ---
-    (["pascoa", "easter", "coelho", "coelha", "coelhinho", "ovos pascoa",
-      "ovo pascoa", "galinha da pascoa", "pintinho", "pollito"], "Páscoa"),
+    # ── Páscoa ──────────────────────────────────────────────────────────────
+    (["pascoa", "easter", "coelho", "coelha", "coelhinho",
+      "galinha pascoa", "pintinho", "bunny easter", "rabbit easter",
+      "ovo pascoa", "ovos pascoa", "cesta pascoa"], "Páscoa"),
 
-    # --- Natal ---
-    (["natal", "christmas", "noel", "papai noel", "rena", "rudolph",
-      "snowman", "boneco de neve", "arvore natal", "pinheiro natal",
-      "xmas", "jingle", "sleigh", "trenó", "trenô", "guirlanda natal",
-      "meia natal", "sino natal", "vela natal", "bola natal",
-      "enfeite natal", "decoracao natal", "papai noel", "mamae noel",
-      "familia noel", "rena natal", "estrela natal"], "Natal"),
+    # ── Natal ────────────────────────────────────────────────────────────────
+    (["natal", "christmas", "xmas", "noel", "papai noel", "mamae noel",
+      "rena", "rudolph", "snowman", "boneco neve", "pinheiro natal",
+      "arvore natal", "jingle", "sleigh", "treno", "guirlanda natal",
+      "meia natal", "sino natal", "bola natal", "enfeite natal",
+      "estrela natal", "familia noel", "presepinho", "presepio",
+      "anjo natal", "grinch"], "Natal"),
 
-    # --- Ano Novo ---
-    (["ano novo", "new year", "reveillon", "virada", "feliz ano novo",
-      "fogos artificio", "champanhe"], "Ano Novo"),
+    # ── Ano Novo ─────────────────────────────────────────────────────────────
+    (["ano novo", "new year", "reveillon", "virada ano",
+      "fogos artificio", "champanhe", "feliz ano novo"], "Ano Novo"),
 
-    # --- Carnaval ---
-    (["carnaval", "carnival", "mardi gras", "fantasia carnaval",
-      "mascara carnaval", "confete", "serpentina"], "Carnaval"),
+    # ── Carnaval ─────────────────────────────────────────────────────────────
+    (["carnaval", "carnival", "mardi gras", "mascara carnaval",
+      "fantasia carnaval", "confete", "serpentina", "bloco carnaval",
+      "rei momo", "escola samba"], "Carnaval"),
 
-    # --- Festa Junina ---
+    # ── Festa Junina ─────────────────────────────────────────────────────────
     (["festa junina", "junina", "sao joao", "arraial", "bandeirinha",
-      "bandeirinhas", "chapeu palha", "xadrez", "fogueira",
-      "quadrilha", "milho", "foguete"], "Festa Junina"),
+      "chapeu palha", "fogueira", "quadrilha", "milho",
+      "caipira", "xadrez junino", "balao junino"], "Festa Junina"),
 
-    # --- Dia das Mães ---
-    (["dia das maes", "dia mae", "mothers day", "maezinha", "mainha",
-      "para mae", "para maes", "presente mae", "amor mae",
-      "melhor mae", "super mae", "rainha mae"], "Dia das Mães"),
+    # ── Dia das Mães ─────────────────────────────────────────────────────────
+    (["dia das maes", "dia mae", "mothers day", "mother day",
+      "maezinha", "mainha", "para mae", "presente mae",
+      "amor mae", "melhor mae", "super mae", "rainha mae",
+      "homenagem mae", "obrigado mae"], "Dia das Mães"),
 
-    # --- Dia dos Pais ---
-    (["dia dos pais", "dia pai", "fathers day", "paizinho", "painho",
-      "para pai", "presente pai", "melhor pai", "super pai",
-      "heroi pai", "papai"], "Dia dos Pais"),
+    # ── Dia dos Pais ─────────────────────────────────────────────────────────
+    (["dia dos pais", "dia pai", "fathers day", "father day",
+      "paizinho", "painho", "para pai", "presente pai",
+      "melhor pai", "super pai", "heroi pai", "meu pai",
+      "homenagem pai", "obrigado pai"], "Dia dos Pais"),
 
-    # --- Dia dos Namorados ---
-    (["dia dos namorados", "namorado", "namorada", "valentines",
-      "valentine", "love heart", "coracao apaixonado", "romance",
-      "amor eterno", "te amo", "para voce", "apaixonados",
-      "casal apaixonado"], "Dia dos Namorados"),
+    # ── Dia das Crianças ─────────────────────────────────────────────────────
+    (["dia das criancas", "dia crianca", "children day", "kids day",
+      "para criancas", "presente crianca", "homenagem crianca",
+      "12 de outubro"], "Dia das Crianças"),
 
-    # --- Casamento ---
-    (["wedding", "casamento", "noiva", "noivo", "bride", "groom",
-      "matrimonio", "bodas", "noivado", "alianca", "votos",
-      "cerimonia", "recepcao casamento", "decoracao casamento",
-      "convite casamento", "mesa casamento", "lembranc casamento"], "Casamento"),
+    # ── Dia dos Namorados / Valentine ────────────────────────────────────────
+    (["dia dos namorados", "namorado", "namorada",
+      "valentines", "valentine", "san valentin", "saint valentin",
+      "amor eterno", "te amo", "eu te amo", "casal apaixonado",
+      "apaixonados", "love heart", "coracao apaixonado",
+      "para meu amor", "romance"], "Dia dos Namorados"),
 
-    # --- Chá de Bebê / Chá Revelacao ---
-    (["cha de bebe", "baby shower", "cha revelacao", "churrascinho bebe",
+    # ── Casamento ────────────────────────────────────────────────────────────
+    (["wedding", "casamento", "noiva", "noivo",
+      "bride", "groom", "matrimonio", "bodas", "noivado",
+      "alianca casamento", "votos casamento", "cerimonia",
+      "recepcao casamento", "decoracao casamento", "mesa casamento",
+      "convite casamento", "lembranca casamento",
+      "bodas prata", "bodas ouro"], "Casamento"),
+
+    # ── Chá de Bebê / Revelação ───────────────────────────────────────────────
+    (["cha de bebe", "baby shower", "cha revelacao",
       "gender reveal", "maternidade", "gravida", "gestante",
-      "chegada bebe", "boas vindas bebe"], "Chá de Bebê"),
+      "chegada bebe", "boas vindas bebe", "churrascinho bebe",
+      "recem nascido", "newborn", "nascimento bebe"], "Chá de Bebê"),
 
-    # --- Aniversário ---
+    # ── Aniversário ──────────────────────────────────────────────────────────
     (["aniversario", "birthday", "bday", "happy birthday",
-      "parabens pra voce", "festa aniversario", "boleira",
-      "anos", "aninho", "aniversariante", "feliz aniversario"], "Aniversário"),
+      "parabens pra voce", "parabens", "festa aniversario",
+      "boleira", "aniversariante", "feliz aniversario",
+      "anos", "aninho"], "Aniversário"),
 
-    # --- Dia das Crianças ---
-    (["dia das criancas", "criancas", "children day", "kids day",
-      "para criancas", "infantil"], "Dia das Crianças"),
-
-    # --- Halloween ---
+    # ── Halloween ────────────────────────────────────────────────────────────
     (["halloween", "bruxa", "witch", "abobora", "pumpkin",
-      "caveira halloween", "fantasma", "ghost", "aranha halloween",
-      "morcego", "bat", "zumbi", "zombie", "frankenstein",
-      "dracul", "vampiro"], "Halloween"),
+      "fantasma", "ghost", "aranha halloween", "morcego", "bat",
+      "zumbi", "zombie", "frankenstein", "dracul", "vampiro",
+      "caveira halloween", "dia bruxas", "noite bruxas",
+      "trick treat", "trick or treat"], "Halloween"),
 
-    # --- Dia de Finados ---
-    (["finados", "dia dos mortos", "dia de finados", "dia dos mortos",
-      "calavera", "sugar skull", "catrina"], "Dia de Finados"),
+    # ── Dia de Finados ────────────────────────────────────────────────────────
+    (["finados", "dia mortos", "dia dos mortos",
+      "calavera", "sugar skull", "catrina", "dia finados"], "Dia de Finados"),
 
-    # --- Formatura ---
+    # ── Formatura ────────────────────────────────────────────────────────────
     (["formatura", "graduation", "formando", "formanda", "diploma",
-      "colacao", "cap gown", "chapeu formatura", "turma formatura"], "Formatura"),
+      "colacao grau", "chapeu formatura", "turma formatura",
+      "conclusao curso", "formatura escolar"], "Formatura"),
 
-    # --- Dia do Professor ---
-    (["dia do professor", "professor", "professora", "teacher",
-      "docente", "mestre", "mestra", "escola", "educador"], "Dia do Professor"),
+    # ── Dia do Professor ─────────────────────────────────────────────────────
+    (["dia do professor", "dia professor", "professor dia",
+      "professora dia", "teacher day", "homenagem professor",
+      "presente professor", "obrigado professor"], "Dia do Professor"),
 
-    # --- Dia do Trabalho ---
-    (["dia do trabalho", "trabalhador", "labor day", "primeiro de maio",
-      "1 de maio"], "Dia do Trabalho"),
+    # ── Dia do Trabalho ──────────────────────────────────────────────────────
+    (["dia do trabalho", "dia trabalho", "trabalhador",
+      "labor day", "primeiro de maio", "1 maio"], "Dia do Trabalho"),
 
-    # --- Dia dos Avós ---
-    (["dia dos avos", "avo", "vovo", "vovó", "vovô", "avo",
-      "neto", "neta", "para avo", "para vovo"], "Dia dos Avós"),
+    # ── Dia dos Avós ─────────────────────────────────────────────────────────
+    (["dia dos avos", "dia avos", "avo", "vovo",
+      "vovó", "vovô", "neto", "neta",
+      "para vovo", "para vovó", "para vovô",
+      "grandma", "grandpa", "presente avo"], "Dia dos Avós"),
 
-    # --- Dia do Amigo ---
-    (["dia do amigo", "amizade", "friendship", "melhor amigo",
-      "melhor amiga", "bff", "para amiga", "para amigo"], "Dia do Amigo"),
+    # ── Dia do Amigo ─────────────────────────────────────────────────────────
+    (["dia do amigo", "dia amigo", "amizade", "friendship",
+      "melhor amigo", "melhor amiga", "bff",
+      "para amiga", "para amigo",
+      "presente amigo", "homenagem amigo"], "Dia do Amigo"),
 
-    # --- Dia dos Namorados (extras) ---
-    (["coracao", "heart", "amor", "love", "te amo", "eu te amo",
-      "for you", "para voce"], "Dia dos Namorados"),
+    # ── Primeira Comunhão / Religioso litúrgico ───────────────────────────────
+    (["primeira comunhao", "comunhao", "crisma",
+      "batizado", "batismo", "eucaristia",
+      "corpus christi"], "Primeira Comunhão"),
 
-    # --- Corpus Christi / Religioso ---
-    (["corpus christi", "primeira comunhao", "crisma", "batizado",
-      "batismo", "eucaristia"], "Primeira Comunião"),
+    # ── Chá Bar ──────────────────────────────────────────────────────────────
+    (["cha bar", "churrascao", "churrasco noivos"], "Chá Bar"),
 
-    # --- Dia das Bruxas BR ---
-    (["dia das bruxas", "noite das bruxas"], "Halloween"),
+    # ── Dia das Mulheres ─────────────────────────────────────────────────────
+    (["dia da mulher", "dia mulher", "dia internacional mulher",
+      "8 marco", "womens day", "girl power",
+      "empoderamento feminino", "homenagem mulher"], "Dia das Mulheres"),
 
-    # --- Maternidade (gestão / nascimento) ---
-    (["recem nascido", "newborn", "chegada bebe", "nascimento"], "Chá de Bebê"),
+    # ── Dia do Homem ─────────────────────────────────────────────────────────
+    (["dia do homem", "dia homem", "mens day",
+      "homenagem homem", "presente homem"], "Dia do Homem"),
 
-    # --- Chá Bar ---
-    (["cha bar", "churrascao"], "Chá Bar"),
+    # ── Dia do Animal / Pet ───────────────────────────────────────────────────
+    (["dia do animal", "dia animal", "dia dos pets",
+      "dia pet", "pet day", "dia animais"], "Dia do Animal"),
 
-    # --- Dia das Mulheres ---
-    (["dia da mulher", "dia internacional mulher", "8 de marco",
-      "womens day", "girl power", "empoderamento feminino"], "Dia das Mulheres"),
-
-    # --- Dia do Homem ---
-    (["dia do homem", "mens day", "homem"], "Dia do Homem"),
-
-    # --- Dia do Animal / Pet ---
-    (["dia do animal", "dia dos pets", "dia do pet", "pet day"], "Dia do Animal"),
-
-    # --- São Valentin ---
-    (["sao valentim", "san valentin", "saint valentin"], "Dia dos Namorados"),
-
-    # --- Festas de Final de Ano ---
-    (["ferias", "recesso", "fim de ano"], "Natal"),
-
-    # --- Aniversário de Empresa ---
-    (["aniversario empresa", "corporativo", "empresa anos",
-      "fundacao empresa"], "Aniversário Corporativo"),
-
-    # --- Aposentadoria ---
+    # ── Aposentadoria ─────────────────────────────────────────────────────────
     (["aposentadoria", "aposentado", "aposentada",
-      "retirement", "parabens aposentado"], "Aposentadoria"),
+      "retirement", "parabens aposentado",
+      "fim carreira", "nova fase"], "Aposentadoria"),
 
-    # --- Promoção / Colação ---
-    (["promocao escolar", "formatura escolar", "fim de ano escolar",
-      "conclusao curso"], "Formatura"),
+    # ── Aniversário Corporativo ───────────────────────────────────────────────
+    (["aniversario empresa", "empresa anos",
+      "fundacao empresa", "anos empresa",
+      "parabens empresa"], "Aniversário Corporativo"),
+
+    # ── Dia dos Namorados extras (coração solto) ──────────────────────────────
+    # ATENÇÃO: estas keywords são genéricas, vêm POR ÚLTIMO
+    (["coracao", "heart", "amor", "love",
+      "para voce", "for you"], "Dia dos Namorados"),
 ]
 
 
 # ===========================================================================
-# FUNCTION_MAP — Função / Tipo do produto (Cat 2 — OBRIGATÓRIA)
+# FUNCTION_MAP — Tipo / Função do produto (Cat 2 — OBRIGATÓRIA)
 # ===========================================================================
 FUNCTION_MAP = [
-    # --- Luminária ---
+    # ── Luminária ────────────────────────────────────────────────────────────
     (["luminaria", "lamp", "lampada", "abajur", "nightlight",
-      "night light", "luz noturna", "led", "luminoso", "neon",
-      "light box", "caixa de luz", "painel luminoso",
-      "luminaria mesa", "luminaria parede", "luz ambiente"], "Luminária"),
+      "night light", "luz noturna", "led luminaria", "luminoso",
+      "neon", "light box", "caixa luz", "painel luminoso",
+      "luz ambiente", "iluminacao"], "Luminária"),
 
-    # --- Porta-Retrato / Quadro de Foto ---
+    # ── Porta-Retrato ────────────────────────────────────────────────────────
     (["porta retrato", "portaretrato", "photo frame", "picture frame",
-      "frame foto", "moldura", "quadro foto", "porta foto",
-      "album foto", "memoria foto"], "Porta-Retrato"),
+      "frame foto", "moldura foto", "quadro foto", "porta foto",
+      "album foto"], "Porta-Retrato"),
 
-    # --- Topo de Bolo ---
+    # ── Topo de Bolo ─────────────────────────────────────────────────────────
     (["topo de bolo", "cake topper", "topper bolo", "topo bolo",
       "decoracao bolo", "enfeite bolo"], "Topo de Bolo"),
 
-    # --- Centro de Mesa ---
+    # ── Centro de Mesa ───────────────────────────────────────────────────────
     (["centro de mesa", "centerpiece", "enfeite mesa",
-      "decoracao mesa", "centro mesa", "arranjo mesa"], "Centro de Mesa"),
+      "decoracao mesa", "arranjo mesa"], "Centro de Mesa"),
 
-    # --- Mandala ---
+    # ── Mandala ──────────────────────────────────────────────────────────────
     (["mandala", "mandara", "geometria sagrada",
-      "mandala floral", "mandala parede"], "Mandala"),
+      "mandala floral", "mandala parede", "geometria mandala"], "Mandala"),
 
-    # --- Porta-Joias ---
-    (["porta joias", "jewelry box", "jewellery", "joias",
+    # ── Porta-Joias ──────────────────────────────────────────────────────────
+    (["porta joias", "jewelry box", "jewellery box", "joias",
       "bijuteria", "porta anel", "porta pulseira",
       "porta colar", "porta brinco", "organizador joias"], "Porta-Joias"),
 
-    # --- Porta-Chaves ---
+    # ── Porta-Chaves ─────────────────────────────────────────────────────────
     (["porta chave", "porta chaves", "key holder", "keyholder",
       "key rack", "chaveiro parede", "organizador chave",
       "suporte chave"], "Porta-Chaves"),
 
-    # --- Porta-Copo / Descanso ---
+    # ── Porta-Copo ───────────────────────────────────────────────────────────
     (["porta copo", "coaster", "descanso copo", "suporte copo",
-      "base copo", "porta xicara"], "Porta-Copo"),
+      "base copo", "porta xicara", "porta xicaras"], "Porta-Copo"),
 
-    # --- Porta-Celular / Suporte ---
+    # ── Suporte para Celular ─────────────────────────────────────────────────
     (["porta celular", "suporte celular", "phone holder",
-      "phone stand", "suporte tablet", "dock phone"], "Suporte para Celular"),
+      "phone stand", "suporte tablet", "dock phone",
+      "cell stand", "phone rack"], "Suporte para Celular"),
 
-    # --- Porta-Óculos ---
+    # ── Porta-Óculos ─────────────────────────────────────────────────────────
     (["porta oculos", "suporte oculos", "glasses holder",
-      "eyeglass holder"], "Porta-Óculos"),
+      "eyeglass holder", "oculos suporte"], "Porta-Óculos"),
 
-    # --- Porta-Caneta / Organizador de Mesa ---
+    # ── Organizador de Mesa ──────────────────────────────────────────────────
     (["porta caneta", "pen holder", "organizador mesa escritorio",
       "porta lapis", "porta clips", "porta objeto",
-      "organizador escritorio"], "Organizador de Mesa"),
+      "organizador escritorio", "desk organizer"], "Organizador de Mesa"),
 
-    # --- Porta-Vinho / Adega ---
+    # ── Porta-Vinho ──────────────────────────────────────────────────────────
     (["porta vinho", "wine rack", "adega", "suporte vinho",
-      "vinho", "taça vinho", "taca vinho", "wine holder"], "Porta-Vinho"),
+      "taca vinho", "wine holder", "vinho decorativo",
+      "porta taça"], "Porta-Vinho"),
 
-    # --- Bandeja ---
-    (["bandeja", "tray", "bandeja decorativa", "bandeja madeira",
-      "bandeja organizadora"], "Bandeja"),
+    # ── Bandeja ──────────────────────────────────────────────────────────────
+    (["bandeja", "tray", "bandeja decorativa",
+      "bandeja madeira", "bandeja organizadora"], "Bandeja"),
 
-    # --- Pote / Recipiente ---
+    # ── Pote Decorativo ──────────────────────────────────────────────────────
     (["pote", "pot", "vasilha", "potinho", "pote madeira",
-      "recipiente", "pote decorativo"], "Pote Decorativo"),
+      "recipiente", "pote decorativo", "jarra madeira"], "Pote Decorativo"),
 
-    # --- Relógio ---
+    # ── Relógio ──────────────────────────────────────────────────────────────
     (["relogio", "clock", "wall clock", "relogio parede",
       "relogio madeira", "relogio decorativo"], "Relógio"),
 
-    # --- Espelho ---
+    # ── Espelho Decorativo ───────────────────────────────────────────────────
     (["espelho", "mirror", "espelho decorativo",
       "espelho parede", "espelho madeira"], "Espelho Decorativo"),
 
-    # --- Cabide / Gancho ---
+    # ── Cabide ───────────────────────────────────────────────────────────────
     (["cabide", "hanger", "coat hanger", "gancho", "hook",
       "pendurador", "porta bolsa", "porta casaco",
       "porta toalha", "porta chapeu"], "Cabide"),
 
-    # --- Nome Decorativo ---
+    # ── Nome Decorativo ──────────────────────────────────────────────────────
     (["nome decorativo", "letra decorativa", "monogram",
-      "initial", "letreiro", "sign nome", "placa nome",
-      "nome parede", "nome madeira", "first name"], "Nome Decorativo"),
+      "initial", "letreiro", "nome parede", "nome madeira",
+      "first name", "family name", "nome personalizado"], "Nome Decorativo"),
 
-    # --- Plaquinha / Sinalização ---
-    (["placa", "plaquinha", "plaque", "door sign", "aviso",
-      "indicativo", "welcome sign", "bem vindo", "sinaliza",
-      "sinalizacao", "totem", "painel sinal"], "Plaquinha"),
+    # ── Plaquinha / Sinalização ───────────────────────────────────────────────
+    (["placa", "plaquinha", "plaque", "door sign", "aviso parede",
+      "welcome sign", "bem vindo", "sinalizacao",
+      "painel sinal", "indicativo"], "Plaquinha"),
 
-    # --- Caixa Organizadora ---
-    (["caixa", "box", "organizador", "porta treco", "porta trecos",
-      "armazenamento", "storage", "cofre", "caixa madeira",
-      "caixa decorativa", "caixinha", "caixa organizadora",
-      "caixa presente", "gift box"], "Caixa Organizadora"),
+    # ── Caixa Organizadora ────────────────────────────────────────────────────
+    (["caixa organiz", "caixinha", "storage box", "porta trecos",
+      "organizador caixa", "caixa madeira", "cofre madeira",
+      "armazenamento", "box madeira"], "Caixa Organizadora"),
 
-    # --- Lembrancinha / Chaveiro ---
-    (["lembrancinha", "lembranca", "chaveiro", "keychain",
+    # ── Caixa Presente ────────────────────────────────────────────────────────
+    (["caixa presente", "gift box", "caixa festa",
+      "embalagem presente", "sacola madeira",
+      "packaging madeira"], "Caixa Presente"),
+
+    # ── Lembrancinha ─────────────────────────────────────────────────────────
+    (["lembrancinha", "lembranca", "chaveiro lembranca", "keychain",
       "tag lembranca", "mini lembranca", "brinde",
       "souvenir", "recordacao"], "Lembrancinha"),
 
-    # --- Quadro Decorativo / Arte Parede ---
+    # ── Quadro Decorativo ────────────────────────────────────────────────────
     (["quadro decorativo", "painel decorativo", "wall art",
       "arte parede", "decoracao parede", "wall decor",
       "framed art", "poster madeira"], "Quadro Decorativo"),
 
-    # --- Brinquedo Educativo ---
+    # ── Brinquedo Educativo ──────────────────────────────────────────────────
     (["brinquedo", "toy", "puzzle", "quebra cabeca", "educativo",
-      "educacional", "montessori", "jogo infantil", "atividade",
+      "educacional", "montessori toy", "jogo infantil",
       "pedagogico", "aprendizado", "brinquedo madeira"], "Brinquedo Educativo"),
 
-    # --- Jogo de Mesa ---
+    # ── Jogo de Mesa ─────────────────────────────────────────────────────────
     (["jogo de mesa", "board game", "xadrez", "dama", "domino",
-      "jogo madeira", "game", "passa tempo",
-      "jogo estrategia", "tabuleiro"], "Jogo de Mesa"),
+      "jogo madeira", "passa tempo", "tabuleiro",
+      "jogo estrategia"], "Jogo de Mesa"),
 
-    # --- Penteadeira / Organizador Banheiro ---
+    # ── Organizador de Banheiro ───────────────────────────────────────────────
     (["organizador banheiro", "porta sabonete", "suporte banheiro",
-      "porta shampoo", "porta escova", "porta dental"], "Organizador de Banheiro"),
+      "porta shampoo", "porta escova", "porta dental",
+      "banheiro organizer"], "Organizador de Banheiro"),
 
-    # --- Totem / Display ---
-    (["totem", "display", "expositor", "suporte display",
-      "display madeira", "totem decorativo"], "Totem"),
+    # ── Totem / Display ──────────────────────────────────────────────────────
+    (["totem", "display madeira", "expositor", "suporte display",
+      "totem decorativo", "expositor produto"], "Totem"),
 
-    # --- Porta-Tempero / Cozinha ---
+    # ── Organizador de Cozinha ────────────────────────────────────────────────
     (["porta tempero", "spice rack", "organizador cozinha",
-      "porta condimento", "porta sal", "porta azeite",
-      "suporte tempero"], "Organizador de Cozinha"),
+      "porta condimento", "suporte tempero",
+      "porta sal", "porta azeite"], "Organizador de Cozinha"),
 
-    # --- Fruteira / Bandeja Cozinha ---
-    (["fruteira", "bowl", "fruteiro", "bacia madeira",
-      "bandeja cozinha"], "Fruteira"),
+    # ── Fruteira ─────────────────────────────────────────────────────────────
+    (["fruteira", "fruteiro", "bowl madeira", "bacia madeira",
+      "bandeja cozinha", "cesta frutas"], "Fruteira"),
 
-    # --- Escultura / Decoração 3D ---
-    (["escultura", "sculpture", "3d", "decor 3d",
-      "decoracao 3d", "arte 3d", "painel 3d"], "Escultura Decorativa"),
+    # ── Escultura Decorativa ──────────────────────────────────────────────────
+    (["escultura", "sculpture", "decor 3d", "arte 3d",
+      "painel 3d", "decoracao 3d"], "Escultura Decorativa"),
 
-    # --- Suporte para Plantas ---
+    # ── Suporte para Plantas ──────────────────────────────────────────────────
     (["suporte planta", "plant stand", "vaso suporte",
       "suporte vaso", "cachepot", "jardim vertical",
       "suporte cacto"], "Suporte para Plantas"),
 
-    # --- Porta-Livro / Organizador Livro ---
+    # ── Porta-Livro ──────────────────────────────────────────────────────────
     (["porta livro", "bookend", "organizador livro",
       "suporte livro", "estante madeira"], "Porta-Livro"),
 
-    # --- Tag / Etiqueta ---
-    (["tag", "etiqueta", "label", "tag madeira",
-      "etiqueta madeira", "etiqueta produto",
-      "tag presente"], "Etiqueta Decorativa"),
+    # ── Etiqueta Decorativa ───────────────────────────────────────────────────
+    (["etiqueta decorativa", "tag madeira", "etiqueta madeira",
+      "etiqueta produto", "tag presente",
+      "label madeira"], "Etiqueta Decorativa"),
 
-    # --- Porta-Controle Remoto ---
-    (["porta controle", "suporte controle", "porta controle remoto",
-      "remote holder"], "Porta-Controle"),
+    # ── Porta-Controle ────────────────────────────────────────────────────────
+    (["porta controle", "suporte controle remoto",
+      "porta controle remoto", "remote holder"], "Porta-Controle"),
 
-    # --- Calendário ---
-    (["calendario", "calendar", "agenda", "planner",
-      "calendario perpetuo", "data"], "Calendário Decorativo"),
+    # ── Calendário Decorativo ─────────────────────────────────────────────────
+    (["calendario decorativo", "calendario perpetuo",
+      "calendar madeira", "planner madeira"], "Calendário Decorativo"),
 
-    # --- Mapa Decorativo ---
-    (["mapa", "map", "mapa decorativo", "mapa brasil",
-      "mapa mundi", "mapa cidade", "mapa estado"], "Mapa Decorativo"),
+    # ── Mapa Decorativo ───────────────────────────────────────────────────────
+    (["mapa decorativo", "mapa brasil", "mapa mundi",
+      "mapa cidade", "mapa estado", "map decor",
+      "recorte mapa"], "Mapa Decorativo"),
 
-    # --- Painel Vazado ---
-    (["painel vazado", "painel treliça", "painel mdf",
-      "painel laser", "grade decorativa", "biombo"], "Painel Vazado"),
+    # ── Painel Vazado ────────────────────────────────────────────────────────
+    (["painel vazado", "painel trelica", "painel mdf",
+      "grade decorativa", "biombo", "painel corte laser"], "Painel Vazado"),
 
-    # --- Embalagem / Caixa Presente ---
-    (["embalagem", "packaging", "caixa presente", "gift box",
-      "sacola madeira", "caixa festa"], "Caixa Presente"),
-
-    # --- Suporte Tablet / Livro ---
+    # ── Suporte Leitura ───────────────────────────────────────────────────────
     (["suporte tablet", "suporte livro leitura",
-      "suporte receita", "book stand"], "Suporte Leitura"),
+      "suporte receita", "book stand",
+      "suporte leitura"], "Suporte Leitura"),
 
-    # --- Aplique / Recorte Decorativo ---
+    # ── Aplique Decorativo ────────────────────────────────────────────────────
     (["aplique", "recorte decorativo", "silhueta",
       "silhouette", "recorte mdf", "aplique parede"], "Aplique Decorativo"),
 
-    # --- Nomes de Estádo / País ---
-    (["mapa estado", "recorte estado", "mapa regiao",
-      "mapa brasil"], "Mapa Decorativo"),
-
-    # --- Porta-Fone / Headphone Stand ---
+    # ── Porta-Fone ────────────────────────────────────────────────────────────
     (["porta fone", "headphone stand", "suporte headphone",
-      "fone ouvido"], "Porta-Fone"),
+      "fone ouvido suporte", "headset holder"], "Porta-Fone"),
 
-    # --- Gamer / Setup ---
-    (["gamer", "setup gamer", "gaming", "game room",
-      "desk gamer", "rgb"], "Decoração Gamer"),
+    # ── Decoração Gamer ───────────────────────────────────────────────────────
+    (["setup gamer", "desk gamer", "gamer decor",
+      "rgb decor", "gaming room"], "Decoração Gamer"),
 
-    # --- Presente Corporativo ---
-    (["corporativo", "empresa", "brinde corporativo",
-      "presente empresa", "logo empresa", "cnpj"], "Brinde Corporativo"),
+    # ── Brinde Corporativo ────────────────────────────────────────────────────
+    (["brinde corporativo", "presente empresa", "logo empresa",
+      "brinde empresa", "corporativo laser"], "Brinde Corporativo"),
 ]
 
 
@@ -363,104 +368,109 @@ FUNCTION_MAP = [
 # AMBIENTE_MAP — Ambiente / Cômodo (Cat 3 — OBRIGATÓRIA)
 # ===========================================================================
 AMBIENTE_MAP = [
-    # --- Quarto de Bebê ---
+    # ── Quarto de Bebê ───────────────────────────────────────────────────────
     (["quarto bebe", "cha de bebe", "baby shower", "maternidade",
       "newborn", "recem nascido", "chegada bebe",
       "decoracao bebe", "nursery", "quarto recem nascido"], "Quarto de Bebê"),
 
-    # --- Quarto Infantil ---
-    (["quarto infantil", "infantil", "kids room", "crianca",
-      "children room", "unicornio", "dinossauro", "princess",
-      "prince", "fada", "superheroi", "cartoon", "personagem",
-      "menino", "menina", "quarto crianca"], "Quarto Infantil"),
+    # ── Quarto Infantil ───────────────────────────────────────────────────────
+    (["quarto infantil", "kids room", "crianca quarto",
+      "unicornio quarto", "dinossauro quarto", "fada quarto",
+      "superheroi quarto", "menino quarto",
+      "menina quarto", "princesa quarto"], "Quarto Infantil"),
 
-    # --- Quarto Adulto ---
-    (["quarto", "bedroom", "cama", "closet",
-      "dormitorio", "quarto casal", "quarto solteiro"], "Quarto"),
+    # ── Quarto Adulto ─────────────────────────────────────────────────────────
+    (["quarto adulto", "bedroom", "quarto casal",
+      "quarto solteiro", "dormitorio", "closet"], "Quarto"),
 
-    # --- Cozinha ---
-    (["cozinha", "kitchen", "cafe", "coffee", "cha xicara",
-      "receita", "comida", "food", "cook", "chef",
-      "utensilios", "tempero", "fruteira", "gastronomia",
-      "cozinheiro", "padaria", "confeitaria", "doces"], "Cozinha"),
+    # ── Cozinha ───────────────────────────────────────────────────────────────
+    (["cozinha", "kitchen", "cafe decor", "coffee decor",
+      "receita cozinha", "comida decor", "food decor",
+      "chef cozinha", "utensilios", "tempero cozinha",
+      "confeitaria", "padaria", "doces cozinha"], "Cozinha"),
 
-    # --- Banheiro ---
-    (["banheiro", "bathroom", "banho", "bath", "lavabo",
-      "sabonete", "toalha", "ducha", "espelho banheiro",
+    # ── Banheiro ──────────────────────────────────────────────────────────────
+    (["banheiro", "bathroom", "lavabo", "bath decor",
+      "sabonete", "toalha banheiro", "espelho banheiro",
       "organizador banheiro"], "Banheiro"),
 
-    # --- Escritório / Home Office ---
-    (["escritorio", "office", "home office", "trabalho",
-      "desk", "mesa trabalho", "organizer escritorio",
-      "agenda", "planner", "calendario", "corporativo",
-      "negocios", "profissional"], "Escritório"),
+    # ── Escritório / Home Office ──────────────────────────────────────────────
+    (["escritorio", "home office", "office decor",
+      "mesa trabalho", "organizer escritorio",
+      "agenda escritorio", "planner escritorio",
+      "calendario escritorio", "profissional"], "Escritório"),
 
-    # --- Sala de Estar ---
-    (["sala", "living room", "sofa", "tv", "sala estar",
-      "sala jantar", "jantar", "aparador", "rack",
+    # ── Sala de Estar ─────────────────────────────────────────────────────────
+    (["sala estar", "living room", "sofa",
+      "sala jantar", "aparador", "rack sala",
       "parede sala", "sala visita"], "Sala"),
 
-    # --- Área de Lazer / Varanda ---
-    (["varanda", "balcao", "deck", "area lazer", "quintal",
-      "terraço", "terraco", "jardim", "area externa",
-      "outdoor", "externo", "piscina"], "Área de Lazer"),
+    # ── Área de Lazer / Varanda ───────────────────────────────────────────────
+    (["varanda", "deck", "area lazer", "quintal",
+      "terraco", "jardim", "area externa",
+      "outdoor", "piscina area"], "Área de Lazer"),
 
-    # --- Churrasqueira / Gourmet ---
-    (["churrasqueira", "churrasco", "gourmet", "area gourmet",
-      "espaco gourmet", "parrilla", "grillmaster"], "Área Gourmet"),
+    # ── Área Gourmet / Churrasco ──────────────────────────────────────────────
+    (["churrasqueira", "churrasco", "area gourmet",
+      "espaco gourmet", "parrilla", "grillmaster",
+      "churrasqueiro"], "Área Gourmet"),
 
-    # --- Sala de Jogos / Gamer ---
-    (["sala jogos", "game room", "gamer", "setup gamer",
-      "games", "playroom", "sala gamer"], "Sala de Jogos"),
+    # ── Sala de Jogos / Gamer ─────────────────────────────────────────────────
+    (["sala jogos", "game room", "setup gamer",
+      "games room", "playroom gamer", "sala gamer"], "Sala de Jogos"),
 
-    # --- Academia / Gym ---
-    (["academia", "gym", "fitness", "crossfit", "musculacao",
-      "treino", "personal trainer", "esporte",
+    # ── Academia / Gym ────────────────────────────────────────────────────────
+    (["academia", "gym", "fitness", "crossfit",
+      "musculacao", "treino", "personal trainer",
       "boxe", "luta"], "Academia"),
 
-    # --- Templo / Espaço Religioso ---
-    (["igreja", "templo", "capela", "cruzeiro", "religioso",
-      "santuario", "altar", "oratorio"], "Espaço Religioso"),
+    # ── Espaço Religioso ──────────────────────────────────────────────────────
+    (["igreja", "templo", "capela",
+      "santuario", "altar", "oratorio",
+      "espaco religioso", "cruzeiro"], "Espaço Religioso"),
 
-    # --- Loja / Comercial ---
-    (["loja", "store", "comercio", "comercial", "vitrine",
-      "pdv", "ponto de venda", "showroom", "expositor loja"], "Loja"),
+    # ── Loja / Comercial ──────────────────────────────────────────────────────
+    (["loja", "store", "comercio", "vitrine",
+      "pdv", "ponto de venda", "showroom",
+      "expositor loja"], "Loja"),
 
-    # --- Pet Shop / Espaço Pet ---
-    (["petshop", "pet shop", "veterinario", "clinica veterinaria",
-      "espaco pet", "caniche", "poodle", "bulldog",
-      "gato espaco", "cachorro espaco"], "Pet Shop"),
+    # ── Pet Shop / Espaço Pet ─────────────────────────────────────────────────
+    (["petshop", "pet shop", "veterinario",
+      "clinica veterinaria", "espaco pet",
+      "cachorro espaco", "gato espaco"], "Pet Shop"),
 
-    # --- Garagem ---
-    (["garagem", "garage", "oficina", "workshop",
-      "ferramentas", "mecanica"], "Garagem"),
+    # ── Garagem ───────────────────────────────────────────────────────────────
+    (["garagem", "garage", "oficina",
+      "workshop", "ferramentas", "mecanica"], "Garagem"),
 
-    # --- Lavanderia ---
+    # ── Lavanderia ────────────────────────────────────────────────────────────
     (["lavanderia", "laundry", "lavadero",
       "area servico", "area de servico"], "Lavanderia"),
 
-    # --- Festa / Evento ---
-    (["festa", "party", "evento", "celebracao", "decoracao festa",
-      "balao", "confete", "table decor", "mesa festa",
-      "buffet", "salao festa", "espaco festas"], "Festa"),
+    # ── Festa / Evento ────────────────────────────────────────────────────────
+    (["festa", "party", "evento", "celebracao",
+      "decoracao festa", "mesa festa",
+      "buffet", "salao festa", "espaco festas",
+      "table decor festa"], "Festa"),
 
-    # --- Escola / Educacional ---
-    (["escola", "colegio", "educacao", "sala aula",
-      "educacional", "pedagogico", "montessori",
+    # ── Sala de Aula / Escola ─────────────────────────────────────────────────
+    (["sala aula", "escola", "colegio",
+      "educacao", "pedagogico", "montessori sala",
       "sala montessori"], "Sala de Aula"),
 
-    # --- Clinica / Consultório ---
-    (["clinica", "consultorio", "medico", "medica",
-      "hospital", "saude", "fisioterapia", "psicologia",
-      "nutricao", "odontologia", "dentista"], "Clínica"),
+    # ── Clínica ───────────────────────────────────────────────────────────────
+    (["clinica", "consultorio", "medico decor",
+      "fisioterapia", "psicologia", "nutricao",
+      "odontologia", "dentista"], "Clínica"),
 
-    # --- Barbearia / Salão ---
-    (["barbearia", "salao beleza", "salao de beleza", "barbershop",
-      "cabelereiro", "estetica", "spa", "nail art", "manicure"], "Salão de Beleza"),
+    # ── Salão de Beleza ───────────────────────────────────────────────────────
+    (["barbearia", "salao beleza", "barbershop",
+      "cabelereiro", "estetica", "spa",
+      "nail art", "manicure"], "Salão de Beleza"),
 
-    # --- Camping / Aventura ---
-    (["camping", "aventura", "trilha", "outdoor adventure",
-      "acampamento", "natureza"], "Camping"),
+    # ── Camping / Aventura ────────────────────────────────────────────────────
+    (["camping", "aventura", "trilha",
+      "acampamento", "natureza outdoor"], "Camping"),
 ]
 
 
@@ -468,113 +478,73 @@ AMBIENTE_MAP = [
 # THEME_MAP — Tema visual (Cat 4 — opcional)
 # ===========================================================================
 THEME_MAP = [
-    # --- Religioso ---
-    (["jesus", "cristo", "cruzeiro", "cruz", "religioso",
+    (["jesus", "cristo", "cruz", "religioso",
       "deus", "oracao", "biblia", "sagrado coracao",
-      "nossa senhora", "maria", "jose", "anjo", "angel",
-      "divino espirito", "fe", "esperanca", "pentecostal",
-      "evangelico", "catolico", "batista"], "Religioso"),
-
-    # --- Montessori ---
-    (["montessori", "waldorf", "aprendizado natural",
-      "estimulacao precoce", "desenvolvimento crianca",
-      "pedagogia", "educacao natural"], "Montessori"),
-
-    # --- Safari / Selva ---
-    (["safari", "selva", "jungle", "leao", "tigre", "elefante",
-      "girafa", "zebra", "macaco", "hipopotamo",
-      "rinoceronte", "africa", "wild", "animais selvagens"], "Safari"),
-
-    # --- Fazenda / Country ---
-    (["fazenda", "farm", "country", "vaca", "porco", "galinha",
-      "cavalo", "ovelha", "cabra", "celeiro", "roça",
-      "campo", "rural", "sitio", "rancho"], "Fazenda"),
-
-    # --- Náutico / Mar ---
-    (["nautico", "nautica", "mar", "sea", "ocean", "praia",
-      "beach", "ancora", "leme", "barco", "vela", "navio",
-      "sereia", "polvo", "golfinhos", "peixe", "coral",
+      "nossa senhora", "anjo", "angel", "divino espirito",
+      "fe", "pentecostal", "evangelico", "catolico",
+      "batista"], "Religioso"),
+    (["montessori", "waldorf", "estimulacao precoce",
+      "desenvolvimento crianca", "pedagogia",
+      "educacao natural"], "Montessori"),
+    (["safari", "selva", "jungle", "leao", "tigre",
+      "elefante", "girafa", "zebra", "macaco",
+      "hipopotamo", "rinoceronte", "africa",
+      "animais selvagens"], "Safari"),
+    (["fazenda", "farm", "country", "vaca", "porco",
+      "galinha", "cavalo", "ovelha", "cabra", "celeiro",
+      "roca", "rural", "sitio", "rancho"], "Fazenda"),
+    (["nautico", "mar", "sea", "ocean", "praia",
+      "beach", "ancora", "leme", "barco", "navio",
+      "sereia", "polvo", "golfinhos", "peixe",
       "concha", "onda"], "Náutico"),
-
-    # --- Floresta / Natureza ---
-    (["floresta", "forest", "natureza", "nature", "arvore",
-      "folha", "planta", "flor", "jardim", "botanico",
-      "organico", "eco", "sustentavel"], "Natureza"),
-
-    # --- Animais Domesticos / Pet ---
-    (["cachorro", "dog", "gato", "cat", "pet", "bicho",
-      "animal estimacao", "pata", "focinho", "rabo",
-      "labrador", "golden", "husky", "pitbull", "dachshund",
-      "siames", "persa", "filhote"], "Pet"),
-
-    # --- Unicornio / Fantasia ---
-    (["unicornio", "unicorn", "fada", "fairy", "magia",
-      "fantasia", "magico", "arco iris", "rainbow",
-      "sereia", "mermaid", "pegasus"], "Fantasia"),
-
-    # --- Dinóssauro ---
-    (["dinossauro", "dinosaur", "dino", "t-rex", "trex",
-      "jurassic", "pterossauro", "velocirraptor"], "Dinóssauro"),
-
-    # --- Super-Heróis ---
-    (["superheroi", "superhero", "batman", "superman", "spiderman",
-      "homem aranha", "homem ferro", "capitao america",
-      "mulher maravilha", "marvel", "dc comics",
-      "vingadores", "avengers", "liga justica"], "Super-Heróis"),
-
-    # --- Princesas / Disney ---
-    (["princesa", "princess", "disney", "cinderela", "rapunzel",
-      "bela adormecida", "branca de neve", "frozen", "elsa",
-      "anna", "moana", "ariel", "bela"], "Princesas"),
-
-    # --- Anime / Mangá ---
-    (["anime", "manga", "naruto", "dragon ball", "one piece",
-      "demon slayer", "kimetsu", "my hero academia",
-      "kawaii", "chibi", "sakura"], "Anime"),
-
-    # --- Esporte ---
-    (["futebol", "football", "basquete", "basketball", "volei",
-      "volleyball", "tenis", "natacao", "ciclismo",
-      "corrida", "atletismo", "esporte", "sport"], "Esporte"),
-
-    # --- Música ---
-    (["musica", "music", "violao", "guitarra", "piano",
-      "bateria", "nota musical", "musica parede",
-      "instrumento", "rock", "sertanejo", "forro", "samba"], "Música"),
-
-    # --- Floral / Botânico ---
-    (["floral", "flores", "flower", "rosas", "girassol",
-      "botanico", "botanical", "tulipa", "orquidea",
-      "lavanda", "camomila", "coroa flores"], "Floral"),
-
-    # --- Gamer ---
+    (["floresta", "forest", "natureza", "nature",
+      "arvore", "folha", "botanico", "eco",
+      "sustentavel", "planta"], "Natureza"),
+    (["cachorro", "dog", "gato", "cat", "pet",
+      "animal estimacao", "pata", "focinho",
+      "labrador", "golden", "husky", "pitbull",
+      "siames", "persa", "filhote pet"], "Pet"),
+    (["unicornio", "unicorn", "fada", "fairy",
+      "magia", "magico", "arco iris", "rainbow",
+      "mermaid", "pegasus"], "Fantasia"),
+    (["dinossauro", "dinosaur", "dino", "t rex", "trex",
+      "jurassic", "pterossauro", "velocirraptor"], "Dinossauro"),
+    (["superheroi", "superhero", "batman", "superman",
+      "spiderman", "homem aranha", "homem ferro",
+      "capitao america", "mulher maravilha",
+      "marvel", "avengers", "liga justica"], "Super-Heróis"),
+    (["princesa", "princess", "disney", "cinderela",
+      "rapunzel", "frozen", "elsa", "anna",
+      "moana", "ariel"], "Princesas"),
+    (["anime", "manga", "naruto", "dragon ball",
+      "one piece", "demon slayer", "kawaii",
+      "chibi", "sakura"], "Anime"),
+    (["futebol", "football", "basquete", "basketball",
+      "volei", "tenis", "natacao", "ciclismo",
+      "corrida", "atletismo"], "Esporte"),
+    (["musica", "music", "violao", "guitarra",
+      "piano", "bateria", "nota musical",
+      "instrumento", "rock", "sertanejo", "samba"], "Música"),
+    (["floral", "flores", "flower", "rosas",
+      "girassol", "botanico", "botanical",
+      "tulipa", "orquidea", "lavanda"], "Floral"),
     (["gamer", "gaming", "joystick", "controle jogo",
-      "pixel", "arcade", "playstation", "xbox", "nintendo",
-      "minecraft", "among us", "fortnite"], "Gamer"),
-
-    # --- Astros / Espaço ---
-    (["espaco", "space", "galaxia", "galaxy", "planeta",
-      "estrela", "lua", "sol", "astronauta", "foguete",
-      "universo", "cosmo", "saturno", "marte"], "Espaço"),
-
-    # --- Nordestino / Forró ---
-    (["nordestino", "forro", "forró", "sertanejo",
-      "nordeste", "cangacu", "lampiao", "maria bonita",
+      "pixel", "arcade", "playstation", "xbox",
+      "nintendo", "minecraft", "fortnite"], "Gamer"),
+    (["espaco", "space", "galaxia", "galaxy",
+      "planeta", "estrela", "lua", "sol",
+      "astronauta", "foguete", "universo",
+      "saturno", "marte"], "Espaço"),
+    (["nordestino", "forro", "sertanejo",
+      "nordeste", "lampiao", "maria bonita",
       "cordel", "xilografia", "caatinga"], "Cultura Nordestina"),
-
-    # --- Brasil / Patriótico ---
-    (["brasil", "brazil", "verde amarelo", "selecao",
-      "cbf", "pais brasil", "bandeira brasil",
+    (["brasil", "brazil", "verde amarelo",
+      "selecao", "bandeira brasil",
       "independencia brasil"], "Brasil"),
-
-    # --- Minimalismo ---
     (["minimalista", "minimal", "clean design",
       "linha fina", "simples elegante"], "Minimalista"),
-
-    # --- Tropical ---
     (["tropical", "flamingo", "tucano", "arara",
-      "folha tropical", "palmeira", "abacaxi",
-      "frutas tropicais"], "Tropical"),
+      "folha tropical", "palmeira", "abacaxi"], "Tropical"),
 ]
 
 
@@ -582,31 +552,29 @@ THEME_MAP = [
 # STYLE_MAP — Estilo visual (opcional)
 # ===========================================================================
 STYLE_MAP = [
-    (["minimalista", "minimal", "clean", "simples moderno"],          "Minimalista"),
-    (["rustico", "rustic", "madeira rustica", "estilo campo"],         "Rústico"),
-    (["moderno", "modern", "contemporaneo", "design moderno"],          "Moderno"),
-    (["vintage", "retro", "antigo", "anos 70", "anos 80"],             "Vintage"),
-    (["romantico", "romantic", "delicado", "suave",
-      "flores delicadas", "rendado"],                                   "Romântico"),
+    (["minimalista", "minimal", "clean", "simples moderno"],      "Minimalista"),
+    (["rustico", "rustic", "madeira rustica", "estilo campo"],     "Rústico"),
+    (["moderno", "modern", "contemporaneo", "design moderno"],      "Moderno"),
+    (["vintage", "retro", "antigo", "anos 70", "anos 80"],         "Vintage"),
+    (["romantico", "romantic", "delicado", "flores delicadas",
+      "rendado"],                                                   "Romântico"),
     (["elegante", "elegant", "luxo", "luxury", "premium",
-      "sofisticado", "requintado"],                                      "Elegante"),
-    (["divertido", "fun", "colorido", "fofo", "cute",
-      "alegre", "vibrante"],                                            "Divertido"),
-    (["geometrico", "geometric", "linhas", "abstract",
-      "angular", "triangulo", "hexagono"],                              "Geométrico"),
+      "sofisticado", "requintado"],                                  "Elegante"),
+    (["divertido", "fun", "fofo", "cute",
+      "alegre", "vibrante"],                                        "Divertido"),
+    (["geometrico", "geometric", "linhas geometricas",
+      "angular", "triangulo", "hexagono"],                          "Geométrico"),
     (["boho", "bohemian", "macrame", "etnico",
-      "hippie", "tribal"],                                              "Boho"),
-    (["industrial", "metal", "aco", "ferro",
-      "tubulacao", "estilo industrial"],                                 "Industrial"),
-    (["escandinavo", "scandinavian", "nordico", "nordic",
-      "hygge"],                                                         "Escandinavo"),
-    (["classico", "classic", "tradicional",
-      "antigo", "barroco"],                                             "Clássico"),
+      "hippie", "tribal"],                                          "Boho"),
+    (["industrial", "metal decor", "estilo industrial"],           "Industrial"),
+    (["escandinavo", "scandinavian", "nordico",
+      "nordic", "hygge"],                                          "Escandinavo"),
+    (["classico", "classic", "tradicional", "barroco"],            "Clássico"),
     (["oriental", "japones", "chines", "asiatico",
-      "zen", "feng shui", "sakura", "torii"],                           "Oriental"),
-    (["shabby chic", "shabby", "provençal", "provencal",
-      "patina", "desgastado"],                                          "Shabby Chic"),
-    (["art deco", "deco", "gatsby", "anos 20"],                         "Art Déco"),
+      "zen", "feng shui", "sakura", "torii"],                       "Oriental"),
+    (["shabby chic", "shabby", "provencal",
+      "patina", "desgastado"],                                      "Shabby Chic"),
+    (["art deco", "deco", "gatsby", "anos 20"],                     "Art Déco"),
 ]
 
 
@@ -614,47 +582,101 @@ STYLE_MAP = [
 # PUBLIC_MAP — Público-alvo (opcional)
 # ===========================================================================
 PUBLIC_MAP = [
-    (["bebe", "baby", "newborn", "recem nascido"],                         "Bebê"),
+    (["bebe", "baby", "newborn", "recem nascido"],                  "Bebê"),
     (["crianca", "infantil", "kids", "children",
-      "menino", "menina"],                                                "Criança"),
-    (["adolescente", "teen", "teenager", "jovem"],                         "Adolescente"),
-    (["mae", "mom", "mother", "maezinha"],                                 "Mãe"),
-    (["pai", "dad", "father", "paizinho"],                                 "Pai"),
-    (["avo", "vovo", "grandpa", "grandma", "neto"],                        "Avós"),
-    (["casal", "couple", "noiva", "namorado", "namorada"],                 "Casal"),
-    (["familia", "family", "casa familia"],                                "Família"),
-    (["professor", "professora", "teacher", "docente"],                    "Professor"),
-    (["medico", "medica", "enfermeiro", "saude",
-      "doutor", "doutura"],                                               "Profissional da Saúde"),
-    (["pet", "cachorro", "gato", "animal",
-      "dono pet"],                                                        "Dono de Pet"),
+      "menino", "menina"],                                          "Criança"),
+    (["adolescente", "teen", "teenager", "jovem"],                  "Adolescente"),
+    (["mae", "mom", "mother", "maezinha"],                          "Mãe"),
+    (["pai", "dad", "father", "paizinho"],                          "Pai"),
+    (["avo", "vovo", "grandpa", "grandma", "neto"],                 "Avós"),
+    (["casal", "couple", "noiva", "namorado", "namorada"],          "Casal"),
+    (["familia", "family", "casa familia"],                         "Família"),
+    (["professor", "professora", "teacher", "docente"],             "Professor"),
+    (["medico", "medica", "enfermeiro",
+      "doutor", "doutora"],                                         "Profissional da Saúde"),
+    (["pet", "cachorro", "gato", "animal estimacao",
+      "dono pet"],                                                  "Dono de Pet"),
     (["atleta", "esportista", "fitness", "gym",
-      "corredor", "ciclista"],                                            "Atleta"),
+      "corredor", "ciclista"],                                      "Atleta"),
     (["empresario", "empresa", "corporativo",
-      "empreendedor", "negocio"],                                         "Empresas"),
-    (["presente", "gift", "lembranca",
-      "lembrancinha", "mimo"],                                            "Presente"),
-    (["artesao", "artesanato", "artista",
-      "crafter"],                                                         "Artesanato"),
+      "empreendedor", "negocio"],                                   "Empresas"),
+    (["presente", "gift", "lembrancinha", "mimo"],                  "Presente"),
+    (["artesao", "artesanato", "artista", "crafter"],               "Artesanato"),
     (["cozinheiro", "chef", "confeiteiro",
-      "padeiro", "gastronomia"],                                          "Gastrônomo"),
+      "padeiro", "gastronomia"],                                    "Gastrônomo"),
     (["musico", "guitarrista", "pianista",
-      "baterista", "cantor"],                                             "Músico"),
-    (["gamer", "jogador", "streamer"],                                     "Gamer"),
+      "baterista", "cantor"],                                       "Músico"),
+    (["gamer", "jogador", "streamer"],                              "Gamer"),
 ]
+
+
+# ===========================================================================
+# DATE_INFER_MAP — Inferência de data pelo TEMA/FUNÇÃO/PÚBLICO
+# Usado quando DATE_MAP não bateu: NUNCA retorna string genérica
+# Chave: rótulo detectado em THEME_MAP / FUNCTION_MAP / PUBLIC_MAP
+# Valor: data comemorativa mais provável para esse tipo de produto
+# ===========================================================================
+DATE_INFER_MAP = {
+    # Por tema
+    "Religioso":        "Primeira Comunhão",
+    "Montessori":       "Dia das Crianças",
+    "Safari":           "Dia das Crianças",
+    "Fazenda":          "Aniversário",
+    "Náutico":          "Aniversário",
+    "Natureza":         "Aniversário",
+    "Pet":              "Dia do Animal",
+    "Fantasia":         "Dia das Crianças",
+    "Dinossauro":       "Dia das Crianças",
+    "Super-Heróis":     "Dia das Crianças",
+    "Princesas":        "Dia das Crianças",
+    "Anime":            "Aniversário",
+    "Esporte":          "Aniversário",
+    "Música":           "Aniversário",
+    "Floral":           "Dia das Mães",
+    "Gamer":            "Aniversário",
+    "Espaço":           "Dia das Crianças",
+    "Cultura Nordestina": "Festa Junina",
+    "Brasil":           "Aniversário",
+    "Minimalista":      "Aniversário",
+    "Tropical":         "Aniversário",
+    # Por função
+    "Topo de Bolo":         "Aniversário",
+    "Centro de Mesa":       "Casamento",
+    "Lembrancinha":         "Aniversário",
+    "Caixa Presente":       "Aniversário",
+    "Nome Decorativo":      "Chá de Bebê",
+    "Porta-Retrato":        "Aniversário",
+    "Brinde Corporativo":   "Aniversário Corporativo",
+    "Calendário Decorativo": "Aniversário",
+    "Brinquedo Educativo":  "Dia das Crianças",
+    "Jogo de Mesa":         "Aniversário",
+    "Porta-Vinho":          "Aniversário",
+    "Porta-Joias":          "Dia das Mães",
+    # Por público
+    "Bebê":             "Chá de Bebê",
+    "Criança":          "Dia das Crianças",
+    "Mãe":              "Dia das Mães",
+    "Pai":              "Dia dos Pais",
+    "Avós":             "Dia dos Avós",
+    "Casal":            "Dia dos Namorados",
+    "Professor":        "Dia do Professor",
+    "Atleta":           "Aniversário",
+    "Gastrônomo":       "Aniversário",
+    "Músico":           "Aniversário",
+    "Gamer":            "Aniversário",
+    "Dono de Pet":      "Dia do Animal",
+    "Empresas":         "Aniversário Corporativo",
+}
 
 
 # ===========================================================================
 # TRANSLATION_MAP — Inglês → Português (para gerar name_pt no card)
 # ===========================================================================
 TRANSLATION_MAP = {
-    # A
     "abstract": "abstrato", "acorn": "bolota", "adorable": "adorável",
     "alphabet": "alfabeto", "anchor": "âncora", "angel": "anjo",
     "animal": "animal", "anniversary": "aniversário",
-    "apple": "maçã", "art": "arte", "autumn": "outono",
-    "award": "prêmio",
-    # B
+    "apple": "maçã", "art": "arte", "autumn": "outono", "award": "prêmio",
     "baby": "bebê", "balloon": "balão", "bat": "morcego",
     "bathroom": "banheiro", "bear": "urso", "beautiful": "lindo",
     "bedroom": "quarto", "bee": "abelha", "bird": "pássaro",
@@ -662,87 +684,71 @@ TRANSLATION_MAP = {
     "bookend": "porta-livro", "border": "borda", "box": "caixa",
     "branch": "galho", "brave": "corajoso", "bride": "noiva",
     "bunny": "coelhinho", "butterfly": "borboleta",
-    # C
     "cabin": "cabana", "cake": "bolo", "calendar": "calendário",
     "candle": "vela", "card": "cartão", "cardinal": "cardeal",
     "carousel": "carrossel", "castle": "castelo",
-    "cat": "gato", "celebration": "celebração", "centerpiece": "centro de mesa",
-    "chalkboard": "quadro negro", "christmas": "natal",
-    "circus": "circo", "city": "cidade", "clock": "relógio",
-    "cloud": "nuvem", "coat": "casaco", "coaster": "porta-copo",
-    "coffee": "café", "collection": "coleção", "color": "cor",
+    "cat": "gato", "celebration": "celebração",
+    "centerpiece": "centro de mesa", "chalkboard": "quadro negro",
+    "christmas": "natal", "circus": "circo", "city": "cidade",
+    "clock": "relógio", "cloud": "nuvem", "coat": "casaco",
+    "coaster": "porta-copo", "coffee": "café",
+    "collection": "coleção", "color": "cor",
     "comet": "cometa", "compass": "bússola", "corner": "canto",
     "couple": "casal", "cow": "vaca", "craft": "artesanato",
     "crown": "coroa", "cute": "fofo",
-    # D
     "dad": "pai", "daisy": "margarida", "dance": "dança",
     "decor": "decoração", "decorative": "decorativo",
     "deer": "cervo", "desk": "escrivaninha", "diamond": "diamante",
     "dinosaur": "dinossauro", "dino": "dino", "display": "display",
     "dog": "cachorro", "door": "porta", "dragon": "dragão",
     "dream": "sonho", "duck": "pato",
-    # E
     "eagle": "águia", "easter": "páscoa", "elephant": "elefante",
     "elegant": "elegante", "enchanted": "encantado",
     "eternal": "eterno", "event": "evento",
-    # F
     "fairy": "fada", "fall": "outono", "family": "família",
     "farm": "fazenda", "father": "pai", "feather": "pena",
     "festive": "festivo", "fish": "peixe", "flame": "chama",
     "flamingo": "flamingo", "flower": "flor", "forest": "floresta",
     "fox": "raposa", "frame": "moldura", "friend": "amigo",
     "frog": "sapo", "fruit": "fruta",
-    # G
     "galaxy": "galáxia", "game": "jogo", "garden": "jardim",
     "gift": "presente", "girl": "menina", "glitter": "glitter",
     "gnome": "gnomo", "goat": "cabra", "graduation": "formatura",
     "groom": "noivo",
-    # H
     "halloween": "halloween", "hamster": "hamster",
     "hanger": "cabide", "happy": "feliz", "harvest": "colheita",
     "heart": "coração", "hedgehog": "ouriço", "hello": "olá",
     "hippo": "hipopótamo", "holder": "suporte", "home": "lar",
     "honey": "mel", "horse": "cavalo", "house": "casa",
     "hummingbird": "beija-flor",
-    # I
     "initial": "inicial", "inspirational": "inspiracional",
-    # J
     "jar": "pote", "jewelry": "joias", "jungle": "selva",
-    # K
     "key": "chave", "keychain": "chaveiro", "kids": "crianças",
     "kitchen": "cozinha", "kitten": "gatinho",
-    # L
     "label": "etiqueta", "lamp": "lâmpada", "lantern": "lanterna",
     "laser": "laser", "lavender": "lavanda", "leaf": "folha",
     "letter": "letra", "light": "luz", "lion": "leão",
     "living": "sala", "llama": "lhama", "love": "amor",
     "lucky": "sortudo",
-    # M
     "magic": "mágico", "mama": "mamãe", "map": "mapa",
     "memorial": "memorial", "mermaid": "sereia",
     "mirror": "espelho", "mom": "mãe", "monkey": "macaco",
     "moon": "lua", "mother": "mãe", "mountain": "montanha",
     "music": "música",
-    # N
     "name": "nome", "nature": "natureza", "newborn": "recém-nascido",
     "night": "noite", "nursery": "quarto de bebê",
-    # O
     "ocean": "oceano", "office": "escritório", "ornament": "enfeite",
     "outdoor": "externo", "owl": "coruja",
-    # P
     "panda": "panda", "party": "festa", "peace": "paz",
     "penguin": "pinguim", "personalized": "personalizado",
     "pet": "pet", "photo": "foto", "pig": "porco",
     "plaque": "placa", "plant": "planta", "polar": "polar",
     "porch": "varanda", "portrait": "retrato",
     "pumpkin": "abóbora", "puppy": "filhote", "puzzle": "quebra-cabeça",
-    # Q
     "queen": "rainha",
-    # R
     "rabbit": "coelho", "rack": "rack", "rainbow": "arco-íris",
     "reindeer": "rena", "religious": "religioso", "ring": "anel",
     "rocket": "foguete", "rose": "rosa", "rustic": "rústico",
-    # S
     "safari": "safari", "santa": "papai noel", "school": "escola",
     "seasonal": "sazonal", "sheep": "ovelha", "shelf": "prateleira",
     "sign": "placa", "skeleton": "esqueleto", "skull": "caveira",
@@ -752,45 +758,43 @@ TRANSLATION_MAP = {
     "star": "estrela", "storage": "armazenamento",
     "summer": "verão", "sunflower": "girassol",
     "superhero": "super-herói", "sweet": "doce",
-    # T
     "tag": "etiqueta", "teacher": "professor", "topper": "topo",
     "toy": "brinquedo", "tree": "árvore", "tray": "bandeja",
     "tropical": "tropical", "turtle": "tartaruga",
-    # U
     "unicorn": "unicórnio", "unique": "único",
-    # V
     "valentine": "dia dos namorados", "vintage": "vintage",
-    # W
     "wall": "parede", "wedding": "casamento", "welcome": "bem-vindo",
     "whale": "baleia", "wild": "selvagem", "winter": "inverno",
     "witch": "bruxa", "wolf": "lobo", "wood": "madeira",
     "woodland": "floresta", "wreath": "guirlanda",
-    # Y / Z
     "year": "ano", "zebra": "zebra",
 }
 
 
 # ===========================================================================
-# GENERIC_FALLBACK_FUNCTION — quando NENHUMA keyword de FUNCTION_MAP bateu
-# Mapeamento por palavras genéricas de produtos laser
+# GENERIC_FALLBACK_FUNCTION — segunda chance quando FUNCTION_MAP não bateu
 # ===========================================================================
 GENERIC_FALLBACK_FUNCTION = [
-    (["box", "caixa", "case", "chest"],                  "Caixa Organizadora"),
-    (["lamp", "light", "led", "luminaria", "neon"],       "Luminária"),
-    (["sign", "placa", "plaque", "welcome"],              "Plaquinha"),
-    (["mirror", "espelho"],                               "Espelho Decorativo"),
-    (["key", "chave"],                                    "Porta-Chaves"),
-    (["rack", "holder", "suporte", "stand"],              "Suporte"),
-    (["tag", "etiqueta", "label"],                        "Etiqueta Decorativa"),
-    (["tray", "bandeja"],                                 "Bandeja"),
-    (["frame", "moldura", "retrato"],                     "Porta-Retrato"),
-    (["clock", "relogio"],                                "Relógio"),
-    (["topper", "topo"],                                  "Topo de Bolo"),
-    (["puzzle", "quebra"],                                "Brinquedo Educativo"),
-    (["game", "jogo", "board"],                           "Jogo de Mesa"),
+    (["box", "caixa", "case", "chest"],             "Caixa Organizadora"),
+    (["lamp", "light", "led", "luminaria", "neon"], "Luminária"),
+    (["sign", "placa", "plaque", "welcome"],        "Plaquinha"),
+    (["mirror", "espelho"],                         "Espelho Decorativo"),
+    (["key", "chave"],                              "Porta-Chaves"),
+    (["rack", "holder", "suporte", "stand"],        "Suporte"),
+    (["tag", "etiqueta", "label"],                  "Etiqueta Decorativa"),
+    (["tray", "bandeja"],                           "Bandeja"),
+    (["frame", "moldura", "retrato"],               "Porta-Retrato"),
+    (["clock", "relogio"],                          "Relógio"),
+    (["topper", "topo"],                            "Topo de Bolo"),
+    (["puzzle", "quebra"],                          "Brinquedo Educativo"),
+    (["game", "jogo", "board"],                     "Jogo de Mesa"),
+    (["wall", "parede", "decor"],                   "Quadro Decorativo"),
+    (["bag", "sacola", "bolsa"],                    "Caixa Presente"),
+    (["cup", "mug", "xicara", "copo"],              "Porta-Copo"),
 ]
 
-# Fallback final absoluto (quando absolutamente NADA bateu)
+# Fallback final ABSOLUTO — só entra se absolutamente nenhuma keyword bateu
+# PROIBIDO usar para DATE: o sistema deve usar DATE_INFER_MAP antes
 FINAL_FALLBACK_FUNCTION  = "Decoração Artesanal"
-FINAL_FALLBACK_DATE      = "Data Especial"
 FINAL_FALLBACK_AMBIENTE  = "Ambiente Doméstico"
+# FINAL_FALLBACK_DATE não existe mais: o sistema SEMPRE infere uma data real
