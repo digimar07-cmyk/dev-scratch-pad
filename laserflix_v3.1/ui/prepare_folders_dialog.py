@@ -11,19 +11,30 @@ INTEGRA O SCRIPT STANDALONE NO APP:
 
 USO NO MAIN_WINDOW:
     from ui.prepare_folders_dialog import add_prepare_button
-    add_prepare_button(self)
+    prep_btn = add_prepare_button(self, extras_frame)
+    prep_btn.pack(side="left", padx=5)
 """
 
-import customtkinter as ctk
-from tkinter import filedialog
+import tkinter as tk
+from tkinter import filedialog, ttk
 import subprocess
 import threading
 import os
 import sys
 from utils.logging_setup import LOGGER
 
+# Colors (Netflix-style)
+BG_PRIMARY = "#141414"
+BG_SECONDARY = "#1F1F1F"
+BG_CARD = "#2A2A2A"
+ACCENT_RED = "#E50914"
+ACCENT_GREEN = "#46D369"
+FG_PRIMARY = "#FFFFFF"
+FG_SECONDARY = "#B3B3B3"
+FG_TERTIARY = "#808080"
 
-class PrepareFoldersDialog(ctk.CTkToplevel):
+
+class PrepareFoldersDialog(tk.Toplevel):
     """
     Dialog para executar prepare_folders.py com interface gráfica.
     
@@ -35,7 +46,7 @@ class PrepareFoldersDialog(ctk.CTkToplevel):
         
         self.title("📦 Preparar Pastas - Gerar folder.jpg")
         self.geometry("800x700")
-        self.resizable(True, True)
+        self.configure(bg=BG_PRIMARY)
         
         # Centraliza
         self.update_idletasks()
@@ -45,7 +56,7 @@ class PrepareFoldersDialog(ctk.CTkToplevel):
         
         # Variáveis
         self.selected_path = ""
-        self.selected_mode = "smart"
+        self.mode_var = tk.StringVar(value="smart")
         self.is_running = False
         self.process = None
         
@@ -53,8 +64,9 @@ class PrepareFoldersDialog(ctk.CTkToplevel):
         self._build_ui()
         
         # Modal
-        self.transient(parent)
-        self.grab_set()
+        if parent:
+            self.transient(parent)
+            self.grab_set()
         
         LOGGER.info("PrepareFoldersDialog aberto")
 
@@ -62,169 +74,246 @@ class PrepareFoldersDialog(ctk.CTkToplevel):
         """Constrói interface."""
         
         # Container principal
-        main_frame = ctk.CTkFrame(self)
+        main_frame = tk.Frame(self, bg=BG_PRIMARY)
         main_frame.pack(fill="both", expand=True, padx=20, pady=20)
         
         # ============================================================
         # HEADER
         # ============================================================
-        header_frame = ctk.CTkFrame(main_frame)
+        header_frame = tk.Frame(main_frame, bg=BG_SECONDARY)
         header_frame.pack(fill="x", pady=(0, 20))
         
-        title = ctk.CTkLabel(
+        title = tk.Label(
             header_frame,
             text="📦 Preparar Pastas para Importação",
-            font=("Segoe UI", 18, "bold")
+            font=("Segoe UI", 18, "bold"),
+            bg=BG_SECONDARY,
+            fg=FG_PRIMARY
         )
         title.pack(pady=10)
         
-        desc = ctk.CTkLabel(
+        desc = tk.Label(
             header_frame,
             text="Gera folder.jpg automaticamente em pastas de produtos",
             font=("Segoe UI", 11),
-            text_color="gray70"
+            bg=BG_SECONDARY,
+            fg=FG_SECONDARY
         )
         desc.pack(pady=(0, 10))
         
         # ============================================================
         # SELEÇÃO DE PASTA
         # ============================================================
-        path_frame = ctk.CTkFrame(main_frame)
+        path_frame = tk.Frame(main_frame, bg=BG_CARD)
         path_frame.pack(fill="x", pady=(0, 20))
         
-        path_label = ctk.CTkLabel(
+        path_label = tk.Label(
             path_frame,
             text="📁 Pasta Base:",
-            font=("Segoe UI", 12, "bold")
+            font=("Segoe UI", 12, "bold"),
+            bg=BG_CARD,
+            fg=FG_PRIMARY,
+            anchor="w"
         )
         path_label.pack(anchor="w", padx=10, pady=(10, 5))
         
-        path_input_frame = ctk.CTkFrame(path_frame)
+        path_input_frame = tk.Frame(path_frame, bg=BG_CARD)
         path_input_frame.pack(fill="x", padx=10, pady=(0, 10))
         
-        self.path_entry = ctk.CTkEntry(
+        self.path_entry = tk.Entry(
             path_input_frame,
-            placeholder_text="Selecione a pasta base...",
-            height=35
+            bg="#333333",
+            fg=FG_PRIMARY,
+            font=("Segoe UI", 10),
+            relief="flat",
+            insertbackground=FG_PRIMARY
         )
-        self.path_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        self.path_entry.pack(side="left", fill="x", expand=True, padx=(0, 10), ipady=6)
+        self.path_entry.insert(0, "Selecione a pasta base...")
+        self.path_entry.config(fg=FG_TERTIARY)
         
-        browse_btn = ctk.CTkButton(
+        # Placeholder behavior
+        def on_entry_focus_in(event):
+            if self.path_entry.get() == "Selecione a pasta base...":
+                self.path_entry.delete(0, "end")
+                self.path_entry.config(fg=FG_PRIMARY)
+        
+        def on_entry_focus_out(event):
+            if not self.path_entry.get():
+                self.path_entry.insert(0, "Selecione a pasta base...")
+                self.path_entry.config(fg=FG_TERTIARY)
+        
+        self.path_entry.bind("<FocusIn>", on_entry_focus_in)
+        self.path_entry.bind("<FocusOut>", on_entry_focus_out)
+        
+        browse_btn = tk.Button(
             path_input_frame,
             text="...",
-            width=50,
-            height=35,
-            command=self._browse_folder
+            command=self._browse_folder,
+            bg=ACCENT_RED,
+            fg=FG_PRIMARY,
+            font=("Segoe UI", 10, "bold"),
+            relief="flat",
+            cursor="hand2",
+            padx=15,
+            pady=6
         )
         browse_btn.pack(side="right")
         
         # ============================================================
         # MODO
         # ============================================================
-        mode_frame = ctk.CTkFrame(main_frame)
+        mode_frame = tk.Frame(main_frame, bg=BG_CARD)
         mode_frame.pack(fill="x", pady=(0, 20))
         
-        mode_title = ctk.CTkLabel(
+        mode_title = tk.Label(
             mode_frame,
             text="⚙️ Modo:",
-            font=("Segoe UI", 12, "bold")
+            font=("Segoe UI", 12, "bold"),
+            bg=BG_CARD,
+            fg=FG_PRIMARY,
+            anchor="w"
         )
         mode_title.pack(anchor="w", padx=10, pady=(10, 10))
         
         # Radio buttons
-        self.mode_var = ctk.StringVar(value="smart")
-        
-        smart_radio = ctk.CTkRadioButton(
+        smart_radio = tk.Radiobutton(
             mode_frame,
             text="🎯 Smart (Recomendado)",
             variable=self.mode_var,
-            value="smart"
+            value="smart",
+            bg=BG_CARD,
+            fg=FG_PRIMARY,
+            selectcolor="#333333",
+            activebackground=BG_CARD,
+            activeforeground=ACCENT_RED,
+            font=("Segoe UI", 10)
         )
         smart_radio.pack(anchor="w", padx=20, pady=(0, 5))
         
-        smart_desc = ctk.CTkLabel(
+        smart_desc = tk.Label(
             mode_frame,
             text="Apenas pastas com arquivos de projeto (.svg, .pdf, .dxf)",
-            font=("Segoe UI", 10),
-            text_color="gray70"
+            font=("Segoe UI", 9),
+            bg=BG_CARD,
+            fg=FG_SECONDARY
         )
         smart_desc.pack(anchor="w", padx=40, pady=(0, 10))
         
-        all_radio = ctk.CTkRadioButton(
+        all_radio = tk.Radiobutton(
             mode_frame,
             text="🌐 All",
             variable=self.mode_var,
-            value="all"
+            value="all",
+            bg=BG_CARD,
+            fg=FG_PRIMARY,
+            selectcolor="#333333",
+            activebackground=BG_CARD,
+            activeforeground=ACCENT_RED,
+            font=("Segoe UI", 10)
         )
         all_radio.pack(anchor="w", padx=20, pady=(0, 5))
         
-        all_desc = ctk.CTkLabel(
+        all_desc = tk.Label(
             mode_frame,
             text="TODAS as pastas com imagens",
-            font=("Segoe UI", 10),
-            text_color="gray70"
+            font=("Segoe UI", 9),
+            bg=BG_CARD,
+            fg=FG_SECONDARY
         )
         all_desc.pack(anchor="w", padx=40, pady=(0, 10))
         
-        list_radio = ctk.CTkRadioButton(
+        list_radio = tk.Radiobutton(
             mode_frame,
-            text="📝 List (Dry-run)",
+            text="📋 List (Dry-run)",
             variable=self.mode_var,
-            value="list"
+            value="list",
+            bg=BG_CARD,
+            fg=FG_PRIMARY,
+            selectcolor="#333333",
+            activebackground=BG_CARD,
+            activeforeground=ACCENT_RED,
+            font=("Segoe UI", 10)
         )
         list_radio.pack(anchor="w", padx=20, pady=(0, 5))
         
-        list_desc = ctk.CTkLabel(
+        list_desc = tk.Label(
             mode_frame,
             text="Apenas lista, não cria nada",
-            font=("Segoe UI", 10),
-            text_color="gray70"
+            font=("Segoe UI", 9),
+            bg=BG_CARD,
+            fg=FG_SECONDARY
         )
         list_desc.pack(anchor="w", padx=40, pady=(0, 10))
         
         # ============================================================
         # OUTPUT
         # ============================================================
-        output_frame = ctk.CTkFrame(main_frame)
+        output_frame = tk.Frame(main_frame, bg=BG_CARD)
         output_frame.pack(fill="both", expand=True, pady=(0, 20))
         
-        output_label = ctk.CTkLabel(
+        output_label = tk.Label(
             output_frame,
-            text="📝 Output:",
-            font=("Segoe UI", 12, "bold")
+            text="📋 Output:",
+            font=("Segoe UI", 12, "bold"),
+            bg=BG_CARD,
+            fg=FG_PRIMARY,
+            anchor="w"
         )
         output_label.pack(anchor="w", padx=10, pady=(10, 5))
         
-        self.output_text = ctk.CTkTextbox(
-            output_frame,
+        # Text com scrollbar
+        text_frame = tk.Frame(output_frame, bg=BG_CARD)
+        text_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        
+        scrollbar = tk.Scrollbar(text_frame)
+        scrollbar.pack(side="right", fill="y")
+        
+        self.output_text = tk.Text(
+            text_frame,
             wrap="word",
-            font=("Consolas", 10)
+            font=("Consolas", 9),
+            bg="#1A1A1A",
+            fg=FG_SECONDARY,
+            yscrollcommand=scrollbar.set,
+            relief="flat",
+            padx=10,
+            pady=10
         )
-        self.output_text.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        self.output_text.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=self.output_text.yview)
         
         # ============================================================
         # BOTÕES
         # ============================================================
-        button_frame = ctk.CTkFrame(main_frame)
+        button_frame = tk.Frame(main_frame, bg=BG_PRIMARY)
         button_frame.pack(fill="x")
         
-        self.close_btn = ctk.CTkButton(
+        self.close_btn = tk.Button(
             button_frame,
             text="Fechar",
-            width=120,
-            height=40,
-            fg_color="gray40",
-            hover_color="gray50",
-            command=self._close
+            command=self._close,
+            bg="#555555",
+            fg=FG_PRIMARY,
+            font=("Segoe UI", 11, "bold"),
+            relief="flat",
+            cursor="hand2",
+            padx=20,
+            pady=10
         )
         self.close_btn.pack(side="right", padx=(10, 0))
         
-        self.run_btn = ctk.CTkButton(
+        self.run_btn = tk.Button(
             button_frame,
             text="▶️ Executar",
-            width=120,
-            height=40,
-            command=self._run
+            command=self._run,
+            bg=ACCENT_GREEN,
+            fg=FG_PRIMARY,
+            font=("Segoe UI", 11, "bold"),
+            relief="flat",
+            cursor="hand2",
+            padx=20,
+            pady=10
         )
         self.run_btn.pack(side="right")
 
@@ -239,10 +328,12 @@ class PrepareFoldersDialog(ctk.CTkToplevel):
             self.selected_path = folder
             self.path_entry.delete(0, "end")
             self.path_entry.insert(0, folder)
+            self.path_entry.config(fg=FG_PRIMARY)
 
     def _run(self):
         """Executa prepare_folders.py."""
-        if not self.selected_path:
+        # Validação
+        if not self.selected_path or self.path_entry.get() == "Selecione a pasta base...":
             self._log("⚠️ Selecione uma pasta base!\n", "error")
             return
         
@@ -259,7 +350,7 @@ class PrepareFoldersDialog(ctk.CTkToplevel):
         
         # Inicia execução em thread
         self.is_running = True
-        self.run_btn.configure(state="disabled", text="⏸️ Executando...")
+        self.run_btn.config(state="disabled", text="⏸️ Executando...")
         
         thread = threading.Thread(target=self._execute_script, daemon=True)
         thread.start()
@@ -314,12 +405,13 @@ class PrepareFoldersDialog(ctk.CTkToplevel):
         
         finally:
             self.is_running = False
-            self.run_btn.configure(state="normal", text="▶️ Executar")
+            self.run_btn.config(state="normal", text="▶️ Executar")
 
     def _log(self, text: str, tag: str = "normal"):
         """Adiciona texto ao output."""
         self.output_text.insert("end", text)
         self.output_text.see("end")  # Auto-scroll
+        self.output_text.update_idletasks()
 
     def _close(self):
         """Fecha dialog."""
@@ -335,28 +427,38 @@ class PrepareFoldersDialog(ctk.CTkToplevel):
 # FUNÇÃO DE INTEGRAÇÃO PARA MAIN_WINDOW
 # ================================================================
 
-def add_prepare_button(main_window, parent_frame=None):
+def add_prepare_button(main_window, parent_frame):
     """
     Adiciona botão "Preparar Pastas" no main_window.
     
     Args:
         main_window: Instância da janela principal
-        parent_frame: Frame onde adicionar botão (opcional)
+        parent_frame: Frame onde adicionar botão
     
     Uso:
         # No main_window.py:
         from ui.prepare_folders_dialog import add_prepare_button
-        add_prepare_button(self, self.sidebar_frame)
+        prep_btn = add_prepare_button(self, extras_frame)
+        prep_btn.pack(side="left", padx=5)
+    
+    Returns:
+        Button widget
     """
     def on_prepare():
-        dialog = PrepareFoldersDialog(main_window)
-        main_window.wait_window(dialog)
+        dialog = PrepareFoldersDialog(main_window.root)
+        main_window.root.wait_window(dialog)
     
-    btn = ctk.CTkButton(
-        parent_frame or main_window,
-        text="📦 Preparar Pastas",
+    btn = tk.Button(
+        parent_frame,
+        text="📦 Preparar Arquivos",
         command=on_prepare,
-        height=40
+        bg="#FF6B6B",
+        fg="#FFFFFF",
+        font=("Arial", 11, "bold"),
+        relief="flat",
+        cursor="hand2",
+        padx=15,
+        pady=8
     )
     
     return btn
@@ -366,10 +468,7 @@ def add_prepare_button(main_window, parent_frame=None):
 # TESTE STANDALONE
 # ================================================================
 if __name__ == '__main__':
-    ctk.set_appearance_mode("dark")
-    ctk.set_default_color_theme("blue")
-    
-    root = ctk.CTk()
+    root = tk.Tk()
     root.withdraw()
     
     dialog = PrepareFoldersDialog(root)
