@@ -319,6 +319,28 @@ FUNCTION_MAP = [
     (["porta livro", "bookend", "organizador livro",
       "suporte livro", "estante madeira"], "Porta-Livro"),
 
+    # ── Book Nook / Nicho de Livro (v741) ────────────────────────────────────
+    (["book nook", "nook", "book shelf", "reading nook",
+      "nicho livro", "cantinho leitura", "diorama livro",
+      "book corner"], "Suporte para Livros"),
+
+    # ── Rastreador / Tracker (v741) ───────────────────────────────────────────
+    (["tracker", "rastreador", "miles tracker", "km tracker",
+      "contador", "medidor distancia", "bike tracker",
+      "cycling tracker", "running tracker", "fitness tracker",
+      "progress tracker"], "Quadro de Acompanhamento"),
+
+    # ── Régua / Ruler (v741) ──────────────────────────────────────────────────
+    (["ruler", "regua", "growth chart", "height chart",
+      "medidor altura", "grafico crescimento",
+      "medidor crianca"], "Régua de Crescimento"),
+
+    # ── Organizador Ferramentas (v741) ────────────────────────────────────────
+    (["tool organizer", "tool holder", "wrench holder",
+      "organizador ferramentas", "porta ferramenta",
+      "suporte chave fenda", "tool rack",
+      "garage organizer"], "Organizador de Ferramentas"),
+
     # ── Etiqueta Decorativa ───────────────────────────────────────────────────
     (["etiqueta decorativa", "tag madeira", "etiqueta madeira",
       "etiqueta produto", "tag presente",
@@ -405,6 +427,11 @@ AMBIENTE_MAP = [
       "sala jantar", "aparador", "rack sala",
       "parede sala", "sala visita"], "Sala"),
 
+    # ── Biblioteca (v741) ─────────────────────────────────────────────────────
+    (["library", "biblioteca", "bookshelf", "estante livros",
+      "book corner", "cantinho leitura", "sala leitura",
+      "reading room"], "Biblioteca"),
+
     # ── Área de Lazer / Varanda ───────────────────────────────────────────────
     (["varanda", "deck", "area lazer", "quintal",
       "terraco", "jardim", "area externa",
@@ -439,9 +466,10 @@ AMBIENTE_MAP = [
       "clinica veterinaria", "espaco pet",
       "cachorro espaco", "gato espaco"], "Pet Shop"),
 
-    # ── Garagem ───────────────────────────────────────────────────────────────
-    (["garagem", "garage", "oficina",
-      "workshop", "ferramentas", "mecanica"], "Garagem"),
+    # ── Garagem (v741 expandida) ──────────────────────────────────────────────
+    (["garagem", "garage", "oficina", "workshop",
+      "ferramentas", "mecanica", "tool shop",
+      "bike garage", "cycling space", "oficina bike"], "Garagem"),
 
     # ── Lavanderia ────────────────────────────────────────────────────────────
     (["lavanderia", "laundry", "lavadero",
@@ -520,14 +548,30 @@ THEME_MAP = [
       "one piece", "demon slayer", "kawaii",
       "chibi", "sakura"], "Anime"),
     (["futebol", "football", "basquete", "basketball",
-      "volei", "tenis", "natacao", "ciclismo",
-      "corrida", "atletismo"], "Esporte"),
+      "volei", "tenis", "natacao"],                  "Esporte"),
+
+    # ── Ciclismo (v741) ───────────────────────────────────────────────────────
+    (["cycling", "ciclismo", "bike", "bicicleta",
+      "cyclist", "ciclista", "pedal", "mountain bike",
+      "bmx", "speed bike", "road bike"],            "Ciclismo"),
+
+    # ── Corrida (v741) ────────────────────────────────────────────────────────
+    (["running", "corrida", "runner", "corredor",
+      "maratona", "marathon", "jogging", "trail",
+      "atletismo", "track"],                         "Corrida"),
+
     (["musica", "music", "violao", "guitarra",
       "piano", "bateria", "nota musical",
       "instrumento", "rock", "sertanejo", "samba"], "Música"),
     (["floral", "flores", "flower", "rosas",
       "girassol", "botanico", "botanical",
       "tulipa", "orquidea", "lavanda"], "Floral"),
+
+    # ── Leitura (v741) ────────────────────────────────────────────────────────
+    (["reading", "leitura", "book lover", "bookworm",
+      "bibliofilo", "amante livros", "reader",
+      "literatura", "livro"],                        "Leitura"),
+
     (["gamer", "gaming", "joystick", "controle jogo",
       "pixel", "arcade", "playstation", "xbox",
       "nintendo", "minecraft", "fortnite"], "Gamer"),
@@ -631,8 +675,11 @@ DATE_INFER_MAP = {
     "Princesas":        "Dia das Crianças",
     "Anime":            "Aniversário",
     "Esporte":          "Aniversário",
+    "Ciclismo":         "Aniversário",      # v741
+    "Corrida":          "Aniversário",      # v741
     "Música":           "Aniversário",
     "Floral":           "Dia das Mães",
+    "Leitura":          "Aniversário",      # v741
     "Gamer":            "Aniversário",
     "Espaço":           "Dia das Crianças",
     "Cultura Nordestina": "Festa Junina",
@@ -652,6 +699,10 @@ DATE_INFER_MAP = {
     "Jogo de Mesa":         "Aniversário",
     "Porta-Vinho":          "Aniversário",
     "Porta-Joias":          "Dia das Mães",
+    "Suporte para Livros":  "Aniversário",           # v741
+    "Quadro de Acompanhamento": "Aniversário",       # v741
+    "Régua de Crescimento": "Chá de Bebê",           # v741
+    "Organizador de Ferramentas": "Dia dos Pais",    # v741
     # Por público
     "Bebê":             "Chá de Bebê",
     "Criança":          "Dia das Crianças",
@@ -679,11 +730,11 @@ TRANSLATION_MAP = {
     "apple": "maçã", "art": "arte", "autumn": "outono", "award": "prêmio",
     "baby": "bebê", "balloon": "balão", "bat": "morcego",
     "bathroom": "banheiro", "bear": "urso", "beautiful": "lindo",
-    "bedroom": "quarto", "bee": "abelha", "bird": "pássaro",
-    "birthday": "aniversário", "board": "tabuleiro", "book": "livro",
-    "bookend": "porta-livro", "border": "borda", "box": "caixa",
-    "branch": "galho", "brave": "corajoso", "bride": "noiva",
-    "bunny": "coelhinho", "butterfly": "borboleta",
+    "bedroom": "quarto", "bee": "abelha", "bike": "bicicleta",
+    "bird": "pássaro", "birthday": "aniversário", "board": "tabuleiro",
+    "book": "livro", "bookend": "porta-livro", "border": "borda",
+    "box": "caixa", "branch": "galho", "brave": "corajoso",
+    "bride": "noiva", "bunny": "coelhinho", "butterfly": "borboleta",
     "cabin": "cabana", "cake": "bolo", "calendar": "calendário",
     "candle": "vela", "card": "cartão", "cardinal": "cardeal",
     "carousel": "carrossel", "castle": "castelo",
@@ -695,7 +746,8 @@ TRANSLATION_MAP = {
     "collection": "coleção", "color": "cor",
     "comet": "cometa", "compass": "bússola", "corner": "canto",
     "couple": "casal", "cow": "vaca", "craft": "artesanato",
-    "crown": "coroa", "cute": "fofo",
+    "crown": "coroa", "cute": "fofo", "cycling": "ciclismo",
+    "cyclist": "ciclista",
     "dad": "pai", "daisy": "margarida", "dance": "dança",
     "decor": "decoração", "decorative": "decorativo",
     "deer": "cervo", "desk": "escrivaninha", "diamond": "diamante",
@@ -731,12 +783,12 @@ TRANSLATION_MAP = {
     "living": "sala", "llama": "lhama", "love": "amor",
     "lucky": "sortudo",
     "magic": "mágico", "mama": "mamãe", "map": "mapa",
-    "memorial": "memorial", "mermaid": "sereia",
+    "memorial": "memorial", "mermaid": "sereia", "miles": "quilômetros",
     "mirror": "espelho", "mom": "mãe", "monkey": "macaco",
     "moon": "lua", "mother": "mãe", "mountain": "montanha",
     "music": "música",
     "name": "nome", "nature": "natureza", "newborn": "recém-nascido",
-    "night": "noite", "nursery": "quarto de bebê",
+    "night": "noite", "nook": "cantinho", "nursery": "quarto de bebê",
     "ocean": "oceano", "office": "escritório", "ornament": "enfeite",
     "outdoor": "externo", "owl": "coruja",
     "panda": "panda", "party": "festa", "peace": "paz",
@@ -747,8 +799,10 @@ TRANSLATION_MAP = {
     "pumpkin": "abóbora", "puppy": "filhote", "puzzle": "quebra-cabeça",
     "queen": "rainha",
     "rabbit": "coelho", "rack": "rack", "rainbow": "arco-íris",
-    "reindeer": "rena", "religious": "religioso", "ring": "anel",
-    "rocket": "foguete", "rose": "rosa", "rustic": "rústico",
+    "reading": "leitura", "reindeer": "rena", "religious": "religioso",
+    "ring": "anel", "rocket": "foguete", "rose": "rosa",
+    "ruler": "régua", "runner": "corredor", "running": "corrida",
+    "rustic": "rústico",
     "safari": "safari", "santa": "papai noel", "school": "escola",
     "seasonal": "sazonal", "sheep": "ovelha", "shelf": "prateleira",
     "sign": "placa", "skeleton": "esqueleto", "skull": "caveira",
@@ -758,8 +812,9 @@ TRANSLATION_MAP = {
     "star": "estrela", "storage": "armazenamento",
     "summer": "verão", "sunflower": "girassol",
     "superhero": "super-herói", "sweet": "doce",
-    "tag": "etiqueta", "teacher": "professor", "topper": "topo",
-    "toy": "brinquedo", "tree": "árvore", "tray": "bandeja",
+    "tag": "etiqueta", "teacher": "professor", "tool": "ferramenta",
+    "topper": "topo", "toy": "brinquedo", "tracker": "rastreador",
+    "tree": "árvore", "tray": "bandeja",
     "tropical": "tropical", "turtle": "tartaruga",
     "unicorn": "unicórnio", "unique": "único",
     "valentine": "dia dos namorados", "vintage": "vintage",
