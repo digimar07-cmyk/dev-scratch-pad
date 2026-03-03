@@ -25,7 +25,7 @@ class PrepareFoldersDialog(ctk.CTkToplevel):
         super().__init__(parent)
         
         self.title("📦 Preparar Pastas")
-        self.geometry("750x850")  # Aumentado para 850px de altura
+        self.geometry("750x850")
         self.resizable(True, True)
         
         # Centraliza
@@ -46,7 +46,7 @@ class PrepareFoldersDialog(ctk.CTkToplevel):
             self.transient(parent)
             self.grab_set()
         
-        LOGGER.info("PrepareFoldersDialog aberto (750x850)")
+        LOGGER.info("PrepareFoldersDialog aberto")
 
     def _build_ui(self):
         """Constrói interface."""
@@ -95,6 +95,32 @@ class PrepareFoldersDialog(ctk.CTkToplevel):
             command=self._browse
         ).pack(side="right", padx=(5, 10), pady=10)
         
+        # ===== BOTÕES (MOVIDOS PARA CÁ!) =====
+        btn_frame = ctk.CTkFrame(main)
+        btn_frame.pack(fill="x", padx=10, pady=(0, 20))
+        
+        # Botão Fechar (à direita)
+        ctk.CTkButton(
+            btn_frame,
+            text="Fechar",
+            command=self._close,
+            fg_color="gray40",
+            hover_color="gray50",
+            width=140,
+            height=45
+        ).pack(side="right", padx=(10, 0))
+        
+        # Botão Executar
+        self.run_btn = ctk.CTkButton(
+            btn_frame,
+            text="▶️ Executar",
+            command=self._run,
+            width=140,
+            height=45,
+            font=("Segoe UI", 13, "bold")
+        )
+        self.run_btn.pack(side="right", padx=(0, 10))
+        
         # ===== MODO =====
         ctk.CTkLabel(
             main,
@@ -141,7 +167,7 @@ class PrepareFoldersDialog(ctk.CTkToplevel):
         ).pack(anchor="w", padx=10, pady=(10, 5))
         
         output_frame = ctk.CTkFrame(main)
-        output_frame.pack(fill="both", expand=True, padx=10, pady=(0, 15))
+        output_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         
         self.output_text = ctk.CTkTextbox(
             output_frame,
@@ -153,32 +179,6 @@ class PrepareFoldersDialog(ctk.CTkToplevel):
         # Mensagem inicial
         self.output_text.insert("1.0", "✅ Pronto para executar.\nℹ️ Selecione a pasta e clique em EXECUTAR.\n")
         self.output_text.configure(state="disabled")
-        
-        # ===== BOTÕES =====
-        btn_frame = ctk.CTkFrame(main)
-        btn_frame.pack(fill="x", padx=10, pady=(10, 10))
-        
-        # Botão Fechar (à direita)
-        ctk.CTkButton(
-            btn_frame,
-            text="Fechar",
-            command=self._close,
-            fg_color="gray40",
-            hover_color="gray50",
-            width=140,
-            height=45
-        ).pack(side="right", padx=(10, 0))
-        
-        # Botão Executar
-        self.run_btn = ctk.CTkButton(
-            btn_frame,
-            text="▶️ Executar",
-            command=self._run,
-            width=140,
-            height=45,
-            font=("Segoe UI", 13, "bold")
-        )
-        self.run_btn.pack(side="right", padx=(0, 10))
 
     def _browse(self):
         """Seleciona pasta."""
@@ -329,7 +329,7 @@ if __name__ == '__main__':
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
     
-    print("✅ Abrindo dialog (750x850)...")
+    print("✅ Abrindo dialog...")
     root = ctk.CTk()
     root.withdraw()
     
