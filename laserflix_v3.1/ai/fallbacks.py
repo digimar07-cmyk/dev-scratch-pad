@@ -8,11 +8,13 @@ GARANTIAS ABSOLUTAS:
   3. NUNCA retorna "Diversos", "Data Especial" ou qualquer termo genérico
   4. name_pt SEMPRE gerado e disponível para o card/modal
 
-LÓGICA REFINADA v741 (CORREÇÃO MÚLTIPLAS CATEGORIAS):
+LÓGICA REFINADA v741 (SUPORTE A 12 CATEGORIAS):
   - Detecção inteligente por keywords no nome+tags
   - _match_all() retorna TODAS as categorias detectadas (não só primeira)
+  - Limite aumentado de 8 → 12 categorias para produtos complexos
   - Templates específicos para cada tipo de peça
   - Cascata: keyword > data > ambiente > função > genérico
+  - Novas funções: Book Nook, Tracker, Régua, Organizador de Ferramentas
 """
 import os
 import re
@@ -47,7 +49,7 @@ def _match(name_norm, mapping):
 
 def _match_all(name_norm, mapping, max_results=5):
     """
-    NOVA FUNÇÃO v741: Retorna TODAS as categorias que batem no nome.
+    FUNÇÃO v741: Retorna TODAS as categorias que batem no nome.
     
     Args:
         name_norm: Nome normalizado do projeto
@@ -88,6 +90,8 @@ class FallbackGenerator:
       [1] Função / tipo       — NUNCA genérica
       [2] Ambiente / cômodo   — NUNCA genérica
     + até 9 adicionais de temas, estilos, públicos e contextos múltiplos.
+    
+    LIMITE v741: Até 12 categorias totais (antes era 8).
     """
 
     def __init__(self, project_scanner):
@@ -154,7 +158,7 @@ class FallbackGenerator:
           1. Identifica quais slots já estão presentes nas categorias da IA.
           2. Para cada slot ausente, injeta o valor do fallback na posição
              correta (date=0, func=1, env=2), deslocando as demais.
-          3. Remove banidos e limita a 12.
+          3. Remove banidos e limita a 12 (v741 - antes era 8).
         """
         raw_name  = os.path.basename(project_path)
         name_norm = normalize_project_name(raw_name)
@@ -186,7 +190,7 @@ class FallbackGenerator:
         if not has_date:
             result.insert(0, full[0])       # date sempre na posição 0
 
-        return result[:12]  # AUMENTADO DE 8 PARA 12
+        return result[:12]  # v741: AUMENTADO DE 8 PARA 12
 
     # ------------------------------------------------------------------
     # HELPERS INTERNOS
@@ -196,6 +200,13 @@ class FallbackGenerator:
         """
         Monta lista de categorias usando _match_all() para detectar múltiplas.
         Garante que nenhuma das 3 obrigatórias seja vazia ou genérica.
+        
+        LIMITE v741: Até 12 categorias (antes era 8).
+        DISTRIBUIÇÃO:
+          - Até 2 datas comemorativas
+          - Até 3 funções/tipos
+          - Até 2 ambientes
+          - Até 2 de cada opcional (tema, estilo, público)
         """
         # --- Cat 2 e 3 primeiro (usadas para inferir data) ---
         func_cats = _match_all(name_norm, FUNCTION_MAP, max_results=3)
@@ -258,7 +269,7 @@ class FallbackGenerator:
                     cats.append(cat)
                     seen.add(cat)
 
-        return cats[:12]  # AUMENTADO DE 8 PARA 12
+        return cats[:12]  # v741: AUMENTADO DE 8 PARA 12
 
     def _infer_ambiente_from_function(self, func_cat):
         """Infere ambiente mais provável pelo tipo de produto."""
@@ -295,6 +306,12 @@ class FallbackGenerator:
             "Escultura Decorativa":    "Sala",
             "Suporte para Plantas":    "Área de Lazer",
             "Porta-Livro":             "Escritório",
+            # v741: Novas funções
+            "Suporte para Livros":     "Biblioteca",
+            "Quadro de Acompanhamento": "Escritório",
+            "Régua de Crescimento":    "Quarto Infantil",
+            "Organizador de Ferramentas": "Garagem",
+            # Continuando...
             "Etiqueta Decorativa":     "Escritório",
             "Porta-Controle":          "Sala",
             "Calendário Decorativo":   "Escritório",
