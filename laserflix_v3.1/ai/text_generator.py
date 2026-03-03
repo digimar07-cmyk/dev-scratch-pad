@@ -13,11 +13,12 @@ class TextGenerator:
     Gera análises (categorias/tags) e descrições de projetos usando Ollama.
     Funciona com ou sem Ollama rodando — fallbacks garantem resultado sempre.
     
-    LÓGICA REFINADA v740:
+    LÓGICA REFINADA v741:
       - Raciocínio estruturado em 3 etapas antes de escrever
       - Hierarquia NOME > Visão rigorosamente aplicada
       - Prompts cirúrgicos para evitar genericidade
       - Temperature 0.78 para criatividade controlada
+      - Suporte a até 12 categorias (v741 - antes era 8)
     """
 
     def __init__(self, ollama_client, image_analyzer, project_scanner, fallback_generator):
@@ -152,7 +153,7 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
                 if len(categories) < 3:
                     categories = self.fallback.fallback_categories(project_path, categories)
 
-                return categories[:8], tags
+                return categories[:12], tags  # AUMENTADO DE 8 PARA 12 (v741)
 
             # Ollama retornou vazio (indisponível ou timeout) — usa fallback completo
             return self.fallback.fallback_analysis(project_path)
@@ -165,9 +166,9 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
         """
         Gera descrição comercial personalizada.
         
-        ═══════════════════════════════════════════════════════════════════════
+        ═══════════════════════════════════════════════════════════════════
         LÓGICA REFINADA v740 (3 SEMANAS DE TESTES)
-        ═══════════════════════════════════════════════════════════════════════
+        ═══════════════════════════════════════════════════════════════════
         
         HIERARQUIA INVIOLÁVEL:
           1° NOME da peça — âncora absoluta. Define o que o produto É.
@@ -188,7 +189,7 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
           • Proíbe mencionar arquivos/formatos/etapas de produção
           • Proíbe palavra "projeto" (é uma PEÇA física)
         
-        ═══════════════════════════════════════════════════════════════════════
+        ═══════════════════════════════════════════════════════════════════
 
         Formato de saída:
             NOME DA PEÇA
@@ -247,24 +248,24 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
                 "NOME DA PEÇA (use isso como verdade absoluta sobre o que é o produto): "
                 + clean_name + vision_context + "\n\n"
                 
-                # ──────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────
                 # REGRA FUNDAMENTAL (v740)
-                # ──────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────
                 "### REGRA FUNDAMENTAL:\n"
                 "O NOME define o que é o produto. O detalhe visual apenas complementa.\n"
                 "Nunca invente função ou formato que contradiga o nome.\n\n"
                 
-                # ──────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────
                 # RACIOCÍNIO ESTRUTURADO EM 3 ETAPAS (v740)
-                # ──────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────
                 "### RACIOCINE antes de escrever:\n"
                 "1. O que exatamente é esta peça física, baseado no nome? (tipo de objeto)\n"
                 "2. Para que serve na prática? (uso real no dia a dia)\n"
                 "3. Que emoção ou momento ela representa? (conexão afetiva)\n\n"
                 
-                # ──────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────
                 # FORMATO DE SAÍDA
-                # ──────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────
                 "### ESCREVA a descrição EXATAMENTE neste formato (sem nada além disso):\n\n"
                 + clean_name + "\n\n"
                 "🎨 Por Que Este Produto é Especial:\n"
@@ -273,9 +274,9 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
                 "💖 Perfeito Para:\n"
                 "[2 a 3 frases práticas com exemplos reais de uso e ocasião para ESTA peça específica.]\n\n"
                 
-                # ──────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────
                 # REGRAS ANTI-GENERICIDADE (v740 reforçado)
-                # ──────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────
                 "### REGRAS OBRIGATÓRIAS:\n"
                 "- Escreva em português brasileiro\n"
                 "- Nunca use a palavra projeto — esta é uma PEÇA ou PRODUTO físico\n"
@@ -327,9 +328,9 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
             structure = self._get_structure(project_path, project_data)
             return self.fallback.fallback_description(project_path, project_data, structure)
 
-    # ──────────────────────────────────────────────────────────────────────
+    # ──────────────────────────────────────────────────────────────────
     # HELPERS INTERNOS
-    # ──────────────────────────────────────────────────────────────────────
+    # ──────────────────────────────────────────────────────────────────
 
     def _get_structure(self, project_path, project_data):
         """Retorna estrutura do projeto (do cache ou analisa ao vivo)."""
