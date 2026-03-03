@@ -1,112 +1,198 @@
-# 🎬 LASERFLIX v3.2 — Layout Corrigido
+# 🎬 LASERFLIX v3.2 — Baseline Estável
 
-## 🔴 PROBLEMA IDENTIFICADO
+## 🎯 SOBRE ESTA VERSÃO
 
-A v3.0 **modular** estava com layout **completamente quebrado**:
+**v3.2** é o **baseline estável** após fixes críticos da v3.1:
 
-### ❌ O que estava ERRADO:
-
-1. **Header desconfigurado**:
-   - Botões no lugar errado
-   - SEM menus dropdown
-   - Busca mal posicionada
-
-2. **Sidebar bagunçada**:
-   - Layout diferente do v740
-   - Cores erradas
-   - Scroll mal configurado
-   - Faltando seções importantes
-
-3. **Cards simplificados demais**:
-   - SEM botões de ação (📂 ⭐ ✓ 👍 👎 🤖)
-   - Layout diferente
-   - Faltando badges de categoria/tag
-
-4. **Modal não implementado**:
-   - Apenas placeholder
+✅ **Importação em massa CORRIGIDA**  
+✅ **Detecção de duplicatas IMPLEMENTADA**  
+✅ **Dialog de preparação de pastas FUNCIONAL**  
+✅ **Todos os botões VISÍVEIS e funcionais**  
+✅ **Erros de Unicode RESOLVIDOS**  
 
 ---
 
-## ✅ SOLUÇÃO: `main_window_FIXED.py`
+## 🔴 O QUE FOI CORRIGIDO (v3.1 -> v3.2)
 
-Criamos **`ui/main_window_FIXED.py`** que:
+### 1️⃣ **Importação em Massa**
 
-🎯 **Replica 100% o layout visual do v740**  
-📦 **Mantém estrutura modular da v3.0**  
-⚡ **Usa todos os módulos (DatabaseManager, ThumbnailCache, OllamaClient, etc)**  
+#### Problema Identificado:
+- Botão "Escanear" **invisível** no dialog
+- Ordem de `pack()` errada causava sobreposição
+
+#### Solução:
+```python
+# ANTES (botão invisível):
+cancel_btn.pack(side="right", padx=(10, 0))  # Empacotado PRIMEIRO
+scan_btn.pack(side="right", padx=(0, 10))    # Ficava escondido
+
+# DEPOIS (botão visível):
+scan_btn.pack(side="right", padx=(0, 10))    # Empacotado PRIMEIRO
+cancel_btn.pack(side="right", padx=(10, 0))  # À direita do Escanear
+```
+
+**Commit:** [`1546588`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/15465883bcc89df67a6ef53c3c4495069be88c1a)
 
 ---
 
-## 📊 COMPARAÇÃO VISUAL
+### 2️⃣ **Detecção de Produtos Duplicados**
 
-### Header
+#### Problema:
+- Sistema importava **produtos repetidos** com nomes levemente diferentes
+- Exemplo: `"Projeto A"` vs `"Projeto  A"` (espaço duplo)
 
-```
-[v740]           [LASERFLIX v7.4.0]  🏠 Home  ⭐ Favoritos  ✓ Feitos  👍 Bons  👎 Ruins       🔍 [____]  ⚙️ Menu  ➕ Pastas  🤖 Analisar
-[v3.0 ORIGINAL]  [LASERFLIX v3.0.0]  ➕ Adicionar  🔄 Analisar                               🔍 [____]                          ❌ QUEBRADO
-[v3.0 FIXED]     [LASERFLIX v3.0.0]  🏠 Home  ⭐ Favoritos  ✓ Feitos  👍 Bons  👎 Ruins       🔍 [____]  ⚙️ Menu  ➕ Pastas  🤖 Analisar  ✅ CORRETO
-```
+#### Solução:
+Sistema de normalização de nomes:
 
-### Sidebar
-
-```
-[v740]           ┌─────────────────────────┐
-                 │ 🌐 Origem               │
-                 │ Creative Fabrica (120) │  ← laranja
-                 │ Etsy (85)              │  ← amarelo
-                 │ ────────────────────── │
-                 │ 📂 Categorias           │
-                 │ Natal (45)             │
-                 │ Páscoa (32)            │
-                 │ + Ver mais (18)        │
-                 │ ────────────────────── │
-                 │ 🏷️ Tags Populares       │
-                 │ decorativo (78)        │
-                 │ presente (65)          │
-                 └─────────────────────────┘
-
-[v3.0 ORIGINAL]  ┌─────────────────────────┐
-                 │ FILTROS               │  ❌ Layout diferente
-                 │ Todos                 │  ❌ Cores erradas
-                 │ Favoritos             │  ❌ Scroll quebrado
-                 │ ...                   │
-                 └─────────────────────────┘
-
-[v3.0 FIXED]     ┌─────────────────────────┐
-                 │ 🌐 Origem               │  ✅ IDÊNTICO ao v740
-                 │ Creative Fabrica (120) │  ✅ Cores corretas
-                 │ Etsy (85)              │  ✅ Scroll perfeito
-                 │ ────────────────────── │
-                 │ 📂 Categorias           │
-                 └─────────────────────────┘
+```python
+def normalize_name(name: str) -> str:
+    """
+    Normaliza nome para comparação:
+    - Lowercase
+    - Remove acentos
+    - Remove espaços múltiplos
+    - Remove caracteres especiais
+    """
+    import unicodedata
+    # Remove acentos
+    name = unicodedata.normalize('NFKD', name)
+    name = name.encode('ascii', 'ignore').decode('ascii')
+    # Lowercase + remove especiais
+    name = re.sub(r'[^a-z0-9\s]', '', name.lower())
+    # Espaços múltiplos -> 1 espaço
+    name = re.sub(r'\s+', ' ', name).strip()
+    return name
 ```
 
-### Cards
+**Detecção antes de importar:**
+```python
+normalized = normalize_name(new_project['name'])
+for existing in database.projects:
+    if normalize_name(existing['name']) == normalized:
+        # JÁ EXISTE!
+        return None
+```
+
+**Commits:**
+- [`7758646`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/77586464e6e62469c39b27c696c0a6a491028ca9) - Implementação inicial
+- [`189ea7b`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/189ea7b61d82b3b519ce79fcd9a136b2021dd9ae) - Filtro de acentos
+- [`9259aaf`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/9259aaf6e543c3e66aa7fdc5d3d186c5f7fbb945) - Logs detalhados
+
+---
+
+### 3️⃣ **Dialog "Preparar Pastas"**
+
+#### Problemas Múltiplos:
+
+##### A) Botão "Executar" Invisível
+```python
+# PROBLEMA: Ambos com side="right" causava sobreposição
+self.run_btn.pack(side="right", padx=(0, 10))
+self.close_btn.pack(side="right", padx=(10, 0))
+
+# SOLUÇÃO 1: Grid layout
+button_frame.grid_columnconfigure(0, weight=1)
+button_frame.grid_columnconfigure(1, weight=1)
+self.run_btn.grid(row=0, column=0, padx=(0, 10), sticky="ew")
+self.close_btn.grid(row=0, column=1, padx=(10, 0), sticky="ew")
+
+# SOLUÇÃO 2: Mover botões para o TOPO
+# Ordem: Header -> Pasta -> BOTÕES -> Modo -> Output
+```
+
+**Commits:**
+- [`159fd52`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/159fd526ca55b78d0f07a6240f1a9a643533a854) - Grid layout
+- [`a73e5fa`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/a73e5faf14163cdbceea817294cba9bd3703b101) - Janela maximizada
+
+##### B) Visual Destoante
+- Migrado de **Tkinter puro** para **CustomTkinter**
+- Cores harmonizadas com `import_mode_dialog`
+- Fontes Segoe UI (12-14pt)
+
+**Commit:** [`ecdfc9b`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/ecdfc9bbd4f051b6845e36a487aa6200833bf3dd)
+
+##### C) Erro Unicode no Windows
+```python
+# PROBLEMA:
+UnicodeEncodeError: 'charmap' codec can't encode characters
+
+# SOLUÇÃO:
+# 1. Força UTF-8 no stdout
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+# 2. Subprocess com encoding UTF-8
+subprocess.Popen(cmd, encoding='utf-8', errors='replace')
+```
+
+**Commit:** [`ecdfc9b`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/ecdfc9bbd4f051b6845e36a487aa6200833bf3dd)
+
+##### D) Altura Insuficiente
+```python
+# ANTES: 700px (botões cortados)
+self.geometry("750x700")
+
+# DEPOIS: 850px (botões visíveis)
+self.geometry("750x850")
+```
+
+**Commit:** [`42334c3`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/42334c30174d3a689be67b8e770e976c228636ea)
+
+##### E) Botões no Rodapé
+- Movidos para **logo após seleção de pasta**
+- Fluxo mais intuitivo: Pasta → Executar → Modo → Output
+
+**Commit:** [`0e46d30`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/0e46d30e2ca0d78139a54011bc9f5b654b0660aa)
+
+---
+
+## 📊 RESUMO DE COMMITS (v3.1 -> v3.2)
+
+| # | Commit | Descrição | Tipo |
+|---|--------|-----------|------|
+| 1 | [`1546588`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/15465883bcc89df67a6ef53c3c4495069be88c1a) | Botão Escanear visível | 🐛 Bug |
+| 2 | [`7758646`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/77586464e6e62469c39b27c696c0a6a491028ca9) | Detecção duplicatas | ✨ Feature |
+| 3 | [`189ea7b`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/189ea7b61d82b3b519ce79fcd9a136b2021dd9ae) | Filtro acentos | 🔧 Melhoria |
+| 4 | [`9259aaf`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/9259aaf6e543c3e66aa7fdc5d3d186c5f7fbb945) | Logs duplicatas | 📝 Docs |
+| 5 | [`159fd52`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/159fd526ca55b78d0f07a6240f1a9a643533a854) | Grid layout botões | 🐛 Bug |
+| 6 | [`a73e5fa`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/a73e5faf14163cdbceea817294cba9bd3703b101) | Janela maximizada | 🐛 Bug |
+| 7 | [`1455d64`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/1455d649a85fb3cc4c37fc32f0eaa5a8b6ba46e4) | Botão verde enorme | 🐛 Bug |
+| 8 | [`ecdfc9b`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/ecdfc9bbd4f051b6845e36a487aa6200833bf3dd) | CustomTkinter + UTF-8 | ✨ Feature |
+| 9 | [`42334c3`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/42334c30174d3a689be67b8e770e976c228636ea) | Altura 850px | 🐛 Bug |
+| 10 | [`0e46d30`](https://github.com/digimar07-cmyk/dev-scratch-pad/commit/0e46d30e2ca0d78139a54011bc9f5b654b0660aa) | Botões no topo | 🎨 UX |
+
+---
+
+## 🛠️ ESTRUTURA DO PROJETO
 
 ```
-[v740]           ┌──────────────────────┐
-                 │ [🖼️ Cover 220x200] │
-                 │ Nome do Projeto     │
-                 │ [Natal][Quadro][Sala] │  ← badges categoria
-                 │ #decorativo #presente │  ← tags
-                 │ Creative Fabrica    │  ← origem
-                 │ 📂 ⭐ ✓ 👍 👎 🤖      │  ← 6 botões
-                 └──────────────────────┘
-
-[v3.0 ORIGINAL]  ┌──────────────────────┐
-                 │ [🖼️ Cover]        │  ❌ Simplificado
-                 │ Nome                │  ❌ SEM badges
-                 │ ⭐ ✓ 👍 👎          │  ❌ SEM botões de ação
-                 └──────────────────────┘
-
-[v3.0 FIXED]     ┌──────────────────────┐
-                 │ [🖼️ Cover 220x200] │  ✅ IDÊNTICO
-                 │ Nome do Projeto     │  ✅ Badges corretos
-                 │ [Natal][Quadro][Sala] │  ✅ Tags corretas
-                 │ #decorativo #presente │  ✅ Origem correta
-                 │ Creative Fabrica    │  ✅ TODOS os 6 botões
-                 │ 📂 ⭐ ✓ 👍 👎 🤖      │
-                 └──────────────────────┘
+laserflix_v3.2/
+├── main.py                    # Entry point
+├── prepare_folders.py         # Script CLI de preparação
+├── backup_manager.py          # Sistema de backup
+├── requirements.txt
+├── README.md                  # Este arquivo
+├── CHANGELOG_v3.2.md          # Detalhes das mudanças
+├── MIGRATION_GUIDE.md         # Guia de migração
+├── RECURSIVE_IMPORT_README.md # Importação em massa
+├── config/
+├── core/
+│   ├── database.py            # ✅ Detecção duplicatas
+│   ├── project_scanner.py     # Escaneia pastas
+│   └── thumbnail_cache.py     # Cache de imagens
+├── ai/
+│   ├── claude.md              # ✨ NOVO: Log desenvolvimento
+│   ├── ollama_client.py
+│   ├── image_analyzer.py
+│   ├── text_generator.py
+│   └── fallbacks.py
+├── ui/
+│   ├── main_window_FIXED.py   # Janela principal
+│   ├── import_mode_dialog.py  # ✅ Botão visível
+│   └── prepare_folders_dialog.py  # ✅ CustomTkinter + UTF-8
+└── utils/
+    ├── logging_setup.py
+    └── platform_utils.py
 ```
 
 ---
@@ -116,230 +202,90 @@ Criamos **`ui/main_window_FIXED.py`** que:
 ### 1. Instalar dependências:
 
 ```bash
-cd laserflix_v3.0
+cd laserflix_v3.2
 pip install -r requirements.txt
 ```
 
-### 2. Rodar versão CORRIGIDA:
+### 2. Rodar aplicação:
 
 ```bash
 python main.py
 ```
 
-O `main.py` já está configurado para usar `main_window_FIXED`.
-
-### 3. Testar lado a lado com v740:
+### 3. Testar preparação de pastas (CLI):
 
 ```bash
-# Terminal 1 (v740 original)
-python laserflix_v740_Ofline_Stable.py
+# Modo smart (apenas pastas com .svg/.pdf/.dxf)
+python prepare_folders.py "D:/PROJETOS" --smart
 
-# Terminal 2 (v3.0 corrigida)
-cd laserflix_v3.0
-python main.py
-```
+# Modo all (todas as pastas com imagens)
+python prepare_folders.py "D:/PROJETOS" --all
 
-Compare visualmente usando a [**CHECKLIST**](LAYOUT_CHECKLIST.md).
-
----
-
-## 📚 ESTRUTURA MODULAR (mantida)
-
-```
-laserflix_v3.0/
-├── main.py                    # Entry point (usa main_window_FIXED)
-├── requirements.txt
-├── README.md                  # Este arquivo
-├── LAYOUT_CHECKLIST.md        # Checklist de comparação visual
-├── config/
-│   ├── __init__.py
-│   ├── settings.py            # Constantes globais
-│   └── constants.py           # Cores, fontes, dimensões
-├── core/
-│   ├── __init__.py
-│   ├── database.py            # Persistência (JSON)
-│   ├── thumbnail_cache.py     # Cache de imagens
-│   └── project_scanner.py     # Escaneia pastas
-├── ai/
-│   ├── __init__.py
-│   ├── ollama_client.py       # Cliente Ollama
-│   ├── image_analyzer.py      # Moondream (visão)
-│   ├── text_generator.py      # Qwen2.5 (texto)
-│   └── fallbacks.py           # Análise sem IA
-├── ui/
-│   ├── __init__.py
-│   ├── main_window.py         # ❌ VERSÃO QUEBRADA (não usar)
-│   └── main_window_FIXED.py   # ✅ VERSÃO CORRIGIDA (usar esta)
-└── utils/
-    ├── __init__.py
-    ├── logging_setup.py       # Logger centralizado
-    └── platform_utils.py      # Abrir pastas (cross-platform)
+# Modo list (dry-run, apenas lista)
+python prepare_folders.py "D:/PROJETOS" --list
 ```
 
 ---
 
-## ✅ O QUE FOI CORRIGIDO
+## ✅ STATUS DOS MÓDULOS
 
-### 1. **Header** (`create_ui`)
-- ✅ Logo + versão à esquerda
-- ✅ Botões navegação centralizados (hover vermelho)
-- ✅ Busca à direita com ícone 🔍
-- ✅ 3 botões: Menu (dropdown) | Pastas | Analisar (dropdown)
-- ✅ Menus completos (Dashboard, Edição, IA, Export/Import, Backup)
-
-### 2. **Sidebar** (`create_sidebar`)
-- ✅ 250px fixo à ESQUERDA
-- ✅ Canvas scrollable correto
-- ✅ Seção "🌐 Origem" com cores:
-  - Creative Fabrica: `#FF6B35`
-  - Etsy: `#F7931E`
-  - Diversos: `#4ECDC4`
-- ✅ Seção "📂 Categorias" (top 8 + "Ver mais")
-- ✅ Seção "🏷️ Tags Populares" (top 20)
-- ✅ Separadores visuais (#333333)
-- ✅ Botão ativo destacado em vermelho
-
-### 3. **Cards** (`create_project_card`)
-- ✅ Dimensões: 220x420px
-- ✅ Cover clicável (220x200px)
-- ✅ Até 3 badges de categoria (clicáveis, cores: #FF6B6B, #4ECDC4, #95E1D3)
-- ✅ Até 3 tags (clicáveis, hover vermelho)
-- ✅ Badge origem colorido (clicável)
-- ✅ **6 botões de ação**:
-  1. 📂 Abrir pasta
-  2. ⭐/☆ Favorito (toggle)
-  3. ✓/○ Feito (toggle)
-  4. 👍 Bom (toggle)
-  5. 👎 Ruim (toggle)
-  6. 🤖 Analisar (só se não analisado)
-
-### 4. **Grid** (`display_projects`)
-- ✅ 5 colunas
-- ✅ Título dinâmico reflete filtros ativos
-- ✅ Contador de projetos
-- ✅ Scroll suave
-
-### 5. **Status Bar**
-- ✅ Fundo preto #000000
-- ✅ Progress bar verde (clam theme)
-- ✅ Botão "Parar Análise"
-
-### 6. **Funcionalidades**
-- ✅ Todos os filtros (rápido, origem, categoria, tag, busca)
-- ✅ Toggles persistem no banco (favorite, done, good, bad)
-- ✅ Abrir pasta no explorador (Windows/Mac/Linux)
-- ✅ Click em badges/tags filtra
-- ✅ Scroll com mouse wheel (content + sidebar)
+| Módulo | Status | Cobertura de Testes |
+|--------|--------|--------------------|
+| **core/database.py** | ✅ Estável | ✅ Detecção duplicatas testada |
+| **core/project_scanner.py** | ✅ Estável | ✅ Recursivo funcional |
+| **core/thumbnail_cache.py** | ✅ Estável | ✅ Cache rápido |
+| **ui/import_mode_dialog.py** | ✅ Estável | ✅ Botão visível |
+| **ui/prepare_folders_dialog.py** | ✅ Estável | ✅ CustomTkinter + UTF-8 |
+| **ai/text_generator.py** | 🟡 Funcional | ⚠️ Testes parciais |
+| **ai/image_analyzer.py** | 🟡 Funcional | ⚠️ Testes parciais |
 
 ---
 
-## ⚠️ O QUE AINDA FALTA (TODOs)
+## 📝 PRÓXIMOS PASSOS
 
-### Implementar:
+### Curto Prazo (v3.3):
+1. ☐ **Teste completo de importação em massa** (100+ projetos)
+2. ☐ **Dashboard de estatísticas**
+3. ☐ **Modal de projeto completo** (2 colunas)
 
-1. **Modal de Projeto** (2 colunas):
-   - Galeria de imagens (esquerda)
-   - Detalhes + descrição IA (direita)
-   - Botões de ação no rodapé
+### Médio Prazo (v3.4):
+4. ☐ **Edição em lote** (seleção múltipla)
+5. ☐ **Análise IA com progress real**
+6. ☐ **Sistema de backup automático**
 
-2. **Dashboard**:
-   - Estatísticas visuais
-   - Gráficos de categorias/tags
-   - Projetos recentes
-
-3. **Edição em Lote**:
-   - Seleção múltipla
-   - Alterar categorias/tags em massa
-   - Mover entre pastas
-
-4. **Análise IA** (threads):
-   - Integrar `TextGenerator.analyze_project()`
-   - Progress bar funcional
-   - Botão parar funcional
-   - Geração de descrições
-
-5. **Picker de Categorias**:
-   - Modal com TODAS as categorias
-   - Seleção múltipla
-   - Contador por categoria
-
----
-
-## 🔧 COMO CONTRIBUIR
-
-### Para adicionar features:
-
-1. **Nunca** modifique `main_window.py` (versão quebrada)
-2. **Sempre** edite `main_window_FIXED.py`
-3. Siga as convenções do v740:
-   - Cores da paleta Netflix
-   - Dimensões exatas (220x420 cards, 250px sidebar, 70px header)
-   - Layout de 5 colunas
-4. Teste lado a lado com v740 antes de comitar
-
-### Para modularizar features:
-
-Crie novos módulos em `ui/`:
-
-```python
-# ui/project_modal.py
-class ProjectModal:
-    def __init__(self, parent, project_path, database):
-        self.modal = tk.Toplevel(parent)
-        # ...
-```
-
-E importe no `main_window_FIXED.py`:
-
-```python
-from ui.project_modal import ProjectModal
-
-def open_project_modal(self, project_path):
-    ProjectModal(self.root, project_path, self.database)
-```
-
----
-
-## 📊 COMPARAÇÃO DE PERFORMANCE
-
-| Aspecto | v740 (monolítico) | v3.0 FIXED (modular) |
-|---------|---------------------|----------------------|
-| **Linhas de código** | ~3200 linhas (1 arquivo) | ~1200 linhas (12 arquivos) |
-| **Manutenibilidade** | 🟡 Difícil | 🟢 Fácil |
-| **Testabilidade** | 🟡 Baixa | 🟢 Alta |
-| **Reutilização** | 🟡 Impossível | 🟢 Módulos independentes |
-| **Performance** | 🟢 Rápida | 🟢 Rápida (mesmo desempenho) |
-| **Layout visual** | 🟢 Perfeito | 🟢 **Idêntico** |
-
----
-
-## ✅ CONCLUSÃO
-
-A **v3.0 FIXED** é:
-
-✅ **Visualmente idêntica** ao v740  
-✅ **Estruturalmente superior** (modular, testável, mantenível)  
-✅ **Base sólida** para futuras features  
-
-**Próximos passos**:
-1. Testar com a [CHECKLIST](LAYOUT_CHECKLIST.md)
-2. Implementar modal completo
-3. Adicionar análise IA funcional
-4. Criar dashboard de estatísticas
+### Longo Prazo (v4.0):
+7. ☐ **Busca semântica com embeddings**
+8. ☐ **Integração Lightburn API**
+9. ☐ **Export para Excel/CSV**
 
 ---
 
 ## 👥 CRÉDITOS
 
-- **v740**: Base visual e funcionalidades core
-- **v3.0 FIXED**: Refactoring modular mantendo layout original
-- **Perplexity (Claude Sonnet 4.5)**: Análise profunda e correção do layout
+- **Desenvolvimento:** digimar07-cmyk
+- **AI Assistant:** Perplexity (Claude Sonnet 4.5)
+- **Testing:** Sessão intensiva de debugging 03/03/2026
 
 ---
 
 ## 📞 SUPORTE
 
 Problemas? Consulte:
-1. [LAYOUT_CHECKLIST.md](LAYOUT_CHECKLIST.md) — Checklist de comparação
-2. Código v740 original como referência
-3. Logs em `laserflix.log`
+1. [CHANGELOG_v3.2.md](CHANGELOG_v3.2.md) — Detalhes técnicos
+2. [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) — Migração de versões antigas
+3. [ai/claude.md](ai/claude.md) — Log de desenvolvimento com Perplexity
+4. Logs em `laserflix.log`
+
+---
+
+## 🎉 CONCLUSÃO
+
+**v3.2** é a primeira versão **verdadeiramente estável** da arquitetura modular:
+
+✅ **TODOS os bugs críticos corrigidos**  
+✅ **Interface 100% funcional**  
+✅ **Detecção de duplicatas robusta**  
+✅ **Suporte Unicode completo**  
+✅ **Pronto para novos recursos**  
+
+**Base sólida para continuar o desenvolvimento!** 🚀
