@@ -177,8 +177,8 @@ class LaserflixMainWindow:
         prep_btn = add_prepare_button(self, extras_frame)
         prep_btn.pack(side="left", padx=5)
 
-        # NOVO: Botão Importação Recursiva
-        tk.Button(extras_frame, text="🗂️ Importar Recursiva", command=self._import_recursive,
+        # NOVO: Botão Importação em Massa
+        tk.Button(extras_frame, text="🚀 Importação em Massa", command=self._import_recursive,
                   bg="#9C27B0", fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                   relief="flat", cursor="hand2", padx=15, pady=8).pack(side="left", padx=5)
 
