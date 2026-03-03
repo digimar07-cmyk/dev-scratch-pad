@@ -8,8 +8,9 @@ GARANTIAS ABSOLUTAS:
   3. NUNCA retorna "Diversos", "Data Especial" ou qualquer termo genérico
   4. name_pt SEMPRE gerado e disponível para o card/modal
 
-LÓGICA REFINADA v740:
+LÓGICA REFINADA v741 (CORREÇÃO MÚLTIPLAS CATEGORIAS):
   - Detecção inteligente por keywords no nome+tags
+  - _match_all() retorna TODAS as categorias detectadas (não só primeira)
   - Templates específicos para cada tipo de peça
   - Cascata: keyword > data > ambiente > função > genérico
 """
@@ -44,6 +45,40 @@ def _match(name_norm, mapping):
     return None
 
 
+def _match_all(name_norm, mapping, max_results=5):
+    """
+    NOVA FUNÇÃO v741: Retorna TODAS as categorias que batem no nome.
+    
+    Args:
+        name_norm: Nome normalizado do projeto
+        mapping: Dicionário de mapeamento (DATE_MAP, FUNCTION_MAP, etc)
+        max_results: Número máximo de resultados a retornar
+    
+    Returns:
+        Lista de rótulos que bateram (pode ser vazia)
+    """
+    found = []
+    seen_labels = set()
+    
+    for keywords, label in mapping:
+        # Pula se já encontramos este label
+        if label in seen_labels:
+            continue
+            
+        for kw in keywords:
+            kw_norm = remove_accents(kw.lower())
+            if kw_norm in name_norm:
+                found.append(label)
+                seen_labels.add(label)
+                break  # Passa para próximo grupo de keywords
+        
+        # Limita resultados
+        if len(found) >= max_results:
+            break
+    
+    return found
+
+
 class FallbackGenerator:
     """
     Gera análises e descrições sem IA usando keyword_maps.py.
@@ -52,7 +87,7 @@ class FallbackGenerator:
       [0] Data comemorativa   — NUNCA genérica
       [1] Função / tipo       — NUNCA genérica
       [2] Ambiente / cômodo   — NUNCA genérica
-    + até 3 opcionais: tema, estilo, público.
+    + até 9 adicionais de temas, estilos, públicos e contextos múltiplos.
     """
 
     def __init__(self, project_scanner):
@@ -119,7 +154,7 @@ class FallbackGenerator:
           1. Identifica quais slots já estão presentes nas categorias da IA.
           2. Para cada slot ausente, injeta o valor do fallback na posição
              correta (date=0, func=1, env=2), deslocando as demais.
-          3. Remove banidos e limita a 8.
+          3. Remove banidos e limita a 12.
         """
         raw_name  = os.path.basename(project_path)
         name_norm = normalize_project_name(raw_name)
@@ -151,7 +186,7 @@ class FallbackGenerator:
         if not has_date:
             result.insert(0, full[0])       # date sempre na posição 0
 
-        return result[:8]
+        return result[:12]  # AUMENTADO DE 8 PARA 12
 
     # ------------------------------------------------------------------
     # HELPERS INTERNOS
@@ -159,48 +194,71 @@ class FallbackGenerator:
 
     def _build_categories(self, name_norm):
         """
-        Monta lista de categorias.
+        Monta lista de categorias usando _match_all() para detectar múltiplas.
         Garante que nenhuma das 3 obrigatórias seja vazia ou genérica.
         """
         # --- Cat 2 e 3 primeiro (usadas para inferir data) ---
-        func_cat = _match(name_norm, FUNCTION_MAP)
-        if not func_cat:
-            func_cat = _match(name_norm, GENERIC_FALLBACK_FUNCTION)
-        if not func_cat:
-            func_cat = FINAL_FALLBACK_FUNCTION
+        func_cats = _match_all(name_norm, FUNCTION_MAP, max_results=3)
+        if not func_cats:
+            func_cats = [_match(name_norm, GENERIC_FALLBACK_FUNCTION)]
+        if not func_cats or not func_cats[0]:
+            func_cats = [FINAL_FALLBACK_FUNCTION]
 
-        env_cat = _match(name_norm, AMBIENTE_MAP)
-        if not env_cat:
-            env_cat = self._infer_ambiente_from_function(func_cat)
-        if not env_cat:
-            env_cat = FINAL_FALLBACK_AMBIENTE
+        env_cats = _match_all(name_norm, AMBIENTE_MAP, max_results=2)
+        if not env_cats:
+            env_cats = [self._infer_ambiente_from_function(func_cats[0])]
+        if not env_cats or not env_cats[0]:
+            env_cats = [FINAL_FALLBACK_AMBIENTE]
 
         # Opcionais (detectar antes de inferir data — usados em DATE_INFER_MAP)
-        theme_cat  = _match(name_norm, THEME_MAP)
-        style_cat  = _match(name_norm, STYLE_MAP)
-        public_cat = _match(name_norm, PUBLIC_MAP)
+        theme_cats  = _match_all(name_norm, THEME_MAP, max_results=2)
+        style_cats  = _match_all(name_norm, STYLE_MAP, max_results=2)
+        public_cats = _match_all(name_norm, PUBLIC_MAP, max_results=2)
 
         # --- Cat 1: Data — NUNCA genérica ---
-        date_cat = _match(name_norm, DATE_MAP)
-        if not date_cat:
+        date_cats = _match_all(name_norm, DATE_MAP, max_results=2)
+        if not date_cats:
             # Tenta inferir pela ordem: tema → função → público
-            for hint in (theme_cat, func_cat, public_cat):
+            for hint in (theme_cats[0] if theme_cats else None,
+                        func_cats[0],
+                        public_cats[0] if public_cats else None):
                 if hint and hint in DATE_INFER_MAP:
-                    date_cat = DATE_INFER_MAP[hint]
+                    date_cats = [DATE_INFER_MAP[hint]]
                     break
-        if not date_cat:
+        if not date_cats:
             # Último recurso: produto genérico → Aniversário (data mais universal)
-            date_cat = "Aniversário"
+            date_cats = ["Aniversário"]
 
-        # Monta lista final (sem duplicatas)
-        cats = [date_cat, func_cat, env_cat]
-        for opt in (theme_cat, style_cat, public_cat):
-            if opt and opt not in cats:
-                cats.append(opt)
+        # Monta lista final (sem duplicatas, mantendo ordem de prioridade)
+        cats = []
+        seen = set()
+        
+        # Prioridade 1: Data (obrigatória)
+        for cat in date_cats[:2]:  # Até 2 datas
+            if cat and cat not in seen and cat.lower() not in _BANNED:
+                cats.append(cat)
+                seen.add(cat)
+        
+        # Prioridade 2: Função (obrigatória)
+        for cat in func_cats[:3]:  # Até 3 funções
+            if cat and cat not in seen and cat.lower() not in _BANNED:
+                cats.append(cat)
+                seen.add(cat)
+        
+        # Prioridade 3: Ambiente (obrigatória)
+        for cat in env_cats[:2]:  # Até 2 ambientes
+            if cat and cat not in seen and cat.lower() not in _BANNED:
+                cats.append(cat)
+                seen.add(cat)
+        
+        # Prioridade 4: Tema, Estilo, Público (opcionais)
+        for cat_list in (theme_cats, style_cats, public_cats):
+            for cat in cat_list[:2]:  # Até 2 de cada
+                if cat and cat not in seen and cat.lower() not in _BANNED:
+                    cats.append(cat)
+                    seen.add(cat)
 
-        # Remove banidos por garantia
-        cats = [c for c in cats if c.lower() not in _BANNED]
-        return cats[:8]
+        return cats[:12]  # AUMENTADO DE 8 PARA 12
 
     def _infer_ambiente_from_function(self, func_cat):
         """Infere ambiente mais provável pelo tipo de produto."""
