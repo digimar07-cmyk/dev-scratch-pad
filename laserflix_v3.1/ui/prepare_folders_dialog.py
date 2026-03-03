@@ -25,14 +25,14 @@ class PrepareFoldersDialog(ctk.CTkToplevel):
         super().__init__(parent)
         
         self.title("📦 Preparar Pastas")
-        self.geometry("750x700")
+        self.geometry("750x850")  # Aumentado para 850px de altura
         self.resizable(True, True)
         
         # Centraliza
         self.update_idletasks()
         x = (self.winfo_screenwidth() - 750) // 2
-        y = (self.winfo_screenheight() - 700) // 2
-        self.geometry(f"750x700+{x}+{y}")
+        y = (self.winfo_screenheight() - 850) // 2
+        self.geometry(f"750x850+{x}+{y}")
         
         # Variáveis
         self.selected_path = ""
@@ -46,7 +46,7 @@ class PrepareFoldersDialog(ctk.CTkToplevel):
             self.transient(parent)
             self.grab_set()
         
-        LOGGER.info("PrepareFoldersDialog aberto")
+        LOGGER.info("PrepareFoldersDialog aberto (750x850)")
 
     def _build_ui(self):
         """Constrói interface."""
@@ -329,7 +329,7 @@ if __name__ == '__main__':
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
     
-    print("✅ Abrindo dialog...")
+    print("✅ Abrindo dialog (750x850)...")
     root = ctk.CTk()
     root.withdraw()
     
