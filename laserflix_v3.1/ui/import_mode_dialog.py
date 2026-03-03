@@ -45,6 +45,10 @@ class ImportModeDialog(ctk.CTkToplevel):
         # IMPORTANTE: Criar StringVar ANTES de criar RadioButtons
         self.mode_var = ctk.StringVar(value="hybrid")  # Padrão: Híbrido
         
+        # Referências para frames
+        self.hybrid_frame = None
+        self.pure_frame = None
+        
         # Constrói UI
         self._build_ui()
         
@@ -84,29 +88,32 @@ class ImportModeDialog(ctk.CTkToplevel):
         # ============================================================
         
         # Modo Híbrido (Recomendado)
-        hybrid_frame = ctk.CTkFrame(main_frame)
-        hybrid_frame.pack(fill="x", padx=10, pady=10)
+        self.hybrid_frame = ctk.CTkFrame(main_frame, cursor="hand2")
+        self.hybrid_frame.pack(fill="x", padx=10, pady=10)
         
         self.hybrid_radio = ctk.CTkRadioButton(
-            hybrid_frame,
+            self.hybrid_frame,
             text="",
-            variable=self.mode_var,  # MESMA variable!
+            variable=self.mode_var,
             value="hybrid",
-            width=30
+            width=30,
+            cursor="hand2"
         )
         self.hybrid_radio.pack(side="left", padx=(15, 10), pady=15)
         
-        hybrid_info = ctk.CTkFrame(hybrid_frame, fg_color="transparent")
+        hybrid_info = ctk.CTkFrame(self.hybrid_frame, fg_color="transparent", cursor="hand2")
         hybrid_info.pack(side="left", fill="x", expand=True, pady=10)
         
-        ctk.CTkLabel(
+        hybrid_title = ctk.CTkLabel(
             hybrid_info,
             text="🔄 Modo Híbrido (Recomendado)",
             font=("Segoe UI", 14, "bold"),
-            anchor="w"
-        ).pack(anchor="w", padx=10)
+            anchor="w",
+            cursor="hand2"
+        )
+        hybrid_title.pack(anchor="w", padx=10)
         
-        ctk.CTkLabel(
+        hybrid_desc = ctk.CTkLabel(
             hybrid_info,
             text="• Busca folder.jpg + fallback\n"
                  "• Detecta mais produtos\n"
@@ -114,33 +121,50 @@ class ImportModeDialog(ctk.CTkToplevel):
             font=("Segoe UI", 10),
             text_color="gray70",
             anchor="w",
-            justify="left"
-        ).pack(anchor="w", padx=10, pady=(5, 5))
+            justify="left",
+            cursor="hand2"
+        )
+        hybrid_desc.pack(anchor="w", padx=10, pady=(5, 5))
+        
+        # BIND: Tornar TODO o frame clicável
+        self.hybrid_frame.bind("<Button-1>", lambda e: self._select_hybrid())
+        hybrid_info.bind("<Button-1>", lambda e: self._select_hybrid())
+        hybrid_title.bind("<Button-1>", lambda e: self._select_hybrid())
+        hybrid_desc.bind("<Button-1>", lambda e: self._select_hybrid())
+        
+        # Hover effect
+        self.hybrid_frame.bind("<Enter>", lambda e: self._on_hover_hybrid(True))
+        self.hybrid_frame.bind("<Leave>", lambda e: self._on_hover_hybrid(False))
+        hybrid_info.bind("<Enter>", lambda e: self._on_hover_hybrid(True))
+        hybrid_info.bind("<Leave>", lambda e: self._on_hover_hybrid(False))
         
         # Modo Puro
-        pure_frame = ctk.CTkFrame(main_frame)
-        pure_frame.pack(fill="x", padx=10, pady=10)
+        self.pure_frame = ctk.CTkFrame(main_frame, cursor="hand2")
+        self.pure_frame.pack(fill="x", padx=10, pady=10)
         
         self.pure_radio = ctk.CTkRadioButton(
-            pure_frame,
+            self.pure_frame,
             text="",
-            variable=self.mode_var,  # MESMA variable!
+            variable=self.mode_var,
             value="pure",
-            width=30
+            width=30,
+            cursor="hand2"
         )
         self.pure_radio.pack(side="left", padx=(15, 10), pady=15)
         
-        pure_info = ctk.CTkFrame(pure_frame, fg_color="transparent")
+        pure_info = ctk.CTkFrame(self.pure_frame, fg_color="transparent", cursor="hand2")
         pure_info.pack(side="left", fill="x", expand=True, pady=10)
         
-        ctk.CTkLabel(
+        pure_title = ctk.CTkLabel(
             pure_info,
             text="🔒 Modo Puro (Controle Total)",
             font=("Segoe UI", 14, "bold"),
-            anchor="w"
-        ).pack(anchor="w", padx=10)
+            anchor="w",
+            cursor="hand2"
+        )
+        pure_title.pack(anchor="w", padx=10)
         
-        ctk.CTkLabel(
+        pure_desc = ctk.CTkLabel(
             pure_info,
             text="• Apenas pastas com folder.jpg\n"
                  "• Zero falsos positivos\n"
@@ -148,8 +172,22 @@ class ImportModeDialog(ctk.CTkToplevel):
             font=("Segoe UI", 10),
             text_color="gray70",
             anchor="w",
-            justify="left"
-        ).pack(anchor="w", padx=10, pady=(5, 5))
+            justify="left",
+            cursor="hand2"
+        )
+        pure_desc.pack(anchor="w", padx=10, pady=(5, 5))
+        
+        # BIND: Tornar TODO o frame clicável
+        self.pure_frame.bind("<Button-1>", lambda e: self._select_pure())
+        pure_info.bind("<Button-1>", lambda e: self._select_pure())
+        pure_title.bind("<Button-1>", lambda e: self._select_pure())
+        pure_desc.bind("<Button-1>", lambda e: self._select_pure())
+        
+        # Hover effect
+        self.pure_frame.bind("<Enter>", lambda e: self._on_hover_pure(True))
+        self.pure_frame.bind("<Leave>", lambda e: self._on_hover_pure(False))
+        pure_info.bind("<Enter>", lambda e: self._on_hover_pure(True))
+        pure_info.bind("<Leave>", lambda e: self._on_hover_pure(False))
         
         # ============================================================
         # SELEÇÃO DE PASTA
@@ -203,6 +241,49 @@ class ImportModeDialog(ctk.CTkToplevel):
             width=120,
             height=40
         ).pack(side="right")
+    
+    # ================================================================
+    # SELEÇÃO DE MODO
+    # ================================================================
+    
+    def _select_hybrid(self):
+        """Seleciona modo híbrido."""
+        self.mode_var.set("hybrid")
+        self._update_frame_borders()
+    
+    def _select_pure(self):
+        """Seleciona modo puro."""
+        self.mode_var.set("pure")
+        self._update_frame_borders()
+    
+    def _update_frame_borders(self):
+        """Atualiza borda dos frames baseado na seleção."""
+        mode = self.mode_var.get()
+        
+        if mode == "hybrid":
+            self.hybrid_frame.configure(border_width=2, border_color="#1f6aa5")
+            self.pure_frame.configure(border_width=0)
+        else:
+            self.pure_frame.configure(border_width=2, border_color="#1f6aa5")
+            self.hybrid_frame.configure(border_width=0)
+    
+    def _on_hover_hybrid(self, entering: bool):
+        """Feedback visual ao passar mouse no frame híbrido."""
+        if entering:
+            if self.mode_var.get() != "hybrid":
+                self.hybrid_frame.configure(border_width=1, border_color="gray50")
+        else:
+            if self.mode_var.get() != "hybrid":
+                self.hybrid_frame.configure(border_width=0)
+    
+    def _on_hover_pure(self, entering: bool):
+        """Feedback visual ao passar mouse no frame puro."""
+        if entering:
+            if self.mode_var.get() != "pure":
+                self.pure_frame.configure(border_width=1, border_color="gray50")
+        else:
+            if self.mode_var.get() != "pure":
+                self.pure_frame.configure(border_width=0)
 
     def _browse_folder(self):
         """Abre dialog para selecionar pasta."""
