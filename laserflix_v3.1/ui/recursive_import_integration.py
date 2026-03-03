@@ -17,9 +17,10 @@ USO NO MAIN_WINDOW:
 
 import threading
 from typing import List, Dict, Callable
+from tkinter import messagebox
 from utils.logging_setup import LOGGER
 from utils.recursive_scanner import RecursiveScanner
-from ui.import_mode_dialog import ImportModeDialog
+from ui.import_mode_dialog import show_import_mode_dialog
 from ui.import_preview_dialog import ImportPreviewDialog
 
 
@@ -74,16 +75,14 @@ class RecursiveImportManager:
         self.logger.info("=== INICIANDO IMPORTAÇÃO RECURSIVA ===")
         
         # PASSO 1: Dialog de modo
-        mode_dialog = ImportModeDialog(self.parent)
-        self.parent.wait_window(mode_dialog)
+        result = show_import_mode_dialog(self.parent)
         
-        result = mode_dialog.get_result()
         if not result:
             self.logger.info("Importação cancelada pelo usuário (dialog)")
             return
         
-        mode = result['mode']
-        base_path = result['base_path']
+        # Desempacota tupla (mode, base_path)
+        mode, base_path = result
         
         self.logger.info(f"Modo: {mode}, Pasta: {base_path}")
         
@@ -99,7 +98,7 @@ class RecursiveImportManager:
         self.logger.info(f"Encontrados {len(all_products)} produtos")
         
         # PASSO 3: Verificar existentes
-        self._show_status("📊 Verificando produtos existentes...")
+        self._show_status("📋 Verificando produtos existentes...")
         new_products, existing_products = self._check_existing(all_products)
         
         self.logger.info(
@@ -170,27 +169,15 @@ class RecursiveImportManager:
             (new_products, existing_products)
         """
         try:
-            # Busca todos IDs existentes no banco
-            existing_ids = set()
+            # Para cada produto, verifica se path já existe no database
+            existing_paths = set(self.database.keys())
             
-            # Query: SELECT unique_id FROM projects
-            cursor = self.database.conn.cursor()
-            cursor.execute("SELECT unique_id FROM projects WHERE unique_id IS NOT NULL")
-            rows = cursor.fetchall()
-            
-            for row in rows:
-                if row[0]:  # Se unique_id não é NULL
-                    existing_ids.add(row[0])
-            
-            self.logger.debug(f"IDs existentes no banco: {len(existing_ids)}")
-            
-            # Separa novos vs existentes
             new = []
             existing = []
             
             for product in products:
-                uid = product['unique_id']
-                if uid in existing_ids:
+                path = product['path']
+                if path in existing_paths:
                     existing.append(product)
                 else:
                     new.append(product)
@@ -237,34 +224,35 @@ class RecursiveImportManager:
         for i, product in enumerate(products, 1):
             try:
                 # Atualiza progresso
-                progress = (i / total) * 100
                 self._update_progress(i, total, product['name'])
                 
-                # Escaneia projeto
-                project_data = self.project_scanner.scan_project(
-                    product['path'],
-                    include_structure=True
-                )
+                # Adiciona ao database usando método do scanner
+                project_path = product['path']
                 
-                if not project_data:
-                    self.logger.warning(f"Falha ao escanear: {product['path']}")
+                # Verifica se já existe
+                if project_path in self.database:
+                    self.logger.debug(f"Pulando (já existe): {product['name']}")
                     failed += 1
                     continue
                 
-                # Adiciona unique_id
-                project_data['unique_id'] = product['unique_id']
+                # Estrutura básica do projeto
+                project_data = {
+                    'path': project_path,
+                    'name': product['name'],
+                    'origin': 'Importação Recursiva',
+                    'cover_image': product.get('cover_image', ''),
+                    'images': product.get('images', []),
+                    'analyzed': False,
+                    'favorite': False,
+                    'done': False,
+                    'good': False,
+                    'bad': False,
+                    'categories': [],
+                    'tags': []
+                }
                 
-                # Gera análise (IA ou fallback)
-                analysis = self.text_generator.generate_analysis(
-                    product['path'],
-                    project_data
-                )
-                
-                if analysis:
-                    project_data.update(analysis)
-                
-                # Salva no banco
-                self.database.add_project(project_data)
+                # Adiciona ao banco
+                self.database[project_path] = project_data
                 success += 1
                 
                 self.logger.debug(f"[{i}/{total}] Importado: {product['name']}")
@@ -288,33 +276,41 @@ class RecursiveImportManager:
             self.on_complete(success, failed)
 
     # ================================================================
-    # UI HELPERS (implementar com CTkMessagebox ou similar)
+    # UI HELPERS
     # ================================================================
 
     def _show_status(self, message: str):
         """Mostra mensagem de status."""
         self.logger.info(f"[STATUS] {message}")
-        # TODO: Implementar com CTkMessagebox ou status bar
+        # Atualiza status bar se existir
+        if hasattr(self.parent, 'status_bar'):
+            self.parent.status_bar.config(text=message)
+            self.parent.root.update_idletasks()
 
     def _update_progress(self, current: int, total: int, name: str):
         """Atualiza barra de progresso."""
-        self.logger.debug(f"[{current}/{total}] {name}")
-        # TODO: Implementar progress dialog
+        pct = (current / total) * 100
+        msg = f"📥 Importando: {name} ({current}/{total} - {pct:.1f}%)"
+        self.logger.debug(msg)
+        
+        if hasattr(self.parent, 'status_bar'):
+            self.parent.status_bar.config(text=msg)
+            self.parent.root.update_idletasks()
 
     def _show_warning(self, message: str):
         """Mostra aviso."""
         self.logger.warning(message)
-        # TODO: CTkMessagebox
+        messagebox.showwarning("⚠️ Aviso", message)
 
     def _show_error(self, message: str):
         """Mostra erro."""
         self.logger.error(message)
-        # TODO: CTkMessagebox
+        messagebox.showerror("❌ Erro", message)
 
     def _show_info(self, message: str):
         """Mostra informação."""
         self.logger.info(message)
-        # TODO: CTkMessagebox
+        messagebox.showinfo("ℹ️ Informação", message)
 
     def _show_complete(self, success: int, failed: int):
         """Mostra resumo final."""
@@ -324,7 +320,7 @@ class RecursiveImportManager:
             f"Falhas: {failed}"
         )
         self.logger.info(message)
-        # TODO: CTkMessagebox
+        messagebox.showinfo("🎉 Concluído", message)
 
 
 # ================================================================
