@@ -45,14 +45,14 @@ class PrepareFoldersDialog(tk.Toplevel):
         super().__init__(parent)
         
         self.title("📦 Preparar Pastas - Gerar folder.jpg")
-        self.geometry("800x750")  # Aumentado para garantir visibilidade
+        self.geometry("800x800")  # Aumentado para garantir espaço
         self.configure(bg=BG_PRIMARY)
         
         # Centraliza
         self.update_idletasks()
         x = (self.winfo_screenwidth() // 2) - (800 // 2)
-        y = (self.winfo_screenheight() // 2) - (750 // 2)
-        self.geometry(f"800x750+{x}+{y}")
+        y = (self.winfo_screenheight() // 2) - (800 // 2)
+        self.geometry(f"800x800+{x}+{y}")
         
         # Variáveis
         self.selected_path = ""
@@ -284,10 +284,29 @@ class PrepareFoldersDialog(tk.Toplevel):
         scrollbar.config(command=self.output_text.yview)
         
         # ============================================================
-        # BOTÕES - ORDEM CORRIGIDA!
+        # BOTÕES - USANDO GRID PARA GARANTIR VISIBILIDADE!
         # ============================================================
         button_frame = tk.Frame(main_frame, bg=BG_PRIMARY)
         button_frame.pack(fill="x", pady=(10, 0))
+        
+        # Configura grid para centralizar
+        button_frame.grid_columnconfigure(0, weight=1)
+        button_frame.grid_columnconfigure(1, weight=1)
+        
+        # Botão Executar (à esquerda)
+        self.run_btn = tk.Button(
+            button_frame,
+            text="▶️ Executar",
+            command=self._run,
+            bg=ACCENT_GREEN,
+            fg=FG_PRIMARY,
+            font=("Segoe UI", 13, "bold"),
+            relief="flat",
+            cursor="hand2",
+            width=15,
+            height=2
+        )
+        self.run_btn.grid(row=0, column=0, padx=(0, 10), sticky="ew")
         
         # Botão Fechar (à direita)
         self.close_btn = tk.Button(
@@ -296,28 +315,13 @@ class PrepareFoldersDialog(tk.Toplevel):
             command=self._close,
             bg="#555555",
             fg=FG_PRIMARY,
-            font=("Segoe UI", 12, "bold"),
+            font=("Segoe UI", 13, "bold"),
             relief="flat",
             cursor="hand2",
-            padx=25,
-            pady=12
+            width=15,
+            height=2
         )
-        self.close_btn.pack(side="right", padx=(10, 0))
-        
-        # Botão Executar (empacotado antes para aparecer à esquerda do Fechar)
-        self.run_btn = tk.Button(
-            button_frame,
-            text="▶️ Executar",
-            command=self._run,
-            bg=ACCENT_GREEN,
-            fg=FG_PRIMARY,
-            font=("Segoe UI", 12, "bold"),
-            relief="flat",
-            cursor="hand2",
-            padx=30,
-            pady=12
-        )
-        self.run_btn.pack(side="right", padx=(0, 10))
+        self.close_btn.grid(row=0, column=1, padx=(10, 0), sticky="ew")
 
     def _browse_folder(self):
         """Abre dialog para selecionar pasta."""
