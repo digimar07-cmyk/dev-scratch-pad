@@ -46,6 +46,10 @@ from ai.analysis_manager import AnalysisManager
 from utils.logging_setup import LOGGER
 from utils.platform_utils import open_file, open_folder
 
+# NOVOS: Importação Recursiva
+from ui.recursive_import_integration import RecursiveImportManager
+from ui.prepare_folders_dialog import add_prepare_button
+
 
 class LaserflixMainWindow:
     def __init__(self, root):
@@ -169,6 +173,15 @@ class LaserflixMainWindow:
                   bg=ACCENT_RED, fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                   relief="flat", cursor="hand2", padx=15, pady=8).pack(side="left", padx=5)
 
+        # NOVO: Botão Preparar Pastas
+        prep_btn = add_prepare_button(self, extras_frame)
+        prep_btn.pack(side="left", padx=5)
+
+        # NOVO: Botão Importação Recursiva
+        tk.Button(extras_frame, text="🗂️ Importar Recursiva", command=self._import_recursive,
+                  bg="#9C27B0", fg=FG_PRIMARY, font=("Arial", 11, "bold"),
+                  relief="flat", cursor="hand2", padx=15, pady=8).pack(side="left", padx=5)
+
         # Botão 1: Análise IA (categorias/tags)
         ai_btn = tk.Menubutton(extras_frame, text="🤖 Análise", bg=ACCENT_GREEN,
                                 fg=FG_PRIMARY, font=("Arial", 11, "bold"),
@@ -234,6 +247,37 @@ class LaserflixMainWindow:
                                    command=self.analysis_manager.stop,
                                    bg=ACCENT_RED, fg=FG_PRIMARY,
                                    font=("Arial", 10, "bold"), relief="flat", cursor="hand2")
+
+    # =========================================================================
+    # NOVOS MÉTODOS: IMPORTAÇÃO RECURSIVA
+    # =========================================================================
+
+    def _import_recursive(self):
+        """Abre dialog de importação recursiva."""
+        manager = RecursiveImportManager(
+            parent=self.root,
+            database=self.database,
+            project_scanner=self.scanner,
+            text_generator=self.text_generator,
+            on_complete=self._on_import_complete
+        )
+        manager.start_import()
+
+    def _on_import_complete(self, success: int, failed: int):
+        """Callback após importação recursiva concluir."""
+        msg = f"✅ Importação concluída: {success} produtos adicionados"
+        if failed > 0:
+            msg += f" ({failed} falhas)"
+        
+        self.status_bar.config(text=msg)
+        self.logger.info(msg)
+        
+        # Atualiza UI
+        self.update_sidebar()
+        self.display_projects()
+        
+        # Mostra mensagem
+        messagebox.showinfo("🎉 Importação Concluída", msg)
 
     # =========================================================================
     # SIDEBAR
