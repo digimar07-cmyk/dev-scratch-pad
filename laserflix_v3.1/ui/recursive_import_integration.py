@@ -4,9 +4,10 @@ recursive_import_integration.py — Integração completa de importação recurs
 ORQUESTRA O FLUXO:
   1. ImportModeDialog → Usuário escolhe modo e pasta
   2. RecursiveScanner → Escaneia produtos
-  3. Database Check → Detecta novos vs existentes
-  4. ImportPreviewDialog → Usuário confirma
-  5. Import Loop → Importa com barra de progresso
+  3. DuplicateDetector → Detecta produtos com mesmo nome
+  4. DuplicateResolutionDialog → Usuário resolve duplicatas
+  5. ImportPreviewDialog → Usuário confirma
+  6. Import Loop → Importa com barra de progresso
 
 USO NO MAIN_WINDOW:
     from ui.recursive_import_integration import RecursiveImportManager
@@ -20,15 +21,17 @@ from typing import List, Dict, Callable
 from tkinter import messagebox
 from utils.logging_setup import LOGGER
 from utils.recursive_scanner import RecursiveScanner
+from utils.duplicate_detector import DuplicateDetector
 from ui.import_mode_dialog import show_import_mode_dialog
 from ui.import_preview_dialog import ImportPreviewDialog
+from ui.duplicate_resolution_dialog import show_duplicate_resolution
 
 
 class RecursiveImportManager:
     """
     Gerenciador de importação recursiva.
     
-    Orquestra todo o fluxo de importação em massa.
+    Orquestra todo o fluxo de importação em massa com detecção de duplicatas.
     """
 
     def __init__(
@@ -55,6 +58,7 @@ class RecursiveImportManager:
         self.logger = LOGGER
         
         self.scanner = RecursiveScanner()
+        self.duplicate_detector = DuplicateDetector(database)
         self.import_thread = None
 
     # ================================================================
@@ -68,9 +72,10 @@ class RecursiveImportManager:
         Fluxo completo:
         1. Dialog para escolher modo e pasta
         2. Escanear produtos
-        3. Verificar existentes no DB
-        4. Preview com resumo
-        5. Importar com progresso
+        3. Detectar duplicatas por NOME
+        4. Dialog para resolver duplicatas (se houver)
+        5. Preview com resumo
+        6. Importar com progresso
         """
         self.logger.info("=== INICIANDO IMPORTAÇÃO RECURSIVA ===")
         
@@ -97,15 +102,55 @@ class RecursiveImportManager:
         
         self.logger.info(f"Encontrados {len(all_products)} produtos")
         
-        # PASSO 3: Verificar existentes
+        # PASSO 3: Detectar duplicatas por NOME
+        self._show_status("🔍 Verificando duplicatas...")
+        duplicates = self.duplicate_detector.find_duplicates(all_products)
+        
+        products_to_import = all_products
+        
+        if duplicates:
+            self.logger.warning(f"Encontradas {len(duplicates)} duplicatas")
+            
+            # PASSO 4: Dialog de resolução de duplicatas
+            choices = show_duplicate_resolution(self.parent, duplicates)
+            
+            if not choices:
+                # Usuário cancelou
+                self.logger.info("Importação cancelada (duplicatas)")
+                return
+            
+            # Resolve duplicatas
+            to_import, to_skip = self.duplicate_detector.resolve_duplicates(
+                duplicates,
+                user_choices=choices
+            )
+            
+            # Remove duplicatas que serão puladas
+            dup_paths = {d['new']['path'] for d in duplicates}
+            to_import_paths = {p['path'] for p in to_import}
+            
+            products_to_import = [
+                p for p in all_products
+                if p['path'] not in dup_paths or p['path'] in to_import_paths
+            ]
+            
+            self.logger.info(
+                f"Após resolução: {len(products_to_import)} produtos para importar"
+            )
+        
+        if not products_to_import:
+            self._show_info("ℹ️ Nenhum produto para importar!")
+            return
+        
+        # PASSO 5: Verificar paths existentes
         self._show_status("📋 Verificando produtos existentes...")
-        new_products, existing_products = self._check_existing(all_products)
+        new_products, existing_products = self._check_existing(products_to_import)
         
         self.logger.info(
             f"Novos: {len(new_products)}, Existentes: {len(existing_products)}"
         )
         
-        # PASSO 4: Preview
+        # PASSO 6: Preview
         preview_dialog = ImportPreviewDialog(
             self.parent,
             new_products,
@@ -118,7 +163,7 @@ class RecursiveImportManager:
             self.logger.info("Importação cancelada pelo usuário (preview)")
             return
         
-        # PASSO 5: Importar
+        # PASSO 7: Importar
         if new_products:
             self._import_products(new_products)
         else:
@@ -160,7 +205,7 @@ class RecursiveImportManager:
 
     def _check_existing(self, products: List[Dict]) -> tuple:
         """
-        Verifica quais produtos já existem no banco.
+        Verifica quais produtos já existem no banco (por PATH).
         
         Args:
             products: Lista de produtos escaneados
@@ -199,7 +244,6 @@ class RecursiveImportManager:
         total = len(products)
         self.logger.info(f"Iniciando importação de {total} produtos")
         
-        # TODO: Criar progress dialog
         self._show_status(f"📥 Importando {total} produtos...")
         
         # Importa em thread separada (não trava UI)
@@ -226,10 +270,10 @@ class RecursiveImportManager:
                 # Atualiza progresso
                 self._update_progress(i, total, product['name'])
                 
-                # Adiciona ao database usando método do scanner
+                # Adiciona ao database
                 project_path = product['path']
                 
-                # Verifica se já existe
+                # Verifica se já existe (segurança)
                 if project_path in self.database:
                     self.logger.debug(f"Pulando (já existe): {product['name']}")
                     failed += 1
@@ -355,7 +399,7 @@ def add_recursive_import_button(main_window):
     # Cria botão (ajustar posicionamento conforme layout do main_window)
     btn = ctk.CTkButton(
         main_window.sidebar_frame,  # Ajustar para frame correto
-        text="🗂️ Importar Pasta Recursiva",
+        text="🚀 Importação em Massa",
         command=on_import_recursive,
         height=40
     )
