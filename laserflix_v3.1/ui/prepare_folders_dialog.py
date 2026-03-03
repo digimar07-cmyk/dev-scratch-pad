@@ -1,13 +1,6 @@
 #!/usr/bin/env python3
 """
 prepare_folders_dialog.py — Dialog para executar prepare_folders.py na interface.
-
-INTEGRA O SCRIPT STANDALONE NO APP:
-  - Interface gráfica para prepare_folders.py
-  - Executa em thread separada
-  - Mostra output em tempo real
-  - Barra de progresso
-  - Relatório visual
 """
 
 import tkinter as tk
@@ -21,27 +14,27 @@ from utils.logging_setup import LOGGER
 # Colors
 BG_DARK = "#1a1a1a"
 BG_CARD = "#2d2d2d"
-GREEN = "#00ff00"
-RED = "#ff0000"
+GREEN = "#00dd00"
+RED = "#E50914"
 WHITE = "#ffffff"
 GRAY = "#888888"
 
 
 class PrepareFoldersDialog(tk.Toplevel):
-    """Dialog SIMPLES e FUNCIONAL para preparar pastas."""
+    """Dialog para preparar pastas."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         
-        self.title("📦 PREPARAR PASTAS")
-        self.geometry("900x700")
+        self.title("📦 Preparar Pastas")
         self.configure(bg=BG_DARK)
         
-        # Centraliza
-        self.update_idletasks()
-        x = (self.winfo_screenwidth() - 900) // 2
-        y = (self.winfo_screenheight() - 700) // 2
-        self.geometry(f"900x700+{x}+{y}")
+        # MAXIMIZA A JANELA
+        self.state('zoomed')  # Windows/Linux
+        try:
+            self.attributes('-zoomed', True)  # macOS
+        except:
+            pass
         
         # Variáveis
         self.selected_path = ""
@@ -55,45 +48,79 @@ class PrepareFoldersDialog(tk.Toplevel):
             self.transient(parent)
             self.grab_set()
         
-        LOGGER.info("PrepareFoldersDialog iniciado")
+        LOGGER.info("PrepareFoldersDialog aberto (MAXIMIZADO)")
 
     def _build_ui(self):
-        """Constrói interface SIMPLES."""
+        """Constrói interface."""
         
         # CONTAINER PRINCIPAL
         main = tk.Frame(self, bg=BG_DARK)
-        main.pack(fill="both", expand=True, padx=30, pady=30)
+        main.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # ===== BOTÕES NO TOPO (PRIMEIRO!) =====
+        btn_frame = tk.Frame(main, bg=BG_DARK)
+        btn_frame.pack(fill="x", pady=(0, 30))
+        
+        # BOTÃO EXECUTAR
+        self.run_btn = tk.Button(
+            btn_frame,
+            text="▶️ EXECUTAR PREPARAÇÃO",
+            command=self._run,
+            bg=GREEN,
+            fg="#000000",
+            font=("Arial", 14, "bold"),
+            relief="raised",
+            cursor="hand2",
+            bd=4,
+            height=3,
+            width=30
+        )
+        self.run_btn.pack(side="left", padx=(0, 15))
+        
+        # BOTÃO FECHAR
+        tk.Button(
+            btn_frame,
+            text="FECHAR",
+            command=self._close,
+            bg="#555555",
+            fg=WHITE,
+            font=("Arial", 14, "bold"),
+            relief="raised",
+            cursor="hand2",
+            bd=4,
+            height=3,
+            width=20
+        ).pack(side="left")
         
         # ===== HEADER =====
         tk.Label(
             main,
-            text="📦 PREPARAR PASTAS PARA IMPORTAÇÃO",
-            font=("Arial", 20, "bold"),
+            text="📦 Preparar Pastas para Importação",
+            font=("Arial", 16, "bold"),
             bg=BG_DARK,
             fg=WHITE
-        ).pack(pady=(0, 10))
+        ).pack(pady=(0, 5))
         
         tk.Label(
             main,
-            text="Gera folder.jpg automaticamente em todas as pastas",
-            font=("Arial", 12),
+            text="Gera folder.jpg automaticamente em todas as pastas de produtos",
+            font=("Arial", 11),
             bg=BG_DARK,
             fg=GRAY
-        ).pack(pady=(0, 30))
+        ).pack(pady=(0, 20))
         
         # ===== PASTA =====
         pasta_frame = tk.Frame(main, bg=BG_CARD)
-        pasta_frame.pack(fill="x", pady=(0, 20))
+        pasta_frame.pack(fill="x", pady=(0, 15))
         
         tk.Label(
             pasta_frame,
-            text="📁 PASTA BASE:",
-            font=("Arial", 14, "bold"),
+            text="📁 Pasta Base:",
+            font=("Arial", 12, "bold"),
             bg=BG_CARD,
             fg=WHITE
-        ).pack(anchor="w", padx=15, pady=(15, 10))
+        ).pack(anchor="w", padx=15, pady=(15, 8))
         
-        # Input + Botão browse
         input_frame = tk.Frame(pasta_frame, bg=BG_CARD)
         input_frame.pack(fill="x", padx=15, pady=(0, 15))
         
@@ -105,8 +132,8 @@ class PrepareFoldersDialog(tk.Toplevel):
             relief="flat",
             insertbackground=WHITE
         )
-        self.path_entry.pack(side="left", fill="x", expand=True, ipady=8)
-        self.path_entry.insert(0, "Clique em ... para selecionar")
+        self.path_entry.pack(side="left", fill="x", expand=True, ipady=6)
+        self.path_entry.insert(0, "Clique em [...] para selecionar a pasta")
         
         tk.Button(
             input_frame,
@@ -122,17 +149,23 @@ class PrepareFoldersDialog(tk.Toplevel):
         
         # ===== MODO =====
         modo_frame = tk.Frame(main, bg=BG_CARD)
-        modo_frame.pack(fill="x", pady=(0, 20))
+        modo_frame.pack(fill="x", pady=(0, 15))
         
         tk.Label(
             modo_frame,
-            text="⚙️ MODO:",
-            font=("Arial", 14, "bold"),
+            text="⚙️ Modo de Preparação:",
+            font=("Arial", 12, "bold"),
             bg=BG_CARD,
             fg=WHITE
         ).pack(anchor="w", padx=15, pady=(15, 10))
         
-        for value, label in [("smart", "Smart (Recomendado)"), ("all", "All"), ("list", "List (Dry-run)")]:
+        modes = [
+            ("smart", "Smart (Recomendado) - Apenas pastas com arquivos de projeto"),
+            ("all", "All - TODAS as pastas com imagens"),
+            ("list", "List (Dry-run) - Apenas lista, não cria nada")
+        ]
+        
+        for value, label in modes:
             tk.Radiobutton(
                 modo_frame,
                 text=label,
@@ -142,24 +175,23 @@ class PrepareFoldersDialog(tk.Toplevel):
                 fg=WHITE,
                 selectcolor="#3a3a3a",
                 activebackground=BG_CARD,
-                font=("Arial", 11)
-            ).pack(anchor="w", padx=30, pady=3)
+                font=("Arial", 10)
+            ).pack(anchor="w", padx=30, pady=2)
         
-        tk.Label(modo_frame, text="", bg=BG_CARD).pack(pady=5)  # Espaço
+        tk.Label(modo_frame, text="", bg=BG_CARD).pack(pady=5)
         
         # ===== OUTPUT =====
         output_frame = tk.Frame(main, bg=BG_CARD)
-        output_frame.pack(fill="both", expand=True, pady=(0, 20))
+        output_frame.pack(fill="both", expand=True)
         
         tk.Label(
             output_frame,
-            text="📋 OUTPUT:",
-            font=("Arial", 14, "bold"),
+            text="📋 Output / Log:",
+            font=("Arial", 12, "bold"),
             bg=BG_CARD,
             fg=WHITE
         ).pack(anchor="w", padx=15, pady=(15, 10))
         
-        # Text com scroll
         text_container = tk.Frame(output_frame, bg=BG_CARD)
         text_container.pack(fill="both", expand=True, padx=15, pady=(0, 15))
         
@@ -178,60 +210,34 @@ class PrepareFoldersDialog(tk.Toplevel):
         self.output_text.pack(side="left", fill="both", expand=True)
         scrollbar.config(command=self.output_text.yview)
         
-        # ===== BOTÕES ENORMES E VISÍVEIS =====
-        btn_frame = tk.Frame(main, bg=BG_DARK)
-        btn_frame.pack(fill="x", pady=(10, 0))
-        
-        # BOTÃO EXECUTAR - VERDE ENORME
-        self.run_btn = tk.Button(
-            btn_frame,
-            text="▶️ EXECUTAR",
-            command=self._run,
-            bg="#00cc00",
-            fg="#000000",
-            font=("Arial", 16, "bold"),
-            relief="raised",
-            cursor="hand2",
-            bd=3,
-            height=2
-        )
-        self.run_btn.pack(side="left", fill="x", expand=True, padx=(0, 10))
-        
-        # BOTÃO FECHAR
-        tk.Button(
-            btn_frame,
-            text="FECHAR",
-            command=self._close,
-            bg="#666666",
-            fg=WHITE,
-            font=("Arial", 16, "bold"),
-            relief="raised",
-            cursor="hand2",
-            bd=3,
-            height=2
-        ).pack(side="right", fill="x", expand=True, padx=(10, 0))
+        # Mensagem inicial
+        self.output_text.insert("1.0", "✅ Pronto para executar.\nℹ️ Selecione a pasta e clique em EXECUTAR PREPARAÇÃO.\n")
 
     def _browse(self):
         """Seleciona pasta."""
-        folder = filedialog.askdirectory(title="Selecione a Pasta Base")
+        folder = filedialog.askdirectory(
+            title="Selecione a Pasta Base",
+            initialdir=os.path.expanduser("~")
+        )
         if folder:
             self.selected_path = folder
             self.path_entry.delete(0, "end")
             self.path_entry.insert(0, folder)
+            self._log(f"\n✅ Pasta selecionada: {folder}\n")
             LOGGER.info(f"Pasta selecionada: {folder}")
 
     def _run(self):
         """Executa prepare_folders.py."""
         if not self.selected_path:
-            self._log("❌ ERRO: Selecione uma pasta!\n")
+            self._log("\n❌ ERRO: Selecione uma pasta primeiro!\n")
             return
         
         if not os.path.exists(self.selected_path):
-            self._log("❌ ERRO: Pasta não existe!\n")
+            self._log("\n❌ ERRO: Pasta não existe!\n")
             return
         
         if self.is_running:
-            self._log("⚠️ Já está executando!\n")
+            self._log("\n⚠️ Já está executando!\n")
             return
         
         # Limpa output
@@ -256,7 +262,7 @@ class PrepareFoldersDialog(tk.Toplevel):
             script = os.path.join(script_dir, "prepare_folders.py")
             
             if not os.path.exists(script):
-                self._log(f"❌ Script não encontrado: {script}\n")
+                self._log(f"\n❌ Script não encontrado: {script}\n")
                 return
             
             # Comando
@@ -264,6 +270,7 @@ class PrepareFoldersDialog(tk.Toplevel):
             cmd = [sys.executable, script, self.selected_path, f"--{mode}"]
             
             self._log(f"▶️ Executando: {' '.join(cmd)}\n\n")
+            LOGGER.info(f"Executando: {cmd}")
             
             # Executa
             self.process = subprocess.Popen(
@@ -281,20 +288,22 @@ class PrepareFoldersDialog(tk.Toplevel):
             self.process.wait()
             
             if self.process.returncode == 0:
-                self._log("\n✅ CONCLUÍDO COM SUCESSO!\n")
+                self._log("\n\n✅ CONCLUÍDO COM SUCESSO!\n")
+                LOGGER.info("Preparação concluída com sucesso")
             else:
-                self._log(f"\n❌ ERRO (código {self.process.returncode})\n")
+                self._log(f"\n\n❌ ERRO (código {self.process.returncode})\n")
+                LOGGER.error(f"Erro na preparação: {self.process.returncode}")
         
         except Exception as e:
-            self._log(f"\n❌ ERRO: {e}\n")
-            LOGGER.error(f"Erro: {e}", exc_info=True)
+            self._log(f"\n\n❌ ERRO: {e}\n")
+            LOGGER.error(f"Erro ao executar: {e}", exc_info=True)
         
         finally:
             self.is_running = False
             self.run_btn.config(
                 state="normal",
-                text="▶️ EXECUTAR",
-                bg="#00cc00"
+                text="▶️ EXECUTAR PREPARAÇÃO",
+                bg=GREEN
             )
 
     def _log(self, text: str):
@@ -307,6 +316,7 @@ class PrepareFoldersDialog(tk.Toplevel):
         """Fecha dialog."""
         if self.is_running and self.process:
             self.process.terminate()
+            LOGGER.info("Processo terminado pelo usuário")
         self.destroy()
 
 
@@ -345,12 +355,14 @@ def add_prepare_button(main_window, parent_frame):
 # TESTE STANDALONE
 # ================================================================
 if __name__ == '__main__':
-    print("✅ Abrindo dialog de teste...")
+    print("✅ Abrindo dialog MAXIMIZADO...")
     root = tk.Tk()
     root.withdraw()
     
     dialog = PrepareFoldersDialog(root)
-    root.wait_window(dialog)
     
+    print("✅ Dialog aberto. O BOTÃO VERDE ESTÁ NO TOPO!")
+    
+    root.wait_window(dialog)
     print("✅ Dialog fechado")
     root.destroy()
