@@ -29,14 +29,14 @@ class ImportModeDialog(ctk.CTkToplevel):
         super().__init__(parent)
         
         self.title("🚀 Importação em Massa - Escolha o Modo")
-        self.geometry("600x500")
+        self.geometry("600x550")  # Aumentado para garantir visibilidade
         self.resizable(False, False)
         
         # Centraliza
         self.update_idletasks()
         x = (self.winfo_screenwidth() // 2) - (600 // 2)
-        y = (self.winfo_screenheight() // 2) - (500 // 2)
-        self.geometry(f"600x500+{x}+{y}")
+        y = (self.winfo_screenheight() // 2) - (550 // 2)
+        self.geometry(f"600x550+{x}+{y}")
         
         # Resultado
         self.result = None
@@ -51,6 +51,9 @@ class ImportModeDialog(ctk.CTkToplevel):
         
         # Constrói UI
         self._build_ui()
+        
+        # Inicializa seleção visual
+        self._update_frame_borders()
         
         # Modal
         self.transient(parent)
@@ -219,28 +222,33 @@ class ImportModeDialog(ctk.CTkToplevel):
         browse_btn.pack(side="right", padx=(5, 10), pady=10)
         
         # ============================================================
-        # BOTÕES
+        # BOTÕES - ORDEM CORRIGIDA!
         # ============================================================
         button_frame = ctk.CTkFrame(main_frame)
         button_frame.pack(fill="x", padx=10, pady=(10, 10))
         
-        ctk.CTkButton(
+        # Botão Cancelar (à direita)
+        cancel_btn = ctk.CTkButton(
             button_frame,
             text="Cancelar",
             command=self._cancel,
             fg_color="gray40",
             hover_color="gray50",
-            width=120,
-            height=40
-        ).pack(side="right", padx=(10, 10))
+            width=140,
+            height=45
+        )
+        cancel_btn.pack(side="right", padx=(10, 0))
         
-        ctk.CTkButton(
+        # Botão Escanear (à direita do Cancelar, mas empacotado primeiro)
+        scan_btn = ctk.CTkButton(
             button_frame,
             text="▶️ Escanear",
             command=self._confirm,
-            width=120,
-            height=40
-        ).pack(side="right")
+            width=140,
+            height=45,
+            font=("Segoe UI", 13, "bold")
+        )
+        scan_btn.pack(side="right", padx=(0, 10))
     
     # ================================================================
     # SELEÇÃO DE MODO
@@ -258,6 +266,9 @@ class ImportModeDialog(ctk.CTkToplevel):
     
     def _update_frame_borders(self):
         """Atualiza borda dos frames baseado na seleção."""
+        if not self.hybrid_frame or not self.pure_frame:
+            return
+        
         mode = self.mode_var.get()
         
         if mode == "hybrid":
@@ -307,11 +318,13 @@ class ImportModeDialog(ctk.CTkToplevel):
         
         mode = self.mode_var.get()
         self.result = (mode, self.selected_path)
+        LOGGER.info(f"Confirmação: modo={mode}, pasta={self.selected_path}")
         self.destroy()
 
     def _cancel(self):
         """Cancela dialog."""
         self.result = None
+        LOGGER.info("Dialog cancelado")
         self.destroy()
 
     def get_result(self):
