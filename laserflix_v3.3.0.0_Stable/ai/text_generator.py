@@ -1,6 +1,8 @@
 """
 Gerador de texto com IA - Análises e descrições
 Restaurado com lógica refinada da v740 (3 semanas de testes)
+
+HOT-11: FIX CRÍTICO - Prompt exige 10+ categorias (não 3-5)
 """
 import os
 import re
@@ -17,8 +19,8 @@ class TextGenerator:
       - Raciocínio estruturado em 3 etapas antes de escrever
       - Hierarquia NOME > Visão rigorosamente aplicada
       - Prompts cirúrgicos para evitar genericidade
-      - Temperature 0.78 para criatividade controlada
-      - Suporte a até 12 categorias (v741 - antes era 8)
+      - Temperature 0.65 para criatividade controlada
+      - HOT-11: Prompt EXIGE 10+ categorias (3 obrigatórias + até 9 opcionais)
     """
 
     def __init__(self, ollama_client, image_analyzer, project_scanner, fallback_generator):
@@ -89,7 +91,9 @@ class TextGenerator:
             # Escolhe modelo baseado no batch_size
             role = self._choose_model_role(batch_size)
 
-            # Prompt otimizado para Qwen2.5-Instruct
+            # ═══════════════════════════════════════════════════════════════
+            # HOT-11: PROMPT REFINADO - EXIGE 10+ CATEGORIAS!
+            # ═══════════════════════════════════════════════════════════════
             prompt = f"""Analise este produto de corte laser e responda EXATAMENTE no formato solicitado.
 
 📁 NOME: {name}
@@ -97,22 +101,63 @@ class TextGenerator:
 🗂️ TIPOS: {file_types_str}
 🔧 FORMATOS: {tech_str}{vision_line}
 
-### TAREFA 1 — CATEGORIAS
-Atribua de 3 a 5 categorias, OBRIGATORIAMENTE nesta ordem:
-1. Data Comemorativa (escolha UMA): Páscoa, Natal, Dia das Mães, Dia dos Pais, Dia dos Namorados, Aniversário, Casamento, Chá de Bebê, Halloween, Dia das Crianças, Ano Novo, Formatura, Diversos
-2. Função/Tipo (escolha UMA): Porta-Retrato, Caixa Organizadora, Luminária, Porta-Joias, Porta-Chaves, Suporte, Quadro Decorativo, Painel de Parede, Mandala, Nome Decorativo, Letreiro, Lembrancinha, Chaveiro, Topo de Bolo, Centro de Mesa, Plaquinha, Brinquedo Educativo, Diversos
-3. Ambiente (escolha UM): Quarto, Sala, Cozinha, Banheiro, Escritório, Quarto Infantil, Quarto de Bebê, Área Externa, Festa, Diversos
-4. Estilo OPCIONAL (ex: Minimalista, Rústico, Moderno, Vintage, Romântico, Elegante)
-5. Público OPCIONAL (ex: Bebê, Criança, Adulto, Casal, Família, Presente)
+### TAREFA 1 — CATEGORIAS (MÍNIMO 10, MÁXIMO 12)
+⚠️ OBRIGATÓRIO: Atribua NO MÍNIMO 10 categorias, EXATAMENTE nesta ordem:
+
+🎉 CATEGORIAS OBRIGATÓRIAS (primeiras 3):
+
+1. Data Comemorativa (escolha UMA - NUNCA "Diversos"):
+   - Páscoa, Natal, Dia das Mães, Dia dos Pais, Dia dos Namorados
+   - Aniversário, Casamento, Chá de Bebê, Halloween, Dia das Crianças
+   - Ano Novo, Formatura, Dia da Mulher, Dia do Amigo
+   Se não identificar: use "Aniversário" (nunca "Diversos")
+
+2. Função/Tipo (escolha UMA - NUNCA "Diversos"):
+   - Porta-Retrato, Caixa Organizadora, Luminária, Porta-Joias, Porta-Chaves
+   - Suporte, Quadro Decorativo, Painel de Parede, Mandala, Nome Decorativo
+   - Letreiro, Lembrancinha, Chaveiro, Topo de Bolo, Centro de Mesa
+   - Plaquinha, Brinquedo Educativo, Espelho Decorativo, Cabide
+   - Calendário, Relógio, Bandeja, Porta-Copo, Fruteira
+   Se não identificar: analise o NOME e infira a função mais provável
+
+3. Ambiente (escolha UM - NUNCA "Diversos"):
+   - Quarto, Sala, Cozinha, Banheiro, Escritório
+   - Quarto Infantil, Quarto de Bebê, Área Externa, Festa
+   - Sala de Jogos, Área Gourmet, Biblioteca, Garagem
+   Se não identificar: infira pelo tipo de produto
+
+✨ CATEGORIAS OPCIONAIS (adicione PELO MENOS mais 7 das opções abaixo):
+
+4-6. Temas (escolha 2-3):
+   - Unicórnio, Dinossauro, Espaço, Floresta, Safari, Oceano
+   - Super-Herói, Princesa, Astronauta, Pirata, Fada
+   - Flamingo, Cactos, Arco-Íris, Nuvens, Estrelas, Lua
+   - Tribal, Geométrico, Mandálico, Abstrato, Floral
+
+7-9. Estilos (escolha 2-3):
+   - Minimalista, Rústico, Moderno, Vintage, Romântico, Elegante
+   - Industrial, Boho, Escandinavo, Provençal, Infantil, Lúdico
+   - Clássico, Contemporâneo, Artéstico, Delicado
+
+10-12. Público/Contexto (escolha 2-3):
+   - Bebê, Criança, Adolescente, Adulto, Casal, Família
+   - Presente, Maternidade, Enxoval, Festa Infantil
+   - Decoração, Organização, Personalizado, Artesanal
 
 ### TAREFA 2 — TAGS
-Crie exatamente 8 tags relevantes:
+Crie exatamente 10 tags relevantes:
 - Primeiras 3: palavras-chave extraídas do nome "{name}" (sem códigos numéricos)
-- Demais 5: emoção, ocasião, público, estilo, uso
+- Demais 7: emoção, ocasião, público, estilo, uso, material, característica
 
 ### FORMATO DE RESPOSTA (siga exatamente):
-Categorias: [cat1], [cat2], [cat3], [cat4 opcional], [cat5 opcional]
-Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
+Categorias: [cat1], [cat2], [cat3], [cat4], [cat5], [cat6], [cat7], [cat8], [cat9], [cat10], [cat11 opcional], [cat12 opcional]
+Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8], [tag9], [tag10]
+
+⚠️ IMPORTANTE:
+- Retorne NO MÍNIMO 10 categorias (ideal: 12)
+- NUNCA use "Diversos" nas 3 primeiras categorias
+- Seja ESPECÍFICO nas categorias opcionais
+- Priorize categorias que ajudem na busca/filtragem"""
 
             if self.ollama.stop_flag:
                 return self.fallback.fallback_analysis(project_path)
@@ -122,7 +167,7 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
                 prompt,
                 role=role,
                 temperature=0.65,
-                num_predict=200,
+                num_predict=300,  # HOT-11: Aumentado de 200 para 300 (mais categorias)
             )
 
             categories, tags = [], []
@@ -149,26 +194,31 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
                 # Deduplica e limita
                 tags = list(dict.fromkeys(tags))[:10]
 
-                # Se IA retornou menos de 3 categorias, completa com fallback
-                if len(categories) < 3:
+                # HOT-11: Se IA retornou menos de 10 categorias, completa com fallback
+                if len(categories) < 10:
+                    self.logger.warning(
+                        f"⚠️ IA retornou apenas {len(categories)} categorias para {name}, "
+                        f"completando com fallback"
+                    )
                     categories = self.fallback.fallback_categories(project_path, categories)
 
-                return categories[:12], tags  # AUMENTADO DE 8 PARA 12 (v741)
+                return categories[:12], tags
 
             # Ollama retornou vazio (indisponível ou timeout) — usa fallback completo
+            self.logger.info(f"🔄 Ollama indisponível para {name}, usando fallback completo")
             return self.fallback.fallback_analysis(project_path)
 
         except Exception:
-            self.logger.exception("Erro em analyze_project para %s", project_path)
+            self.logger.exception("❌ Erro em analyze_project para %s", project_path)
             return self.fallback.fallback_analysis(project_path)
 
     def generate_description(self, project_path, project_data):
         """
         Gera descrição comercial personalizada.
         
-        ═══════════════════════════════════════════════════════════════════
+        ═══════════════════════════════════════════════════════════════
         LÓGICA REFINADA v740 (3 SEMANAS DE TESTES)
-        ═══════════════════════════════════════════════════════════════════
+        ═══════════════════════════════════════════════════════════════
         
         HIERARQUIA INVIOLÁVEL:
           1° NOME da peça — âncora absoluta. Define o que o produto É.
@@ -189,7 +239,7 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8]"""
           • Proíbe mencionar arquivos/formatos/etapas de produção
           • Proíbe palavra "projeto" (é uma PEÇA física)
         
-        ═══════════════════════════════════════════════════════════════════
+        ═══════════════════════════════════════════════════════════════
 
         Formato de saída:
             NOME DA PEÇA
