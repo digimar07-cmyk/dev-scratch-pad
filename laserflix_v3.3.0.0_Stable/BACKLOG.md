@@ -22,17 +22,18 @@
 
 ---
 
-## 🔴 BLOCO L — LIMPEZA CIRÚRGICA
+## 🔴 BLOCO L — LIMPEZA CIRÚRGICA (✅ FINALIZADO)
 
-> Fazer primeiro. Risco mínimo, base sólida.
-> ⚠️ Todos os itens abaixo tocam zonas protegidas — aguarda autorização antes de executar.
+| # | O que fazer | Status | Motivo |
+|---|---|---|---|
+| ❌ **L-01** | ~~Deletar `_clean_name()`~~ | **CANCELADO** | Funções diferentes (display vs matching) |
+| ✅ **L-02** | Unificação de `BANNED_STRINGS` | **FEITO** | `config/constants.py` criado com fonte única |
+| ❌ **L-03** | ~~Substituir `_match()` por `_match_all()` em `_build_tags()`~~ | **CANCELADO** | `_match()` tem propósito específico (1 tag/categoria = diversidade). Mudar quebraria lógica criativa. |
+| ✅ **L-04** | Deletar alias `generate_fallback_description()` | **FEITO** | Alias morto removido de `ai/fallbacks.py` |
+| ❌ **L-05** | ~~Remover parâmetro `structure` de `fallback_description()`~~ | **CANCELADO** | Risco de quebrar chamadas externas que passam esse argumento. |
+| ❌ **L-06** | ~~Remover `database` do `__init__` do `DuplicateDetector`~~ | **CANCELADO** | Toca zona protegida (Importação). Benefício teórico não justifica risco de quebrar fluxo crítico. Sistema funciona perfeitamente sem essa mudança. |
 
-| # | O que fazer | Impacto | Esforço | Zona Prot.? |
-|---|---|---|---|---|
-| ❌ **L-01** | ~~Deletar `_clean_name()`~~ | **CANCELADO**: Funções diferentes (display vs matching) | — | — |
-| ❌ **L-03** | ~~Substituir `_match()` por `_match_all()` em `_build_tags()`~~ | **CANCELADO**: `_match()` tem propósito específico (1 tag/categoria = diversidade). Mudar quebraria lógica criativa. | — | — |
-| ❌ **L-05** | ~~Remover parâmetro `structure` de `fallback_description()`~~ | **CANCELADO**: Risco de quebrar chamadas externas que passam esse argumento. Não vale o risco. | — | — |
-| ◻ **L-06** | Remover `database` do `__init__` do `DuplicateDetector` | 🟠 Acoplamento | 🟢 Baixo | ⚠️ Sim |
+> ✅ **BLOCO L CONCLUÍDO**: 2 tarefas feitas, 4 canceladas por análise de risco/impacto.
 
 ---
 
@@ -131,3 +132,4 @@
 - **Leitura antes de escrever** — sempre lemos o arquivo atual antes de gerar código.
 - Nenhum item é pulado sem instrução expressa sua.
 - **ANÁLISE DE IMPACTO OBRIGATÓRIA** para zonas protegidas: Verificar se mudança afeta lógica criativa de geração.
+- **RISCO vs BENEFÍCIO**: Tarefas teóricas em zonas críticas são canceladas se sistema funciona perfeitamente sem elas.
