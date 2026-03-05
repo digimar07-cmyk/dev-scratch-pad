@@ -3,6 +3,7 @@ Gerador de texto com IA - Análises e descrições
 Restaurado com lógica refinada da v740 (3 semanas de testes)
 
 HOT-11: FIX CRÍTICO - Prompt exige 10+ categorias (não 3-5)
+F-01.2: Tradução automática de nomes EN→PT-BR
 """
 import os
 import re
@@ -21,13 +22,15 @@ class TextGenerator:
       - Prompts cirúrgicos para evitar genericidade
       - Temperature 0.65 para criatividade controlada
       - HOT-11: Prompt EXIGE 10+ categorias (3 obrigatórias + até 9 opcionais)
+      - F-01.2: Tradução automática de nomes (1000+ termos especializados)
     """
 
-    def __init__(self, ollama_client, image_analyzer, project_scanner, fallback_generator):
+    def __init__(self, ollama_client, image_analyzer, project_scanner, fallback_generator, translator=None):
         self.ollama = ollama_client
         self.image_analyzer = image_analyzer
         self.scanner = project_scanner
         self.fallback = fallback_generator
+        self.translator = translator  # ← F-01.2: Tradutor opcional
         self.logger = LOGGER
 
     def _choose_model_role(self, batch_size=1):
@@ -137,7 +140,7 @@ class TextGenerator:
 7-9. Estilos (escolha 2-3):
    - Minimalista, Rústico, Moderno, Vintage, Romântico, Elegante
    - Industrial, Boho, Escandinavo, Provençal, Infantil, Lúdico
-   - Clássico, Contemporâneo, Artéstico, Delicado
+   - Clássico, Contemporâneo, Artístico, Delicado
 
 10-12. Público/Contexto (escolha 2-3):
    - Bebê, Criança, Adolescente, Adulto, Casal, Família
@@ -214,7 +217,7 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8], [tag9], [t
 
     def generate_description(self, project_path, project_data):
         """
-        Gera descrição comercial personalizada.
+        Gera descrição comercial personalizada E traduz nome automaticamente.
         
         ═══════════════════════════════════════════════════════════════
         LÓGICA REFINADA v740 (3 SEMANAS DE TESTES)
@@ -267,6 +270,16 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8], [tag9], [t
             # ══════════════════════════════════════════════════════════════
             raw_name = project_data.get("name", os.path.basename(project_path) or "Sem nome")
             clean_name = self._clean_name(raw_name)
+
+            # ══════════════════════════════════════════════════════════════
+            # F-01.2: TRADUÇÃO AUTOMÁTICA (SE TRADUTOR DISPONÍVEL)
+            # ══════════════════════════════════════════════════════════════
+            if self.translator and raw_name and not project_data.get("name_ptbr"):
+                self.logger.info(f"🌎 Traduzindo nome: {raw_name}")
+                translated_name = self.translator.translate_project_name(raw_name)
+                project_data["name_ptbr"] = translated_name
+                self.logger.info(f"✅ Nome traduzido: {translated_name}")
+            # ══════════════════════════════════════════════════════════════
 
             # ══════════════════════════════════════════════════════════════
             # 2° VISÃO — só se imagem passa no filtro de qualidade
