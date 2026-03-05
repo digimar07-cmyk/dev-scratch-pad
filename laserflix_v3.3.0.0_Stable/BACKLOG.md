@@ -2,7 +2,7 @@
 
 > Lista única, canônica e definitiva de tarefas.
 > Atualizada a cada item concluído.
-> Regra: **um item por vez**, confirma â✅ antes do próximo.
+> Regra: **um item por vez**, confirma ✅ antes do próximo.
 
 ---
 
@@ -12,11 +12,12 @@
 |---|---|---|---|
 | ✅ **L-07** | `VERSION` corrigido | `3.0.0` → `3.3.0` em `config/settings.py` | `8f70e9d` |
 | ✅ **S-01** | Tela Configuração Modelos IA | Criado `ui/model_settings_dialog.py` + wiring em `main_window_FIXED.py` | `0d2b5de` + `da055ed` |
-| ✅ **HOT-01** | Modal sem galeria de imagens | Removida seção "Mais Imagens" e `get_all_project_images()` do modal. Só capa grande permanece. | `pendente` |
+| ✅ **HOT-01** | Modal sem galeria de imagens | Removida seção "Mais Imagens" e `get_all_project_images()` do modal. Só capa grande permanece. | `1ee97a4` |
+| ✅ **F-02** | Remoção de projetos do banco | Botão `🗑️ Remover` na action_bar do modal + método `remove_project()` + confirmação dupla. Não apaga disco. | `834d3fd` |
 
 ---
 
-## 🔴 BLOCO L — LIMPEZA CIRÚRGICA
+## 🔴 BLOCO L — LIMPEZA CIRÚRGICA
 
 > Fazer primeiro. Risco mínimo, base sólida.
 > ⚠️ Todos os itens abaixo tocam zonas protegidas — aguarda autorização antes de executar.
@@ -32,7 +33,7 @@
 
 ---
 
-## 🟠 BLOCO S — ESTABILIDADE CRÍTICA
+## 🟠 BLOCO S — ESTABILIDADE CRÍTICA
 
 > Sem isso o app não sobrevive com 500+ projetos.
 
@@ -50,16 +51,16 @@
 | # | O que fazer | Impacto | Esforço | Prioridade |
 |---|---|---|---|---|
 | ◻ **F-01** | Modal de Projeto completo (galeria, nome PT-BR, desc editável, notas) | 🔴 Core do app | 🔴 Alto | Semana 2 |
-| ◻ **F-02** | Remoção de projetos do banco (botão remover + confirmação) | 🔴 Funcional faltante | 🟢 Baixo | Semana 2 |
+| ✅ **F-02** | Remoção de projetos do banco (botão remover + confirmação) | ✅ FEITO | ✅ FEITO | ✅ FEITO |
 | ◻ **F-03** | Limpeza de órfãos (entradas cujo `path` não existe mais em disco) | 🟠 Integridade dados | 🟢 Baixo | Semana 2 |
 | ◻ **F-04** | Busca em tempo real com debounce 300ms | 🟠 UX | 🟢 Baixo | Semana 2 |
 | ◻ **F-05** | Badge de status de análise no card (🤖 IA / ⚡ Fallback / ⏳ Na Fila) | 🟠 UX/Info | 🟢 Baixo | Semana 2 |
 | ◻ **F-06** | Ordenação configurável (data, A-Z, recente, origem, status) | 🟠 Organização | 🟢 Baixo | Semana 2 |
-| ◻ **F-07** | Filtro multi-critério simultâneo (chips empilnáveis AND) | 🟠 Organização | 🟡 Médio | Semana 2 |
+| ◻ **F-07** | Filtro multi-critério simultâneo (chips empiláveis AND) | 🟠 Organização | 🟡 Médio | Semana 2 |
 
 ---
 
-## 🔵 BLOCO O — ORGANIZAÇÃO E PODER
+## 🔵 BLOCO O — ORGANIZAÇÃO E PODER
 
 | # | O que fazer | Impacto | Esforço | Prioridade |
 |---|---|---|---|---|
@@ -72,20 +73,20 @@
 
 ---
 
-## 🎨 BLOCO V — EXPERIÊNCIA VISUAL E UX
+## 🎨 BLOCO V — EXPERIÊNCIA VISUAL E UX
 
 | # | O que fazer | Impacto | Esforço | Prioridade |
 |---|---|---|---|---|
 | ◻ **V-01** | Toast Notifications (não-bloqueantes, canto inferior direito) | 🟠 UX | 🟢 Baixo | Semana 3 |
 | ◻ **V-02** | Animação hover nos cards (escala 1.0→1.03 + brilho) | 🟠 Visual | 🟢 Baixo | Semana 3 |
-| ◻ **V-03** | Modo Lista vs Modo Galeria (toggle 🎬/📋 na toolbar) | 🟠 UX | 🟡 Médio | Semana 3 |
+| ◻ **V-03** | Modo Lista vs Modo Galeria (toggle 🎨/📋 na toolbar) | 🟠 UX | 🟡 Médio | Semana 3 |
 | ◻ **V-04** | Score de qualidade no card (badge ★★★★☆ por completude) | 🟡 Gamificação | 🟢 Baixo | Semana 4 |
 | ◻ **V-05** | Tema Claro/Escuro (toggle no header, CTk nativo) | 🟡 Visual | 🟡 Médio | Semana 4 |
 | ◻ **V-06** | Detecção inteligente de capa via Moondream | 🟡 Visual/IA | 🟡 Médio | Semana 4 |
 
 ---
 
-## 🚀 BLOCO N — NOVAS FUNÇÕES
+## 🚀 BLOCO N — NOVAS FUNÇÕES
 
 | # | O que fazer | Impacto | Esforço | Versão alvo |
 |---|---|---|---|---|
