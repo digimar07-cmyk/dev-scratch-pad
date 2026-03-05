@@ -2,16 +2,11 @@
 ui/main_window.py — Orquestrador puro do Laserflix.
 Teto: 300 linhas. Nunca constrói widgets diretamente.
 
-HOT-07c: Virtual Scroll profissional (padrão RecyclerView):
-  - Renderiza apenas 30 cards visíveis (vs 2585)
-  - Widget pooling (reutiliza estrutura)
-  - Thumbnail preloader paralelo (4 threads)
-  - Performance: 60 FPS, ~80MB RAM
-  
-INSPIRAÇÃO:
-  - Android RecyclerView (ViewHolder pattern)
-  - Netflix EVCache (predictive caching)
-  - Pinterest Masonry Grid (windowing)
+HOT-08: Paginação simples (Kent Beck style):
+  - 18 cards por página (3 linhas × 6 cols)
+  - Navegação: Início/Anterior/Próxima/Final
+  - Atalhos: Home/End/Arrows
+  - SIMPLES, PREVISÍVEL, FUNCIONAL
 """
 import os
 import threading
@@ -19,7 +14,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
 from config.settings import VERSION
-from config.card_layout import COLS, CARD_W, CARD_H, CARD_PAD
+from config.card_layout import COLS, CARD_PAD
 from config.ui_constants import (
     BG_PRIMARY, BG_CARD, BG_SEPARATOR,
     ACCENT_RED, ACCENT_GREEN, ACCENT_GOLD,
@@ -28,8 +23,7 @@ from config.ui_constants import (
 )
 
 from core.database import DatabaseManager
-from core.virtual_scroll_manager import VirtualScrollManager  # ← HOT-07a
-from core.thumbnail_preloader import ThumbnailPreloader       # ← HOT-07b
+from core.thumbnail_preloader import ThumbnailPreloader  # ← Mantido (funciona bem)
 from core.project_scanner import ProjectScanner
 
 from ai.ollama_client import OllamaClient
@@ -60,7 +54,7 @@ class LaserflixMainWindow:
         self.db_manager.load_config()
         self.db_manager.load_database()
         
-        # ← HOT-07: Thumbnail Preloader (padrão Netflix)
+        # ← HOT-08: Thumbnail Preloader (mantido - funciona bem)
         self.thumbnail_preloader = ThumbnailPreloader(max_workers=4)
         
         self.scanner = ProjectScanner(self.db_manager.database)
@@ -85,8 +79,10 @@ class LaserflixMainWindow:
         self._selection_mode    = False
         self._selected_paths    = set()
         
-        # ← HOT-07: Virtual Scroll Manager (será inicializado em _build_ui)
-        self.virtual_scroll = None
+        # ← HOT-08: PAGINAÇÃO SIMPLES
+        self.items_per_page = 18  # 3 linhas × 6 colunas
+        self.current_page   = 1
+        self.total_pages    = 1
 
         self.import_manager = RecursiveImportManager(
             parent=self.root, database=self.database,
@@ -99,14 +95,12 @@ class LaserflixMainWindow:
         self.root.configure(bg=BG_PRIMARY)
         self._build_ui()
         self.display_projects()
-        self.logger.info("✨ Laserflix v%s iniciado (Virtual Scroll ativo)", VERSION)
+        self.logger.info("✨ Laserflix v%s iniciado (Paginação simples)", VERSION)
 
     def __del__(self):
         # Para workers ao fechar
         if hasattr(self, 'thumbnail_preloader'):
             self.thumbnail_preloader.shutdown()
-        if hasattr(self, 'virtual_scroll') and self.virtual_scroll:
-            self.virtual_scroll.clear()
 
     # =========================================================================
     # UI
@@ -143,34 +137,16 @@ class LaserflixMainWindow:
 
         content_frame = tk.Frame(main_container, bg=BG_PRIMARY)
         content_frame.pack(side="left", fill="both", expand=True)
+        
+        # ← HOT-08: Canvas SEM scroll (paginação não precisa)
         self.content_canvas = tk.Canvas(content_frame, bg=BG_PRIMARY, highlightthickness=0)
-        content_sb = ttk.Scrollbar(content_frame, orient="vertical",
-                                    command=self.content_canvas.yview)
         self.scrollable_frame = tk.Frame(self.content_canvas, bg=BG_PRIMARY)
         self.scrollable_frame.bind(
             "<Configure>",
             lambda e: self.content_canvas.configure(
                 scrollregion=self.content_canvas.bbox("all")))
         self.content_canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-        self.content_canvas.configure(yscrollcommand=content_sb.set)
         self.content_canvas.pack(side="left", fill="both", expand=True, padx=10, pady=10)
-        content_sb.pack(side="right", fill="y")
-        
-        # ← HOT-07: Inicializa Virtual Scroll Manager
-        self.virtual_scroll = VirtualScrollManager(
-            canvas=self.content_canvas,
-            scrollable_frame=self.scrollable_frame,
-            data=[],  # Será preenchido em display_projects()
-            card_renderer=self._render_card_callback,
-            cols=COLS,
-            card_width=CARD_W,
-            card_height=CARD_H,
-            card_pad=CARD_PAD,
-            buffer_multiplier=1.5,  # 50% buffer acima/abaixo
-        )
-        
-        # Bind scroll suave + PageDown/PageUp
-        self._setup_scroll_bindings()
         
         for i in range(COLS):
             self.scrollable_frame.columnconfigure(i, weight=1, uniform="card")
@@ -220,101 +196,12 @@ class LaserflixMainWindow:
                   bg="#1A1A00", fg="#888888", font=("Arial", 10),
                   relief="flat", cursor="hand2", padx=10, pady=6
                   ).pack(side="right", padx=16)
-    
-    def _setup_scroll_bindings(self) -> None:
-        """
-        Configura scroll suave com:
-        - MouseWheel (rodinha)
-        - PageDown/PageUp (teclado)
-        - Drag da scrollbar (nativo)
-        """
-        # MouseWheel suave (60px por clique)
-        def _on_mousewheel(event):
-            delta = int(-1 * (event.delta / 60))  # Mais suave
-            self.content_canvas.yview_scroll(delta, "units")
-            # ← HOT-07: Atualiza virtual scroll após scroll
-            if self.virtual_scroll:
-                self.virtual_scroll.update_visible_items()
-            return "break"
         
-        self.content_canvas.bind("<Enter>", 
-            lambda e: self.content_canvas.bind("<MouseWheel>", _on_mousewheel))
-        self.content_canvas.bind("<Leave>", 
-            lambda e: self.content_canvas.unbind("<MouseWheel>"))
-        
-        # PageDown / PageUp (5 linhas de cards por vez)
-        def _on_pagedown(event):
-            self.content_canvas.yview_scroll(5, "pages")
-            if self.virtual_scroll:
-                self.virtual_scroll.update_visible_items()
-            return "break"
-        
-        def _on_pageup(event):
-            self.content_canvas.yview_scroll(-5, "pages")
-            if self.virtual_scroll:
-                self.virtual_scroll.update_visible_items()
-            return "break"
-        
-        self.root.bind("<Next>", _on_pagedown)   # PageDown
-        self.root.bind("<Prior>", _on_pageup)    # PageUp
-
-    def _render_card_callback(self, parent, project_path, project_data, row, col):
-        """
-        Callback usado pelo Virtual Scroll para renderizar cards.
-        
-        ← HOT-07: Monta callbacks com thumbnail preloader.
-        
-        Args:
-            parent: Frame pai (scrollable_frame)
-            project_path: Caminho do projeto
-            project_data: Dict com dados do projeto
-            row: Linha no grid
-            col: Coluna no grid
-        
-        Returns:
-            Widget do card criado
-        """
-        # Callbacks para os cards
-        card_cb = {
-            "on_open_modal":         self.open_project_modal,
-            "on_toggle_favorite":    self.toggle_favorite,
-            "on_toggle_done":        self.toggle_done,
-            "on_toggle_good":        self.toggle_good,
-            "on_toggle_bad":         self.toggle_bad,
-            "on_analyze_single":     self.analyze_single_project,
-            "on_open_folder":        open_folder,
-            "on_set_category":       self.set_category_filter,
-            "on_set_tag":            self.set_tag_filter,
-            "on_set_origin":         self.set_origin_filter,
-            # ← HOT-07: Usa thumbnail preloader (paralelo)
-            "get_cover_image_async": self._get_thumbnail_async,
-            # seleção em massa
-            "selection_mode":        self._selection_mode,
-            "selected_paths":        self._selected_paths,
-            "on_toggle_select":      self.toggle_card_selection,
-        }
-        
-        return build_card(parent, project_path, project_data, card_cb, row, col)
-
-    def _get_thumbnail_async(self, project_path, callback, widget):
-        """
-        Wrapper para thumbnail preloader.
-        Thread-safe callback para UI.
-        
-        Args:
-            project_path: Caminho do projeto
-            callback: Função(path, photo)
-            widget: Widget alvo
-        """
-        def _ui_safe_callback(path, photo):
-            # Executa callback na thread principal (Tkinter-safe)
-            try:
-                if widget and widget.winfo_exists():
-                    self.root.after(0, lambda: callback(path, photo))
-            except Exception as e:
-                self.logger.debug(f"Widget destruído antes do callback: {e}")
-        
-        self.thumbnail_preloader.preload_single(project_path, _ui_safe_callback)
+        # ← HOT-08: ATALHOS DE TECLADO
+        self.root.bind("<Left>", lambda e: self.prev_page())
+        self.root.bind("<Right>", lambda e: self.next_page())
+        self.root.bind("<Home>", lambda e: self.first_page())
+        self.root.bind("<End>", lambda e: self.last_page())
 
     # =========================================================================
     # MODO DE SELEÇÃO EM MASSA
@@ -338,21 +225,17 @@ class LaserflixMainWindow:
             self._selected_paths.add(path)
         n = len(self._selected_paths)
         self._sel_count_lbl.config(text=f"{n} selecionado(s)")
-        # ← HOT-07: Refresh virtual scroll (não full re-render)
-        if self.virtual_scroll:
-            self.virtual_scroll.update_visible_items()
+        self.display_projects()
 
     def _select_all(self) -> None:
         self._selected_paths = set(self.get_filtered_projects())
         self._sel_count_lbl.config(text=f"{len(self._selected_paths)} selecionado(s)")
-        if self.virtual_scroll:
-            self.virtual_scroll.update_visible_items()
+        self.display_projects()
 
     def _deselect_all(self) -> None:
         self._selected_paths.clear()
         self._sel_count_lbl.config(text="0 selecionado(s)")
-        if self.virtual_scroll:
-            self.virtual_scroll.update_visible_items()
+        self.display_projects()
 
     def _remove_selected(self) -> None:
         n = len(self._selected_paths)
@@ -390,21 +273,20 @@ class LaserflixMainWindow:
             self.status_bar.config(text=f"🗑️ '{name}' removido do banco.")
 
     # =========================================================================
-    # DISPLAY DE PROJETOS (VIRTUAL SCROLL)
+    # PAGINAÇÃO SIMPLES (HOT-08)
     # =========================================================================
 
     def display_projects(self) -> None:
         """
-        Renderiza projetos usando Virtual Scroll.
+        Renderiza projetos com paginação simples.
         
-        ← HOT-07: Apenas atualiza dados, não recria widgets.
-        
-        PERFORMANCE:
-          - Antes: 2585 cards × 15 widgets = 38.775 widgets
-          - Depois: 30 cards × 15 widgets = 450 widgets
-          - Redução: 98.8%
+        ← HOT-08: 18 cards por página (3 linhas × 6 cols)
         """
-        # 1. PREPARA DADOS (leve - apenas metadados)
+        # Limpa tudo
+        for w in self.scrollable_frame.winfo_children():
+            w.destroy()
+        
+        # 1. PREPARA DADOS
         all_filtered = [
             (p, self.database[p])
             for p in self.get_filtered_projects()
@@ -412,7 +294,15 @@ class LaserflixMainWindow:
         ]
         total_count = len(all_filtered)
         
-        # 2. MONTA HEADER (só texto, sem widgets)
+        # 2. CALCULA PAGINAÇÃO
+        self.total_pages = max(1, (total_count + self.items_per_page - 1) // self.items_per_page)
+        self.current_page = max(1, min(self.current_page, self.total_pages))
+        
+        start_idx = (self.current_page - 1) * self.items_per_page
+        end_idx = min(start_idx + self.items_per_page, total_count)
+        page_items = all_filtered[start_idx:end_idx]
+        
+        # 3. HEADER COM CONTADOR
         title_map = {
             "favorite": "⭐ Favoritos", "done": "✓ Já Feitos",
             "good":     "👍 Bons",      "bad":  "👎 Ruins",
@@ -423,18 +313,62 @@ class LaserflixMainWindow:
         if self.current_tag:                  title += f" — #{self.current_tag}"
         if self.search_query:                 title += f' — "{self.search_query}"'
         
-        # Limpa apenas header (mantém cards do virtual scroll)
-        for w in self.scrollable_frame.winfo_children():
-            if isinstance(w, tk.Label):  # Remove apenas labels de header
-                w.destroy()
+        # Header frame (título + contador + navegação)
+        header_frame = tk.Frame(self.scrollable_frame, bg=BG_PRIMARY)
+        header_frame.grid(row=0, column=0, columnspan=COLS, sticky="ew", padx=10, pady=(0, 5))
         
-        # Cria header
-        tk.Label(self.scrollable_frame, text=title,
+        # Título (esquerda)
+        tk.Label(header_frame, text=title,
                  font=("Arial", 20, "bold"), bg=BG_PRIMARY, fg=FG_PRIMARY, anchor="w"
-                 ).grid(row=0, column=0, columnspan=COLS, sticky="w", padx=10, pady=(0, 5))
+                 ).pack(side="left")
         
-        tk.Label(self.scrollable_frame, text=f"{total_count} projeto(s)",
-                 font=("Arial", 12), bg=BG_PRIMARY, fg="#999999"
+        # ← HOT-08: NAVEGAÇÃO (direita)
+        if total_count > 0:
+            nav_frame = tk.Frame(header_frame, bg=BG_PRIMARY)
+            nav_frame.pack(side="right", padx=10)
+            
+            # Botão Início
+            tk.Button(nav_frame, text="⏮ Início",
+                      command=self.first_page,
+                      bg="#333333", fg=FG_PRIMARY, font=("Arial", 10),
+                      relief="flat", cursor="hand2", padx=8, pady=4,
+                      state="normal" if self.current_page > 1 else "disabled"
+                      ).pack(side="left", padx=2)
+            
+            # Botão Anterior
+            tk.Button(nav_frame, text="◀ Anterior",
+                      command=self.prev_page,
+                      bg="#444444", fg=FG_PRIMARY, font=("Arial", 10),
+                      relief="flat", cursor="hand2", padx=8, pady=4,
+                      state="normal" if self.current_page > 1 else "disabled"
+                      ).pack(side="left", padx=2)
+            
+            # Contador central
+            tk.Label(nav_frame, 
+                     text=f"Página {self.current_page:02d} de {self.total_pages:02d}",
+                     bg=BG_PRIMARY, fg=ACCENT_GOLD, font=("Arial", 12, "bold")
+                     ).pack(side="left", padx=10)
+            
+            # Botão Próxima
+            tk.Button(nav_frame, text="Próxima ▶",
+                      command=self.next_page,
+                      bg="#444444", fg=FG_PRIMARY, font=("Arial", 10),
+                      relief="flat", cursor="hand2", padx=8, pady=4,
+                      state="normal" if self.current_page < self.total_pages else "disabled"
+                      ).pack(side="left", padx=2)
+            
+            # Botão Final
+            tk.Button(nav_frame, text="Final ⏭",
+                      command=self.last_page,
+                      bg="#333333", fg=FG_PRIMARY, font=("Arial", 10),
+                      relief="flat", cursor="hand2", padx=8, pady=4,
+                      state="normal" if self.current_page < self.total_pages else "disabled"
+                      ).pack(side="left", padx=2)
+        
+        # Contador de itens
+        tk.Label(self.scrollable_frame, 
+                 text=f"{total_count} projeto(s) | Mostrando {len(page_items)} itens",
+                 font=("Arial", 11), bg=BG_PRIMARY, fg="#999999"
                  ).grid(row=1, column=0, columnspan=COLS, sticky="w", padx=10, pady=(0, 15))
         
         if not all_filtered:
@@ -442,19 +376,66 @@ class LaserflixMainWindow:
                      text="Nenhum projeto.\nClique em 'Importar Pastas' para adicionar.",
                      font=("Arial", 14), bg=BG_PRIMARY, fg=FG_TERTIARY, justify="center"
                      ).grid(row=2, column=0, columnspan=COLS, pady=80)
-            if self.virtual_scroll:
-                self.virtual_scroll.clear()
             return
         
-        # 3. ← HOT-07: ATUALIZA VIRTUAL SCROLL (não recria widgets)
-        if self.virtual_scroll:
-            self.virtual_scroll.refresh_data(all_filtered)
+        # 4. RENDERIZA CARDS DA PÁGINA ATUAL
+        card_cb = {
+            "on_open_modal":         self.open_project_modal,
+            "on_toggle_favorite":    self.toggle_favorite,
+            "on_toggle_done":        self.toggle_done,
+            "on_toggle_good":        self.toggle_good,
+            "on_toggle_bad":         self.toggle_bad,
+            "on_analyze_single":     self.analyze_single_project,
+            "on_open_folder":        open_folder,
+            "on_set_category":       self.set_category_filter,
+            "on_set_tag":            self.set_tag_filter,
+            "on_set_origin":         self.set_origin_filter,
+            "get_cover_image_async": self._get_thumbnail_async,
+            "selection_mode":        self._selection_mode,
+            "selected_paths":        self._selected_paths,
+            "on_toggle_select":      self.toggle_card_selection,
+        }
         
-        # 4. ATUALIZA STATUS BAR COM STATS
-        stats = self.virtual_scroll.get_stats() if self.virtual_scroll else {}
-        self.status_bar.config(
-            text=f"📐 Virtual Scroll: {stats.get('active_widgets', 0)}/{total_count} cards renderizados"
-        )
+        for i, (project_path, project_data) in enumerate(page_items):
+            row = (i // COLS) + 2  # +2 para pular header (rows 0-1)
+            col = i % COLS
+            build_card(self.scrollable_frame, project_path, project_data, 
+                      card_cb, row, col)
+        
+        # Volta pro topo
+        self.content_canvas.yview_moveto(0)
+
+    def _get_thumbnail_async(self, project_path, callback, widget):
+        """
+        Wrapper para thumbnail preloader (thread-safe).
+        """
+        def _ui_safe_callback(path, photo):
+            try:
+                if widget and widget.winfo_exists():
+                    self.root.after(0, lambda: callback(path, photo))
+            except Exception as e:
+                self.logger.debug(f"Widget destruído antes do callback: {e}")
+        
+        self.thumbnail_preloader.preload_single(project_path, _ui_safe_callback)
+
+    # ← HOT-08: FUNÇÕES DE NAVEGAÇÃO
+    def next_page(self) -> None:
+        if self.current_page < self.total_pages:
+            self.current_page += 1
+            self.display_projects()
+
+    def prev_page(self) -> None:
+        if self.current_page > 1:
+            self.current_page -= 1
+            self.display_projects()
+
+    def first_page(self) -> None:
+        self.current_page = 1
+        self.display_projects()
+
+    def last_page(self) -> None:
+        self.current_page = self.total_pages
+        self.display_projects()
 
     # =========================================================================
     # FILTROS
@@ -465,15 +446,18 @@ class LaserflixMainWindow:
         self.current_categories = []; self.current_tag = None; self.current_origin = "all"
         self.search_var.set("")
         self.sidebar.set_active_btn(None)
+        self.current_page = 1  # ← Reseta para página 1
         self.display_projects()
 
     def _on_search(self) -> None:
         self.search_query = self.search_var.get().strip().lower()
+        self.current_page = 1  # ← Reseta para página 1
         self.display_projects()
 
     def _on_origin_filter(self, origin, btn=None) -> None:
         self.current_filter = "all"; self.current_origin = origin
         self.current_categories = []; self.current_tag = None
+        self.current_page = 1  # ← Reseta
         self.sidebar.set_active_btn(btn); self.display_projects()
         count = sum(1 for d in self.database.values() if d.get("origin") == origin)
         self.status_bar.config(text=f"Origem: {origin} ({count} projetos)")
@@ -481,11 +465,13 @@ class LaserflixMainWindow:
     def _on_category_filter(self, cats, btn=None) -> None:
         self.current_filter = "all"; self.current_categories = cats
         self.current_tag = None; self.current_origin = "all"
+        self.current_page = 1  # ← Reseta
         self.sidebar.set_active_btn(btn); self.display_projects()
 
     def _on_tag_filter(self, tag, btn=None) -> None:
         self.current_filter = "all"; self.current_tag = tag
         self.current_categories = []; self.current_origin = "all"
+        self.current_page = 1  # ← Reseta
         self.sidebar.set_active_btn(btn); self.display_projects()
 
     def set_origin_filter(self, origin, btn=None):  self._on_origin_filter(origin, btn)
@@ -531,7 +517,7 @@ class LaserflixMainWindow:
                 "on_set_tag":       self.set_tag_filter,
                 "on_remove":        self.remove_project,
             },
-            cache=self.thumbnail_preloader,  # ← HOT-07: Usa preloader
+            cache=self.thumbnail_preloader,
             scanner=self.scanner,
         ).open()
 
@@ -539,9 +525,7 @@ class LaserflixMainWindow:
         if path in self.database:
             self.database[path][key] = value
             self.db_manager.save_database()
-            # ← HOT-07: Refresh incremental (não full re-render)
-            if self.virtual_scroll:
-                self.virtual_scroll.update_visible_items()
+            self.display_projects()
 
     def _modal_generate_desc(self, path, desc_lbl, gen_btn, modal) -> None:
         gen_btn.config(state="disabled", text="⏳ Gerando...")
@@ -624,9 +608,7 @@ class LaserflixMainWindow:
 
     def _on_analysis_complete(self, done, skipped) -> None:
         self.hide_progress_ui(); self.sidebar.refresh(self.database)
-        # ← HOT-07: Refresh incremental
-        if self.virtual_scroll:
-            self.virtual_scroll.update_visible_items()
+        self.display_projects()
         msg = f"✅ Análise concluída: {done} projeto(s)"
         if skipped: msg += f" ({skipped} pulados)"
         self.status_bar.config(text=msg)
@@ -689,9 +671,7 @@ class LaserflixMainWindow:
                 except Exception as e:
                     self.logger.error("Erro desc %s: %s", path, e); skipped += 1
             self.db_manager.save_database(); self.hide_progress_ui()
-            # ← HOT-07: Refresh incremental
-            if self.virtual_scroll:
-                self.virtual_scroll.update_visible_items()
+            self.display_projects()
             msg = f"✅ {done} descrição(oes) gerada(s)"
             if skipped: msg += f" ({skipped} puladas)"
             self.status_bar.config(text=msg)
@@ -792,5 +772,6 @@ class LaserflixMainWindow:
         self.import_manager.database = self.database
         self.db_manager.save_database()
         self.sidebar.refresh(self.database)
+        self.current_page = 1  # ← Reseta para página 1
         self.display_projects()
         self.status_bar.config(text="✅ Importação concluída!")
