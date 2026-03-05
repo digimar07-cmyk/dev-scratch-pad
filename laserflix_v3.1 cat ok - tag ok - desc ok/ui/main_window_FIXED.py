@@ -46,6 +46,11 @@ from ai.analysis_manager import AnalysisManager
 from utils.logging_setup import LOGGER
 from utils.platform_utils import open_file, open_folder
 
+# ── NOVOS MÓDULOS (importação recursiva + preparação de pastas) ──────────────
+from ui.recursive_import_integration import RecursiveImportManager
+from ui.prepare_folders_dialog import PrepareFoldersDialog
+# ─────────────────────────────────────────────────────────────────────────────
+
 
 class LaserflixMainWindow:
     def __init__(self, root):
@@ -69,7 +74,6 @@ class LaserflixMainWindow:
             self.fallback_generator,
         )
 
-        # Analysis Manager (encapsula lógica de análise)
         self.analysis_manager = AnalysisManager(
             self.text_generator,
             self.db_manager,
@@ -86,6 +90,16 @@ class LaserflixMainWindow:
         self.search_query = ""
         self._active_sidebar_btn = None
 
+        # ── Gerenciador de importação recursiva ───────────────────────────────
+        self.recursive_import_manager = RecursiveImportManager(
+            parent=self.root,
+            database=self.database,
+            project_scanner=self.scanner,
+            text_generator=self.text_generator,
+            on_complete=self._on_recursive_import_complete,
+        )
+        # ─────────────────────────────────────────────────────────────────────
+
         self.root.title(f"LASERFLIX {VERSION}")
         self.root.state('zoomed')
         self.root.configure(bg=BG_PRIMARY)
@@ -95,14 +109,12 @@ class LaserflixMainWindow:
         self.logger.info("✨ Laserflix v%s iniciado", VERSION)
 
     def _setup_analysis_callbacks(self):
-        """Configura callbacks do AnalysisManager para UI."""
-        self.analysis_manager.on_start = self.show_progress_ui
+        self.analysis_manager.on_start    = self.show_progress_ui
         self.analysis_manager.on_progress = self.update_progress
         self.analysis_manager.on_complete = self._on_analysis_complete
-        self.analysis_manager.on_error = self._on_analysis_error
+        self.analysis_manager.on_error    = self._on_analysis_error
 
     def _on_analysis_complete(self, done, skipped):
-        """Callback quando análise termina."""
         self.hide_progress_ui()
         self.update_sidebar()
         self.display_projects()
@@ -113,8 +125,17 @@ class LaserflixMainWindow:
         self.logger.info(msg)
 
     def _on_analysis_error(self, error_msg):
-        """Callback quando ocorre erro na análise."""
         messagebox.showwarning("⚠️ Erro", error_msg)
+
+    def _on_recursive_import_complete(self):
+        """Callback pós-importação recursiva: recarrega tudo."""
+        self.database = self.db_manager.database
+        self.recursive_import_manager.database = self.database
+        self.db_manager.save_database()
+        self.update_sidebar()
+        self.display_projects()
+        self.status_bar.config(text="✅ Importação recursiva concluída!")
+        self.logger.info("Importação recursiva concluída")
 
     # =========================================================================
     # UI
@@ -132,7 +153,8 @@ class LaserflixMainWindow:
 
         nav_frame = tk.Frame(header, bg="#000000")
         nav_frame.pack(side="left", padx=30)
-        for text, ftype in [("🏠 Home","all"),("⭐ Favoritos","favorite"),("✓ Já Feitos","done"),("👍 Bons","good"),("👎 Ruins","bad")]:
+        for text, ftype in [("🏠 Home","all"),("⭐ Favoritos","favorite"),
+                             ("✓ Já Feitos","done"),("👍 Bons","good"),("👎 Ruins","bad")]:
             btn = tk.Button(nav_frame, text=text, command=lambda f=ftype: self.set_filter(f),
                             bg="#000000", fg=FG_PRIMARY, font=("Arial", 12),
                             relief="flat", cursor="hand2", padx=10)
@@ -153,23 +175,29 @@ class LaserflixMainWindow:
         extras_frame = tk.Frame(header, bg="#000000")
         extras_frame.pack(side="right", padx=10)
 
+        # ── Menu ⚙️ (agora com Importar Recursivo e Preparar Pastas) ─────────
         menu_btn = tk.Menubutton(extras_frame, text="⚙️ Menu", bg="#444444",
                                   fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                                   relief="flat", cursor="hand2", padx=15, pady=8)
         menu_btn.pack(side="left", padx=5)
         menu = tk.Menu(menu_btn, tearoff=0, bg=BG_CARD, fg=FG_PRIMARY)
         menu_btn["menu"] = menu
-        menu.add_command(label="📥 Importar Banco", command=self.import_database)
-        menu.add_command(label="💾 Exportar Banco", command=self.export_database)
-        menu.add_command(label="🔄 Backup Manual",  command=self.manual_backup)
+        menu.add_command(label="📁 Importar Recursivo",
+                         command=self.start_recursive_import)          # ← NOVO
+        menu.add_command(label="📦 Preparar Pastas",
+                         command=self.open_prepare_folders)            # ← NOVO
+        menu.add_separator()
+        menu.add_command(label="📥 Importar Banco",  command=self.import_database)
+        menu.add_command(label="💾 Exportar Banco",  command=self.export_database)
+        menu.add_command(label="🔄 Backup Manual",   command=self.manual_backup)
         menu.add_separator()
         menu.add_command(label="🤖 Configurar Modelos IA", command=self.open_model_settings)
+        # ─────────────────────────────────────────────────────────────────────
 
         tk.Button(extras_frame, text="➕ Pastas", command=self.add_folders,
                   bg=ACCENT_RED, fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                   relief="flat", cursor="hand2", padx=15, pady=8).pack(side="left", padx=5)
 
-        # Botão 1: Análise IA (categorias/tags)
         ai_btn = tk.Menubutton(extras_frame, text="🤖 Análise", bg=ACCENT_GREEN,
                                 fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                                 relief="flat", cursor="hand2", padx=15, pady=8)
@@ -178,9 +206,8 @@ class LaserflixMainWindow:
                           activebackground=ACCENT_RED, activeforeground=FG_PRIMARY)
         ai_btn["menu"] = ai_menu
         ai_menu.add_command(label="🆕 Analisar apenas novos", command=self.analyze_only_new)
-        ai_menu.add_command(label="🔄 Reanalisar todos", command=self.reanalyze_all)
+        ai_menu.add_command(label="🔄 Reanalisar todos",      command=self.reanalyze_all)
 
-        # Botão 2: Descrições IA
         desc_btn = tk.Menubutton(extras_frame, text="📝 Descrições", bg="#3A7BD5",
                                   fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                                   relief="flat", cursor="hand2", padx=15, pady=8)
@@ -188,8 +215,8 @@ class LaserflixMainWindow:
         desc_menu = tk.Menu(desc_btn, tearoff=0, bg=BG_CARD, fg=FG_PRIMARY,
                             activebackground=ACCENT_RED, activeforeground=FG_PRIMARY)
         desc_btn["menu"] = desc_menu
-        desc_menu.add_command(label="📝 Gerar para novos", command=self.generate_descriptions_for_new)
-        desc_menu.add_command(label="📝 Gerar para todos", command=self.generate_descriptions_for_all)
+        desc_menu.add_command(label="📝 Gerar para novos",  command=self.generate_descriptions_for_new)
+        desc_menu.add_command(label="📝 Gerar para todos",  command=self.generate_descriptions_for_all)
 
         main_container = tk.Frame(self.root, bg=BG_PRIMARY)
         main_container.pack(fill="both", expand=True)
@@ -202,7 +229,8 @@ class LaserflixMainWindow:
         self.content_canvas = tk.Canvas(content_frame, bg=BG_PRIMARY, highlightthickness=0)
         content_sb = ttk.Scrollbar(content_frame, orient="vertical", command=self.content_canvas.yview)
         self.scrollable_frame = tk.Frame(self.content_canvas, bg=BG_PRIMARY)
-        self.scrollable_frame.bind("<Configure>",
+        self.scrollable_frame.bind(
+            "<Configure>",
             lambda e: self.content_canvas.configure(scrollregion=self.content_canvas.bbox("all")))
         self.content_canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
         self.content_canvas.configure(yscrollcommand=content_sb.set)
@@ -236,8 +264,22 @@ class LaserflixMainWindow:
                                    font=("Arial", 10, "bold"), relief="flat", cursor="hand2")
 
     # =========================================================================
+    # IMPORTAÇÃO RECURSIVA + PREPARAR PASTAS  (novos métodos)
+    # =========================================================================
+
+    def start_recursive_import(self):
+        """Dispara o fluxo completo de importação recursiva."""
+        self.recursive_import_manager.database = self.database
+        self.recursive_import_manager.start_import()
+
+    def open_prepare_folders(self):
+        """Abre dialog para preparar pastas (gerar folder.jpg)."""
+        dialog = PrepareFoldersDialog(self.root)
+        self.root.wait_window(dialog)
+
+    # =========================================================================
     # SIDEBAR
-    # ========================================================================= 
+    # =========================================================================
 
     def create_sidebar(self, parent):
         sidebar_container = tk.Frame(parent, bg=BG_SECONDARY, width=250)
@@ -247,20 +289,23 @@ class LaserflixMainWindow:
         self.sidebar_canvas = tk.Canvas(sidebar_container, bg=BG_SECONDARY, highlightthickness=0)
         sb = ttk.Scrollbar(sidebar_container, orient="vertical", command=self.sidebar_canvas.yview)
         self.sidebar_content = tk.Frame(self.sidebar_canvas, bg=BG_SECONDARY)
-        self.sidebar_content.bind("<Configure>",
+        self.sidebar_content.bind(
+            "<Configure>",
             lambda e: self.sidebar_canvas.configure(scrollregion=self.sidebar_canvas.bbox("all")))
         self.sidebar_canvas.create_window((0,0), window=self.sidebar_content, anchor="nw", width=230)
         self.sidebar_canvas.configure(yscrollcommand=sb.set)
         self.sidebar_canvas.pack(side="left", fill="both", expand=True)
         sb.pack(side="right", fill="y")
-        self.sidebar_canvas.bind("<MouseWheel>",
+        self.sidebar_canvas.bind(
+            "<MouseWheel>",
             lambda e: self.sidebar_canvas.yview_scroll(int(-1*(e.delta/SCROLL_SPEED)), "units"))
 
         for title, attr in [("🌐 Origem","origins_frame"),
                              ("📂 Categorias","categories_frame"),
                              ("🏷️ Tags Populares","tags_frame")]:
             tk.Label(self.sidebar_content, text=title, font=("Arial",14,"bold"),
-                     bg=BG_SECONDARY, fg=FG_PRIMARY, anchor="w").pack(fill="x", padx=15, pady=(15,5))
+                     bg=BG_SECONDARY, fg=FG_PRIMARY, anchor="w"
+                     ).pack(fill="x", padx=15, pady=(15,5))
             frame = tk.Frame(self.sidebar_content, bg=BG_SECONDARY)
             frame.pack(fill="x", padx=10, pady=5)
             setattr(self, attr, frame)
@@ -337,7 +382,8 @@ class LaserflixMainWindow:
             btn.bind("<Enter>", lambda e, b=btn: b.config(bg=BG_CARD) if b is not self._active_sidebar_btn else None)
             btn.bind("<Leave>", lambda e, b=btn: b.config(bg=BG_SECONDARY) if b is not self._active_sidebar_btn else None)
         if len(cats_sorted) > SIDEBAR_MAX_CATEGORIES:
-            mb = tk.Button(self.categories_frame, text=f"+ Ver mais ({len(cats_sorted)-SIDEBAR_MAX_CATEGORIES})",
+            mb = tk.Button(self.categories_frame,
+                           text=f"+ Ver mais ({len(cats_sorted)-SIDEBAR_MAX_CATEGORIES})",
                            bg=BG_CARD, fg="#888888", font=("Arial",9),
                            relief="flat", cursor="hand2", anchor="w", padx=15, pady=6,
                            command=self.open_categories_picker)
@@ -382,10 +428,10 @@ class LaserflixMainWindow:
         elif self.current_filter == "done":    title_text = "✓ Já Feitos"
         elif self.current_filter == "good":    title_text = "👍 Bons"
         elif self.current_filter == "bad":     title_text = "👎 Ruins"
-        if self.current_origin != "all":      title_text += f" — {self.current_origin}"
-        if self.current_categories:           title_text += f" — {', '.join(self.current_categories)}"
-        if self.current_tag:                   title_text += f" — #{self.current_tag}"
-        if self.search_query:                  title_text += f' — "{self.search_query}"'
+        if self.current_origin != "all":       title_text += f" — {self.current_origin}"
+        if self.current_categories:            title_text += f" — {', '.join(self.current_categories)}"
+        if self.current_tag:                    title_text += f" — #{self.current_tag}"
+        if self.search_query:                   title_text += f' — "{self.search_query}"'
 
         tk.Label(self.scrollable_frame, text=title_text, font=("Arial",20,"bold"),
                  bg=BG_PRIMARY, fg=FG_PRIMARY, anchor="w"
@@ -497,32 +543,28 @@ class LaserflixMainWindow:
                   bg=BG_CARD, fg=ACCENT_GOLD, relief="flat", cursor="hand2"
                   ).pack(side="left", padx=1)
 
-        btn_fav = tk.Button(af, font=("Arial", 12), bg=BG_CARD,
-                            relief="flat", cursor="hand2")
+        btn_fav = tk.Button(af, font=("Arial", 12), bg=BG_CARD, relief="flat", cursor="hand2")
         btn_fav.config(
             text="⭐" if data.get("favorite") else "☆",
             fg=ACCENT_GOLD if data.get("favorite") else FG_TERTIARY,
             command=lambda b=btn_fav: self.toggle_favorite(project_path, b))
         btn_fav.pack(side="left", padx=1)
 
-        btn_done = tk.Button(af, font=("Arial", 12), bg=BG_CARD,
-                             relief="flat", cursor="hand2")
+        btn_done = tk.Button(af, font=("Arial", 12), bg=BG_CARD, relief="flat", cursor="hand2")
         btn_done.config(
             text="✓" if data.get("done") else "○",
             fg="#00FF00" if data.get("done") else FG_TERTIARY,
             command=lambda b=btn_done: self.toggle_done(project_path, b))
         btn_done.pack(side="left", padx=1)
 
-        btn_good = tk.Button(af, font=("Arial", 12), bg=BG_CARD,
-                             relief="flat", cursor="hand2")
+        btn_good = tk.Button(af, font=("Arial", 12), bg=BG_CARD, relief="flat", cursor="hand2")
         btn_good.config(
             text="👍",
             fg="#00FF00" if data.get("good") else FG_TERTIARY,
             command=lambda b=btn_good: self.toggle_good(project_path, b))
         btn_good.pack(side="left", padx=1)
 
-        btn_bad = tk.Button(af, font=("Arial", 12), bg=BG_CARD,
-                            relief="flat", cursor="hand2")
+        btn_bad = tk.Button(af, font=("Arial", 12), bg=BG_CARD, relief="flat", cursor="hand2")
         btn_bad.config(
             text="👎",
             fg="#FF0000" if data.get("bad") else FG_TERTIARY,
@@ -620,7 +662,8 @@ class LaserflixMainWindow:
                 self.db_manager.config["folders"] = self.folders
                 self.db_manager.save_config()
                 self.db_manager.save_database()
-                self.status_bar.config(text=f"✅ {new_count} novos projetos adicionados de {os.path.basename(folder)}")
+                self.status_bar.config(
+                    text=f"✅ {new_count} novos projetos adicionados de {os.path.basename(folder)}")
                 self.logger.info("Pasta adicionada: %s | %d projetos novos", folder, new_count)
             mais = messagebox.askyesno("Adicionar mais?", "Deseja adicionar outra pasta?")
             if not mais:
@@ -817,39 +860,24 @@ class LaserflixMainWindow:
         def _gen_desc():
             if not project_path or project_path not in self.database:
                 return
-                
             gen_btn.config(state="disabled", text="⏳ Gerando...")
             desc_lbl.config(text="⏳ Gerando descrição com IA...", fg=FG_TER)
             modal.update()
-            
             def _generate_in_thread():
                 try:
-                    # Gera descrição
                     description = self.text_generator.generate_description(
-                        project_path, 
-                        self.database[project_path]
+                        project_path, self.database[project_path]
                     )
-                    
-                    # Salva no banco
                     self.database[project_path]["ai_description"] = description
                     self.db_manager.save_database()
-                    
-                    # Recarrega modal na thread principal
                     modal.after(0, modal.destroy)
                     modal.after(50, lambda: self.open_project_modal(project_path))
-                    
                 except Exception as e:
-                    self.logger.error(f"Erro ao gerar descrição: {e}")
-                    # Mostra erro na UI
+                    self.logger.error("Erro ao gerar descrição: %s", e)
                     modal.after(0, lambda: desc_lbl.config(
-                        text="❌ Erro ao gerar descrição", 
-                        fg="#EF5350"
-                    ))
+                        text="❌ Erro ao gerar descrição", fg="#EF5350"))
                     modal.after(0, lambda: gen_btn.config(
-                        state="normal", 
-                        text="🤖  Gerar com IA"
-                    ))
-            
+                        state="normal", text="🤖  Gerar com IA"))
             import threading
             threading.Thread(target=_generate_in_thread, daemon=True).start()
 
@@ -1015,7 +1043,8 @@ class LaserflixMainWindow:
                 for img_path in rest[:MODAL_MAX_GRID_IMAGES]:
                     try:
                         img = Image.open(img_path)
-                        img.thumbnail((MODAL_THUMBNAIL_SIZE, MODAL_THUMBNAIL_SIZE), Image.Resampling.LANCZOS)
+                        img.thumbnail((MODAL_THUMBNAIL_SIZE, MODAL_THUMBNAIL_SIZE),
+                                      Image.Resampling.LANCZOS)
                         photo = ImageTk.PhotoImage(img)
                         lbl = tk.Label(gf, image=photo, bg="#0A0A0A", cursor="hand2", bd=0)
                         lbl.image = photo
@@ -1090,7 +1119,8 @@ class LaserflixMainWindow:
         final_buttons = tk.Frame(edit_win, bg="#181818")
         final_buttons.pack(fill="x", padx=30, pady=30)
         tk.Button(final_buttons, text="💾 Salvar e Fechar",
-                  command=lambda: self._save_edit_modal(edit_win, project_path, categories_text, tags_listbox),
+                  command=lambda: self._save_edit_modal(
+                      edit_win, project_path, categories_text, tags_listbox),
                   bg=ACCENT_GREEN, fg=FG_PRIMARY, font=("Arial",12,"bold"),
                   relief="flat", cursor="hand2", padx=20, pady=12).pack(side="left", padx=5)
         tk.Button(final_buttons, text="✕ Cancelar", command=edit_win.destroy,
@@ -1128,18 +1158,15 @@ class LaserflixMainWindow:
     # =========================================================================
 
     def show_progress_ui(self):
-        """Mostra barra de progresso."""
         self.progress_bar.pack(side="left", padx=10)
         self.stop_btn.pack(side="right", padx=10)
         self.progress_bar["value"] = 0
 
     def hide_progress_ui(self):
-        """Esconde barra de progresso."""
         self.progress_bar.pack_forget()
         self.stop_btn.pack_forget()
 
     def update_progress(self, current, total, message=""):
-        """Atualiza barra de progresso."""
         pct = (current / total) * 100 if total else 0
         self.progress_bar["value"] = pct
         msg = f"{message} ({current}/{total} — {pct:.1f}%)"
@@ -1147,28 +1174,29 @@ class LaserflixMainWindow:
         self.root.update_idletasks()
 
     def analyze_single_project(self, project_path):
-        """Analisa um único projeto (delega para AnalysisManager)."""
         self.analysis_manager.analyze_single(project_path, self.database)
 
     def analyze_only_new(self):
-        """Analisa apenas projetos novos."""
         targets = self.analysis_manager.get_unanalyzed_projects(self.database)
         if not targets:
             messagebox.showinfo("✅ Tudo analisado", "Todos os projetos já foram analisados!")
             return
-        if messagebox.askyesno("🤖 Analisar novos",
-                               f"Encontrei {len(targets)} projeto(s) sem análise.\n\nIniciar agora?"):
+        if messagebox.askyesno(
+            "🤖 Analisar novos",
+            f"Encontrei {len(targets)} projeto(s) sem análise.\n\nIniciar agora?"
+        ):
             self.analysis_manager.analyze_batch(targets, self.database)
 
     def reanalyze_all(self):
-        """Reanalisar todos os projetos."""
         targets = self.analysis_manager.get_all_projects(self.database)
         if not targets:
             messagebox.showinfo("Vazio", "Nenhum projeto encontrado.")
             return
-        if messagebox.askyesno("🔄 Reanalisar todos",
-                               f"Isso vai reanalisar {len(targets)} projeto(s) e SUBSTITUIR\n"
-                               "as categorias e tags existentes.\n\nConfirma?"):
+        if messagebox.askyesno(
+            "🔄 Reanalisar todos",
+            f"Isso vai reanalisar {len(targets)} projeto(s) e SUBSTITUIR\n"
+            "as categorias e tags existentes.\n\nConfirma?"
+        ):
             self.analysis_manager.analyze_batch(targets, self.database)
 
     # =========================================================================
@@ -1176,68 +1204,49 @@ class LaserflixMainWindow:
     # =========================================================================
 
     def _batch_generate_descriptions(self, targets):
-        """Gera descrições em lote com barra de progresso."""
         self.show_progress_ui()
-        
         def _generate_batch():
-            done = 0
-            skipped = 0
-            
+            done = skipped = 0
             for i, project_path in enumerate(targets, 1):
                 if self.ollama.stop_flag:
                     break
-                    
                 if not os.path.isdir(project_path):
                     skipped += 1
                     continue
-                
                 try:
                     self.update_progress(
-                        i, len(targets), 
+                        i, len(targets),
                         f"📝 Gerando descrição para {os.path.basename(project_path)}"
                     )
-                    
                     description = self.text_generator.generate_description(
-                        project_path,
-                        self.database[project_path]
+                        project_path, self.database[project_path]
                     )
-                    
                     self.database[project_path]["ai_description"] = description
                     done += 1
-                    
-                    # Auto-save a cada 5 descrições
                     if done % 5 == 0:
                         self.db_manager.save_database()
-                        
                 except Exception as e:
-                    self.logger.error(f"Erro ao gerar descrição para {project_path}: {e}")
+                    self.logger.error("Erro desc %s: %s", project_path, e)
                     skipped += 1
-            
-            # Salva tudo no final
             self.db_manager.save_database()
             self.hide_progress_ui()
             self.display_projects()
-            
             msg = f"✅ {done} descrição(ões) gerada(s)"
             if skipped:
                 msg += f" ({skipped} puladas)"
             self.status_bar.config(text=msg)
             self.logger.info(msg)
-        
         import threading
         threading.Thread(target=_generate_batch, daemon=True).start()
 
     def generate_descriptions_for_new(self):
-        """Gera descrições apenas para projetos sem descrição."""
         targets = [
             path for path, data in self.database.items()
             if not data.get("ai_description", "").strip()
         ]
-        
         if not targets:
             messagebox.showinfo("✅ Completo", "Todos os projetos já têm descrição!")
             return
-        
         if messagebox.askyesno(
             "📝 Gerar descrições",
             f"Encontrei {len(targets)} projeto(s) sem descrição.\n\nGerar agora?"
@@ -1245,13 +1254,10 @@ class LaserflixMainWindow:
             self._batch_generate_descriptions(targets)
 
     def generate_descriptions_for_all(self):
-        """Gera descrições para TODOS os projetos (sobrescreve existentes)."""
         targets = list(self.database.keys())
-        
         if not targets:
             messagebox.showinfo("Vazio", "Nenhum projeto encontrado.")
             return
-        
         if messagebox.askyesno(
             "📝 Gerar todas descrições",
             f"Isso vai gerar descrições para {len(targets)} projeto(s).\n\nConfirma?"
