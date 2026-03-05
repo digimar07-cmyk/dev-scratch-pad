@@ -9,6 +9,7 @@ FLUXO (todos os modos):
   4. DuplicateResolutionDialog → usuário resolve (se houver)
   5. ImportPreviewDialog → usuário confirma
   6. Import Loop       → importa em thread separada
+  7. AUTO-ANALYSIS     → NOVO: Notificação pós-importação com análise automática
 
 Modos:
   'hybrid'  — recursivo, folder.jpg + fallback
@@ -23,9 +24,18 @@ HOT-10: FIX duplicatas entre métodos
 HOT-10b: FIX dialog duplicatas
   - Adiciona normalized_name e name no formato esperado pelo dialog
 
+FEATURE: Análise automática pós-importação
+  - Após importação bem-sucedida, pergunta se quer analisar
+  - Se sim, executa análise completa (categorias + tags + descrições)
+  - Apenas para produtos recém-importados
+
 USO:
     from ui.recursive_import_integration import RecursiveImportManager
-    manager = RecursiveImportManager(parent, database, on_complete=callback)
+    manager = RecursiveImportManager(
+        parent, database, 
+        analysis_manager=analysis_manager,  # ← NOVO: Necessário para auto-análise
+        on_complete=callback
+    )
     manager.start_import()
 """
 
@@ -48,6 +58,7 @@ class RecursiveImportManager:
     Todos os modos passam pelo mesmo pipeline de dedup + preview.
     
     HOT-10: Detecta duplicatas comparando com database existente!
+    FEATURE: Notificação pós-importação com análise automática
     """
 
     def __init__(
@@ -56,17 +67,20 @@ class RecursiveImportManager:
         database,
         project_scanner=None,
         text_generator=None,
+        analysis_manager=None,  # ← NOVO: Para análise automática
         on_complete: Optional[Callable] = None,
     ):
         self.parent          = parent
         self.database        = database
         self.project_scanner = project_scanner
         self.text_generator  = text_generator
+        self.analysis_manager = analysis_manager  # ← NOVO
         self.on_complete     = on_complete
         self.logger          = LOGGER
         self.scanner         = RecursiveScanner()
         self.duplicate_detector = DuplicateDetector()
         self.import_thread   = None
+        self.imported_paths  = []  # ← NOVO: Armazena paths recém-importados
 
     # ================================================================
     # MÉTODO PRINCIPAL
@@ -75,6 +89,7 @@ class RecursiveImportManager:
     def start_import(self):
         """Inicia o fluxo unificado de importação."""
         self.logger.info("=== INICIANDO IMPORTAÇÃO ===")
+        self.imported_paths = []  # Reset
 
         # 1 ─ Modo + pasta
         result = show_import_mode_dialog(self.parent)
@@ -133,8 +148,8 @@ class RecursiveImportManager:
                     if existing_in_group:
                         for new_path in new_in_group:
                             duplicates.append({
-                                "normalized_name": norm_name,  # ← HOT-10b: Adicionado
-                                "name": os.path.basename(new_path),  # ← HOT-10b: Adicionado
+                                "normalized_name": norm_name,
+                                "name": os.path.basename(new_path),
                                 "existing": {
                                     "path": existing_in_group[0],
                                     "name": os.path.basename(existing_in_group[0]),
@@ -149,8 +164,8 @@ class RecursiveImportManager:
                         first_new = new_in_group[0]
                         for other_new in new_in_group[1:]:
                             duplicates.append({
-                                "normalized_name": norm_name,  # ← HOT-10b: Adicionado
-                                "name": os.path.basename(first_new),  # ← HOT-10b: Adicionado
+                                "normalized_name": norm_name,
+                                "name": os.path.basename(first_new),
                                 "existing": {
                                     "path": first_new,
                                     "name": os.path.basename(first_new),
@@ -337,6 +352,7 @@ class RecursiveImportManager:
                     "added_date":   datetime.now().isoformat(),
                 }
                 success += 1
+                self.imported_paths.append(path)  # ← NOVO: Rastreia importados
                 self.logger.debug("[%d/%d] Importado: %s", i, total, product["name"])
 
             except Exception as e:
@@ -346,14 +362,48 @@ class RecursiveImportManager:
 
         self.logger.info("Import concluído: %d ok | %d falha", success, failed)
 
-        if self.on_complete:
-            self.parent.after(0, self.on_complete)
+        # ══════════════════════════════════════════════════════════════════
+        # NOVO: ANÁLISE AUTOMÁTICA PÓS-IMPORTAÇÃO
+        # ══════════════════════════════════════════════════════════════════
+        if success > 0 and self.analysis_manager:
+            self.parent.after(0, lambda: self._ask_auto_analysis(success))
+        else:
+            # Callback normal sem análise
+            if self.on_complete:
+                self.parent.after(0, self.on_complete)
+            
+            self.parent.after(0, lambda: messagebox.showinfo(
+                "✅ Importação Concluída",
+                f"Importados: {success} produto(s)\nPulados/erros: {failed}",
+                parent=self.parent,
+            ))
 
-        self.parent.after(0, lambda: messagebox.showinfo(
-            "✅ Importação Concluída",
-            f"Importados: {success} produto(s)\nPulados/erros: {failed}",
+    def _ask_auto_analysis(self, success_count: int):
+        """
+        Pergunta se quer analisar automaticamente os produtos recém-importados.
+        Se sim, executa análise completa (categorias + tags + descrições).
+        """
+        response = messagebox.askyesno(
+            "🤖 Análise Automática",
+            f"✅ {success_count} produto(s) importado(s) com sucesso!\n\n"
+            f"🤔 Deseja analisar AGORA?\n\n"
+            f"• Categorias (IA)\n"
+            f"• Tags (IA)\n"
+            f"• Descrições (IA)\n\n"
+            f"Isso pode levar alguns minutos dependendo da quantidade.",
             parent=self.parent,
-        ))
+        )
+        
+        if response:
+            self.logger.info("🤖 Iniciando análise automática de %d produtos", len(self.imported_paths))
+            # Executa análise completa apenas dos recém-importados
+            self.analysis_manager.analyze_batch(self.imported_paths, self.database)
+        else:
+            self.logger.info("⏭️ Usuário optou por NÃO analisar agora")
+        
+        # Callback de conclusão (independente da análise)
+        if self.on_complete:
+            self.on_complete()
 
     def _detect_origin(self, product_path: str, detection_method: str) -> str:
         """
