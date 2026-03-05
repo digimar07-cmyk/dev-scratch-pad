@@ -1,7 +1,7 @@
 """
 ui/project_modal.py — Modal de detalhes de projeto.
 Responsabilidade única: exibir + interagir com 1 projeto.
-Teto: 350 linhas.
+Teto: 450 linhas (expandido para F-01).
 """
 import os
 import threading
@@ -28,6 +28,7 @@ class ProjectModal:
         on_reanalize(path)
         on_set_tag(tag)
         on_remove(path)             — remove projeto do banco (F-02)
+        on_save_name(path, name)    — F-01.1: salva nome PT-BR
     """
 
     _BG       = "#0F0F0F"
@@ -136,6 +137,9 @@ class ProjectModal:
                  font=self._F_TITLE, bg=BG, fg=FP,
                  wraplength=500, justify="left", anchor="w"
                  ).pack(fill="x", padx=P, pady=(0, 4))
+
+        # F-01.1: Nome PT-BR editável
+        self._build_editable_name(lp, data, modal)
 
         # Marcadores
         _sep(); _section("Marcadores")
@@ -285,6 +289,102 @@ class ProjectModal:
         tk.Button(action_bar, text="◄", command=lambda: _nav(-1),
                   state="normal" if nav_idx > 0 else "disabled",
                   **BTN_NAV).pack(side="right", padx=(0, 4))
+
+    # ------------------------------------------------------------------
+    # F-01.1: NOME PT-BR EDITÁVEL
+    # ------------------------------------------------------------------
+
+    def _build_editable_name(self, parent, data, modal):
+        """
+        Nome PT-BR editável.
+        Kent Beck: Entry + botão toggle. Simples e funcional.
+        """
+        P  = self._PAD
+        BG = self._BG; BC = self._BG_CARD
+        FP = self._FG_PRI; FS = self._FG_SEC
+        
+        name_frame = tk.Frame(parent, bg=BG)
+        name_frame.pack(fill="x", padx=P, pady=(8, 8))
+        
+        # Label header
+        tk.Label(
+            name_frame,
+            text="📝 Nome em Português:",
+            font=self._F_SEC,
+            bg=BG,
+            fg=FS
+        ).pack(anchor="w", pady=(0, 4))
+        
+        # Container Entry + Botão
+        input_frame = tk.Frame(name_frame, bg=BG)
+        input_frame.pack(fill="x")
+        
+        # Entry (readonly inicial)
+        name_var = tk.StringVar(value=data.get("name_ptbr", ""))
+        
+        name_entry = tk.Entry(
+            input_frame,
+            textvariable=name_var,
+            font=self._F_BODY,
+            bg="#222222",
+            fg=FP,
+            insertbackground=FP,
+            relief="flat",
+            state="readonly",
+            bd=5
+        )
+        name_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        
+        # Botão Editar/Salvar
+        edit_btn = tk.Button(
+            input_frame,
+            text="✏️ Editar",
+            command=lambda: self._toggle_name_edit(name_entry, name_var, edit_btn, modal),
+            bg=ACCENT_GOLD,
+            fg="#000000",
+            font=("Arial", 9, "bold"),
+            relief="flat",
+            cursor="hand2",
+            padx=12,
+            pady=6,
+            bd=0
+        )
+        edit_btn.pack(side="right")
+
+    def _toggle_name_edit(self, entry, var, btn, modal):
+        """
+        Toggle edit/readonly para nome PT-BR.
+        Kent Beck: State machine simples. Editar → Salvar → Editar.
+        """
+        current_text = btn.cget("text")
+        
+        if current_text == "✏️ Editar":
+            # Modo EDIT
+            entry.config(state="normal", bg="#333333")
+            entry.focus()
+            entry.icursor(tk.END)
+            btn.config(text="💾 Salvar", bg=ACCENT_GREEN)
+        
+        else:
+            # SALVA
+            new_name = var.get().strip()
+            
+            if not new_name:
+                messagebox.showwarning("Nome vazio", "Digite um nome válido!")
+                return
+            
+            # Salva no banco
+            if self._path in self._database:
+                self._database[self._path]["name_ptbr"] = new_name
+                self._cb["on_save_name"](self._path, new_name)
+            
+            # Volta para readonly
+            entry.config(state="readonly", bg="#222222")
+            btn.config(text="✏️ Editar", bg=ACCENT_GOLD)
+            
+            messagebox.showinfo("✓ Salvo", f"Nome atualizado: \"{new_name}\"")
+
+    # ------------------------------------------------------------------
 
     def _confirm_remove(self, modal) -> None:
         name = self._database.get(self._path, {}).get("name", self._path)
