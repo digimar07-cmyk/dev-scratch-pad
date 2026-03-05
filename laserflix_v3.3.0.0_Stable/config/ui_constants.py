@@ -3,9 +3,6 @@ Constantes de UI e configurações visuais do Laserflix.
 Centraliza valores hardcoded para facilitar manutenção.
 """
 
-# Importa strings proibidas de config.constants (lista unificada)
-from config.constants import BANNED_STRINGS as CARD_BANNED_STRINGS
-
 # =========================================================================
 # TRUNCAMENTO DE TEXTO NOS CARDS
 # =========================================================================
@@ -129,6 +126,23 @@ MODAL_SECTION_SPACING = 20      # Espaço entre seções
 # =========================================================================
 
 SCROLL_SPEED = 120              # Delta do mousewheel (Windows padrão)
+
+# =========================================================================
+# STRINGS PROIBIDAS (NÃO EXIBIR NOS CARDS)
+# =========================================================================
+# NOTA: Duplicado de config.constants.BANNED_STRINGS para evitar import circular
+# TODO: Resolver import circular e usar fonte única
+
+CARD_BANNED_STRINGS = {
+    "diversos",
+    "data especial",
+    "ambiente doméstico",
+    "ambiente domestico",
+    "sem categoria",
+    "general",
+    "miscellaneous",
+    "uncategorized",
+}
 
 # =========================================================================
 # CONFIGURAÇÕES DE SALVAMENTO
