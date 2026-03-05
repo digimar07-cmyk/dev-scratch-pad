@@ -1,11 +1,11 @@
 """
 ui/header.py — Barra superior REFATORADA (Opção 1: Header Limpo).
-Teto: 180 linhas.
+Teto: 200 linhas.
 
 UI/UX 2026 Best Practices:
 - Hierarquia visual clara: Logo → Nav → Busca → Ação Primária → Menu
 - Busca centralizada (mais acessível)
-- Menu organizado por categorias lógicas
+- Menu COLORIDO organizado por categorias lógicas
 - Ação primária destacada (Importar)
 - Redução de elementos visuais (8 vs 9)
 """
@@ -114,12 +114,13 @@ class HeaderBar:
             relief="flat", cursor="hand2", padx=18, pady=10,
         ).pack(side="left", padx=(0, 10))
         
-        # MENU ORGANIZADO (ações secundárias agrupadas)
-        self._build_organized_menu(right_frame)
+        # MENU COLORIDO (ações secundárias agrupadas)
+        self._build_colorful_menu(right_frame)
 
-    def _build_organized_menu(self, parent) -> None:
+    def _build_colorful_menu(self, parent) -> None:
         """
-        Menu organizado por categorias lógicas (UI/UX best practice).
+        Menu COLORIDO organizado por categorias (UI/UX 2026).
+        Cada categoria tem cor própria para fácil identificação visual.
         """
         menu_btn = tk.Menubutton(
             parent, text="⚙️ Ferramentas",
@@ -128,99 +129,117 @@ class HeaderBar:
         )
         menu_btn.pack(side="left")
         
-        m = tk.Menu(menu_btn, tearoff=0, bg=BG_CARD, fg=FG_PRIMARY, font=("Arial", 10))
+        # Menu base (fundo escuro)
+        m = tk.Menu(
+            menu_btn, tearoff=0,
+            bg="#1A1A1A", fg=FG_PRIMARY,
+            font=("Arial", 10),
+            activebackground=ACCENT_RED,
+            activeforeground="#FFFFFF",
+            relief="flat", borderwidth=1,
+        )
         menu_btn["menu"] = m
         
         # ════════════════════════════════════
-        # CATEGORIA 1: ANÁLISE IA
+        # CATEGORIA 1: ANÁLISE IA (VERDE)
         # ════════════════════════════════════
         m.add_command(
             label="🤖 ANÁLISE IA",
             state="disabled",
-            background="#1A1A1A",
-            foreground="#888888",
+            background="#0D4D0D",  # Verde escuro
+            foreground="#88FF88",  # Verde claro
         )
         m.add_command(
             label="   🆕 Analisar apenas novos",
             command=self._cb["on_analyze_new"],
+            foreground="#66DD66",  # Verde
         )
         m.add_command(
             label="   🔄 Reanalisar todos",
             command=self._cb["on_analyze_all"],
+            foreground="#66DD66",
         )
         
         # ════════════════════════════════════
-        # CATEGORIA 2: DESCRIÇÕES
+        # CATEGORIA 2: DESCRIÇÕES (AZUL)
         # ════════════════════════════════════
         m.add_separator()
         m.add_command(
             label="📝 DESCRIÇÕES",
             state="disabled",
-            background="#1A1A1A",
-            foreground="#888888",
+            background="#0D1D4D",  # Azul escuro
+            foreground="#88BBFF",  # Azul claro
         )
         m.add_command(
             label="   📝 Gerar para novos",
             command=self._cb["on_desc_new"],
+            foreground="#66AAFF",  # Azul
         )
         m.add_command(
             label="   📝 Gerar para todos",
             command=self._cb["on_desc_all"],
+            foreground="#66AAFF",
         )
         
         # ════════════════════════════════════
-        # CATEGORIA 3: SELEÇÃO
+        # CATEGORIA 3: SELEÇÃO (AMARELO)
         # ════════════════════════════════════
         m.add_separator()
         m.add_command(
             label="☑️ SELEÇÃO",
             state="disabled",
-            background="#1A1A1A",
-            foreground="#888888",
+            background="#4D4D0D",  # Amarelo escuro
+            foreground="#FFFF88",  # Amarelo claro
         )
         m.add_command(
             label="   ☑️ Modo seleção em massa",
             command=self._cb["on_toggle_select"],
+            foreground="#FFEE66",  # Amarelo
         )
         
         # ════════════════════════════════════
-        # CATEGORIA 4: BANCO DE DADOS
+        # CATEGORIA 4: BANCO DE DADOS (ROXO)
         # ════════════════════════════════════
         m.add_separator()
         m.add_command(
             label="📦 BANCO DE DADOS",
             state="disabled",
-            background="#1A1A1A",
-            foreground="#888888",
+            background="#2D0D4D",  # Roxo escuro
+            foreground="#CC88FF",  # Roxo claro
         )
         m.add_command(
             label="   📥 Importar banco",
             command=self._cb["on_import_db"],
+            foreground="#BB77FF",  # Roxo
         )
         m.add_command(
             label="   💾 Exportar banco",
             command=self._cb["on_export_db"],
+            foreground="#BB77FF",
         )
         m.add_command(
             label="   🔄 Backup manual",
             command=self._cb["on_backup"],
+            foreground="#BB77FF",
         )
         
         # ════════════════════════════════════
-        # CATEGORIA 5: CONFIGURAÇÕES
+        # CATEGORIA 5: CONFIGURAÇÕES (LARANJA)
         # ════════════════════════════════════
         m.add_separator()
         m.add_command(
             label="🛠️ CONFIGURAÇÕES",
             state="disabled",
-            background="#1A1A1A",
-            foreground="#888888",
+            background="#4D2D0D",  # Laranja escuro
+            foreground="#FFAA66",  # Laranja claro
         )
         m.add_command(
             label="   📦 Preparar pastas",
             command=self._cb["on_prepare_folders"],
+            foreground="#FF9944",  # Laranja
         )
         m.add_command(
             label="   🤖 Configurar modelos IA",
             command=self._cb["on_model_settings"],
+            foreground="#FF9944",
         )
