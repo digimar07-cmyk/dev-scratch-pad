@@ -1,6 +1,11 @@
 """
 ui/main_window.py — Orquestrador puro do Laserflix.
 Teto: 300 linhas. Nunca constrói widgets diretamente.
+
+HOT-06b: Lazy loading para performance:
+  - Renderiza apenas 100 cards iniciais
+  - Botão "Carregar mais" para +100
+  - Evita travar com 2500+ projetos
 """
 import os
 import threading
@@ -48,6 +53,7 @@ class LaserflixMainWindow:
         self.db_manager.load_config()
         self.db_manager.load_database()
         self.cache   = ThumbnailCache()
+        self.cache.set_root(root)  # ← HOT-06a: Define root para callbacks thread-safe
         self.scanner = ProjectScanner(self.db_manager.database)
 
         self.ollama             = OllamaClient(self.db_manager.config.get("models"))
@@ -69,6 +75,10 @@ class LaserflixMainWindow:
         # Estado de seleção em massa
         self._selection_mode    = False
         self._selected_paths    = set()
+        
+        # ← HOT-06b: Estado de lazy loading
+        self.lazy_load_limit    = 100  # Cards por vez
+        self.lazy_load_offset   = 0    # Quantos já renderizados
 
         self.import_manager = RecursiveImportManager(
             parent=self.root, database=self.database,
@@ -288,10 +298,19 @@ class LaserflixMainWindow:
             self.status_bar.config(text=f"🗑️ '{name}' removido do banco.")
 
     # =========================================================================
-    # DISPLAY DE PROJETOS
+    # DISPLAY DE PROJETOS (COM LAZY LOADING)
     # =========================================================================
 
-    def display_projects(self) -> None:
+    def display_projects(self, reset_offset=True) -> None:
+        """
+        Renderiza cards com lazy loading (100 por vez).
+        
+        Args:
+            reset_offset: Se True, reseta offset para 0 (nova filtragem)
+        """
+        if reset_offset:
+            self.lazy_load_offset = 0
+        
         # Limpa apenas os widgets de card (mantém header)
         for w in self.scrollable_frame.winfo_children():
             w.destroy()
@@ -310,13 +329,24 @@ class LaserflixMainWindow:
                  font=("Arial", 20, "bold"), bg=BG_PRIMARY, fg=FG_PRIMARY, anchor="w"
                  ).grid(row=0, column=0, columnspan=COLS, sticky="w", padx=10, pady=(0, 5))
         
-        filtered = [(p, self.database[p])
-                    for p in self.get_filtered_projects() if p in self.database]
-        tk.Label(self.scrollable_frame, text=f"{len(filtered)} projeto(s)",
+        all_filtered = [(p, self.database[p])
+                        for p in self.get_filtered_projects() if p in self.database]
+        total_count = len(all_filtered)
+        
+        # ← HOT-06b: Lazy loading - apenas slice atual
+        visible_end = self.lazy_load_offset + self.lazy_load_limit
+        filtered = all_filtered[self.lazy_load_offset:visible_end]
+        
+        # Contador com lazy loading
+        count_text = f"{total_count} projeto(s)"
+        if visible_end < total_count:
+            count_text += f" (mostrando {self.lazy_load_offset + len(filtered)} de {total_count})"
+        
+        tk.Label(self.scrollable_frame, text=count_text,
                  font=("Arial", 12), bg=BG_PRIMARY, fg="#999999"
                  ).grid(row=1, column=0, columnspan=COLS, sticky="w", padx=10, pady=(0, 15))
         
-        if not filtered:
+        if not all_filtered:
             tk.Label(self.scrollable_frame,
                      text="Nenhum projeto.\nClique em 'Importar Pastas' para adicionar.",
                      font=("Arial", 14), bg=BG_PRIMARY, fg=FG_TERTIARY, justify="center"
@@ -343,14 +373,35 @@ class LaserflixMainWindow:
             "on_toggle_select":      self.toggle_card_selection,
         }
         
-        # ← RENDERIZA TODOS OS CARDS (sem virtual scroll)
+        # ← RENDERIZA APENAS SLICE ATUAL (lazy loading)
         for i, (project_path, project_data) in enumerate(filtered):
             row = (i // COLS) + 2  # +2 para pular header (rows 0-1)
             col = i % COLS
             build_card(self.scrollable_frame, project_path, project_data, 
                       card_cb, row, col)
         
+        # ← HOT-06b: Botão "Carregar mais" se houver mais cards
+        if visible_end < total_count:
+            load_more_btn = tk.Button(
+                self.scrollable_frame,
+                text=f"⬇️ Carregar mais {min(self.lazy_load_limit, total_count - visible_end)} projetos",
+                command=self._load_more_cards,
+                bg=ACCENT_GREEN, fg="#000000",
+                font=("Arial", 12, "bold"),
+                relief="flat", cursor="hand2",
+                padx=30, pady=15
+            )
+            next_row = ((len(filtered) + COLS - 1) // COLS) + 2
+            load_more_btn.grid(row=next_row, column=0, columnspan=COLS, pady=30)
+        
         self.content_canvas.yview_moveto(0)  # Volta pro topo
+
+    def _load_more_cards(self) -> None:
+        """
+        Carrega próximos 100 cards (lazy loading).
+        """
+        self.lazy_load_offset += self.lazy_load_limit
+        self.display_projects(reset_offset=False)
 
     # =========================================================================
     # FILTROS
@@ -434,7 +485,7 @@ class LaserflixMainWindow:
         if path in self.database:
             self.database[path][key] = value
             self.db_manager.save_database()
-            self.display_projects()
+            self.display_projects(reset_offset=False)  # ← Mantém offset
 
     def _modal_generate_desc(self, path, desc_lbl, gen_btn, modal) -> None:
         gen_btn.config(state="disabled", text="⏳ Gerando...")
@@ -516,7 +567,8 @@ class LaserflixMainWindow:
         self.analysis_manager.on_error    = self._on_analysis_error
 
     def _on_analysis_complete(self, done, skipped) -> None:
-        self.hide_progress_ui(); self.sidebar.refresh(self.database); self.display_projects()
+        self.hide_progress_ui(); self.sidebar.refresh(self.database)
+        self.display_projects(reset_offset=False)  # ← Mantém offset
         msg = f"✅ Análise concluída: {done} projeto(s)"
         if skipped: msg += f" ({skipped} pulados)"
         self.status_bar.config(text=msg)
@@ -578,7 +630,8 @@ class LaserflixMainWindow:
                     if done % 5 == 0: self.db_manager.save_database()
                 except Exception as e:
                     self.logger.error("Erro desc %s: %s", path, e); skipped += 1
-            self.db_manager.save_database(); self.hide_progress_ui(); self.display_projects()
+            self.db_manager.save_database(); self.hide_progress_ui()
+            self.display_projects(reset_offset=False)  # ← Mantém offset
             msg = f"✅ {done} descrição(oes) gerada(s)"
             if skipped: msg += f" ({skipped} puladas)"
             self.status_bar.config(text=msg)
