@@ -7,6 +7,8 @@ HOT-08: Paginação simples (Kent Beck style):
   - Navegação: Início/Anterior/Próxima/Final
   - Atalhos: Home/End/Arrows
   - SIMPLES, PREVISÍVEL, FUNCIONAL
+
+HOT-12: Scrollbar vertical (cards com categorias ficaram mais altos)
 """
 import os
 import threading
@@ -138,15 +140,30 @@ class LaserflixMainWindow:
         content_frame = tk.Frame(main_container, bg=BG_PRIMARY)
         content_frame.pack(side="left", fill="both", expand=True)
         
-        # ← HOT-08: Canvas SEM scroll (paginação não precisa)
+        # ═════════════════════════════════════════════════════════════════
+        # HOT-12: Canvas COM SCROLLBAR VERTICAL
+        # ═════════════════════════════════════════════════════════════════
         self.content_canvas = tk.Canvas(content_frame, bg=BG_PRIMARY, highlightthickness=0)
+        
+        # Scrollbar vertical
+        scrollbar = ttk.Scrollbar(content_frame, orient="vertical", command=self.content_canvas.yview)
+        self.content_canvas.configure(yscrollcommand=scrollbar.set)
+        
         self.scrollable_frame = tk.Frame(self.content_canvas, bg=BG_PRIMARY)
         self.scrollable_frame.bind(
             "<Configure>",
             lambda e: self.content_canvas.configure(
                 scrollregion=self.content_canvas.bbox("all")))
         self.content_canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        
+        # Pack canvas e scrollbar
         self.content_canvas.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Mouse wheel binding
+        self.content_canvas.bind("<MouseWheel>",
+            lambda e: self.content_canvas.yview_scroll(int(-1*(e.delta/SCROLL_SPEED)), "units"))
+        # ═════════════════════════════════════════════════════════════════
         
         for i in range(COLS):
             self.scrollable_frame.columnconfigure(i, weight=1, uniform="card")
