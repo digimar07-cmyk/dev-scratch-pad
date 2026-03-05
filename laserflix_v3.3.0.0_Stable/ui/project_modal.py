@@ -1,12 +1,12 @@
 """
 ui/project_modal.py — Modal de detalhes de projeto.
 Responsabilidade única: exibir + interagir com 1 projeto.
-Teto: 330 linhas (inclui todas as closures internas).
+Teto: 350 linhas.
 """
 import os
 import threading
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 
 from config.ui_constants import (
     ACCENT_RED, ACCENT_GREEN, ACCENT_GOLD,
@@ -19,18 +19,17 @@ from utils.platform_utils import open_file, open_folder
 
 class ProjectModal:
     """
-    Abre a janela de detalhes de um projeto.
-
     Callbacks em `cb`:
+        get_all_paths()             — retorna lista de paths válidos
         on_navigate(path)           — navegação ◄ ►
         on_toggle(path, key, value) — altera flag no banco
-        on_generate_desc(path, lbl, btn) — gera descrição IA
-        on_open_edit(path)          — abre EditModal
-        on_set_tag(tag)             — filtrar por tag
-        get_all_paths()             — retorna lista de paths válidos
+        on_generate_desc(path, lbl, btn, modal)
+        on_open_edit(path)
+        on_reanalize(path)
+        on_set_tag(tag)
+        on_remove(path)             — remove projeto do banco (F-02)
     """
 
-    # Paleta interna do modal (escura, independente)
     _BG       = "#0F0F0F"
     _BG_CARD  = "#1A1A1A"
     _BG_HOVER = "#242424"
@@ -44,26 +43,18 @@ class ProjectModal:
     _F_BODY   = ("Arial", 11)
     _F_SMALL  = ("Arial", 9)
 
-    def __init__(
-        self,
-        root: tk.Tk,
-        project_path: str,
-        database: dict,
-        cb: dict,
-        cache,
-        scanner,
-    ):
-        self._root = root
-        self._path = project_path
+    def __init__(self, root, project_path, database, cb, cache, scanner):
+        self._root     = root
+        self._path     = project_path
         self._database = database
-        self._cb = cb
-        self._cache = cache
-        self._scanner = scanner
-        self._modal = None
+        self._cb       = cb
+        self._cache    = cache
+        self._scanner  = scanner
+        self._modal    = None
 
     def open(self) -> None:
-        data        = self._database.get(self._path, {})
-        all_paths   = self._cb["get_all_paths"]()
+        data      = self._database.get(self._path, {})
+        all_paths = self._cb["get_all_paths"]()
         try:    nav_idx = all_paths.index(self._path)
         except: nav_idx = 0
         nav_tot = len(all_paths)
@@ -92,7 +83,6 @@ class ProjectModal:
         main.columnconfigure(2, weight=1)
         main.rowconfigure(0, weight=1)
 
-        # Painel esquerdo (scrollável)
         left_outer = tk.Frame(main, bg=self._BG)
         left_outer.grid(row=0, column=0, sticky="nsew")
         lc  = tk.Canvas(left_outer, bg=self._BG, highlightthickness=0)
@@ -119,33 +109,26 @@ class ProjectModal:
 
         self._build_left_panel(lp, data, nav_idx, nav_tot, all_paths,
                                _nav, _desc_lbl_ref, modal)
-
-        # Separador
         tk.Frame(main, bg=self._SEP, width=1).grid(row=0, column=1, sticky="ns")
-
-        # Painel direito: capa
         self._build_right_panel(main, modal)
 
     # ------------------------------------------------------------------
-    # Painel esquerdo — métodos auxiliares
-    # ------------------------------------------------------------------
 
-    def _build_left_panel(self, lp, data, nav_idx, nav_tot, all_paths, _nav,
-                          _desc_lbl_ref, modal):
-        P = self._PAD
-        BG = self._BG; BC = self._BG_CARD; BH = self._BG_HOVER; SEP = self._SEP
+    def _build_left_panel(self, lp, data, nav_idx, nav_tot, all_paths,
+                          _nav, _desc_lbl_ref, modal):
+        P  = self._PAD
+        BG = self._BG; BC = self._BG_CARD; SEP = self._SEP
         FP = self._FG_PRI; FS = self._FG_SEC; FT = self._FG_TER
 
         def _section(text):
             tk.Label(lp, text=text.upper(), font=self._F_SEC,
                      bg=BG, fg=FT, anchor="w").pack(fill="x", padx=P, pady=(20, 6))
-
         def _sep():
             tk.Frame(lp, bg=SEP, height=1).pack(fill="x", padx=P, pady=(4, 0))
 
         # Cabeçalho
         tk.Frame(lp, bg=BG, height=8).pack()
-        origin = data.get("origin", "Desconhecido")
+        origin  = data.get("origin", "Desconhecido")
         o_color = ORIGIN_COLORS.get(origin, ORIGIN_COLORS["default"])
         tk.Label(lp, text=f"  {origin}  ", font=self._F_SMALL,
                  bg=o_color, fg=FG_PRIMARY).pack(anchor="w", padx=P, pady=(8, 4))
@@ -181,7 +164,6 @@ class ProjectModal:
         )
         desc_lbl.pack(fill="both", expand=True)
         _desc_lbl_ref[0] = desc_lbl
-
         gen_btn = tk.Button(lp, text="🤖  Gerar com IA",
                             bg=ACCENT_GREEN, fg=FG_PRIMARY, font=("Arial", 10, "bold"),
                             relief="flat", cursor="hand2", padx=16, pady=9, bd=0)
@@ -255,7 +237,6 @@ class ProjectModal:
                            bg=BC, fg=FS, font=self._F_SMALL,
                            relief="flat", cursor="hand2", padx=8, pady=3, bd=0)
         cp_btn.pack(side="left", padx=10)
-
         added   = (data.get("added_date") or "")[:10] or "—"
         model_u = data.get("analyzed_model", "não analisado")
         tk.Label(lp, text=f"Adicionado: {added}   ·   Modelo IA: {model_u}",
@@ -270,8 +251,11 @@ class ProjectModal:
                        relief="flat", cursor="hand2", padx=16, pady=9, bd=0)
         BTN_G   = dict(bg=BC,           fg=FP,         font=("Arial", 10),
                        relief="flat", cursor="hand2", padx=16, pady=9, bd=0)
+        BTN_DEL = dict(bg="#3A0000",    fg="#FF6B6B",  font=("Arial", 10),
+                       relief="flat", cursor="hand2", padx=16, pady=9, bd=0)
         BTN_NAV = dict(bg=BC,           fg=FS,         font=("Arial", 11),
                        relief="flat", cursor="hand2", padx=14, pady=9, bd=0)
+
         tk.Button(action_bar, text="✏️  Editar",
                   command=lambda: (modal.destroy(),
                                    self._cb["on_open_edit"](self._path)),
@@ -283,6 +267,12 @@ class ProjectModal:
                   command=lambda: (modal.destroy(),
                                    self._cb["on_reanalize"](self._path)),
                   **BTN_G).pack(side="left", padx=(0, 6))
+
+        # F-02: botão Remover individual
+        tk.Button(action_bar, text="🗑️  Remover",
+                  command=lambda: self._confirm_remove(modal),
+                  **BTN_DEL).pack(side="left", padx=(0, 6))
+
         tk.Button(action_bar, text="✕", command=modal.destroy,
                   bg=BG, fg=FT, font=("Arial", 14),
                   relief="flat", cursor="hand2", padx=10, pady=9, bd=0
@@ -295,6 +285,23 @@ class ProjectModal:
         tk.Button(action_bar, text="◄", command=lambda: _nav(-1),
                   state="normal" if nav_idx > 0 else "disabled",
                   **BTN_NAV).pack(side="right", padx=(0, 4))
+
+    def _confirm_remove(self, modal) -> None:
+        name = self._database.get(self._path, {}).get("name", self._path)
+        if not messagebox.askyesno(
+            "🗑️ Remover projeto",
+            f"Remover '{name}' do banco?\n\nOs arquivos no disco NÃO serão apagados.",
+            icon="warning",
+        ):
+            return
+        if not messagebox.askyesno(
+            "⚠️ Confirmar remoção",
+            "Segunda confirmação necessária.\n\nTem certeza absoluta?",
+            icon="warning",
+        ):
+            return
+        modal.destroy()
+        self._cb["on_remove"](self._path)
 
     def _make_toggle(self, parent, emoji, label, key, active_fg, data, modal):
         BG = self._BG; BC = self._BG_CARD; BH = self._BG_HOVER

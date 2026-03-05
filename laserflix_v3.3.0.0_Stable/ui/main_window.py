@@ -1,12 +1,6 @@
 """
 ui/main_window.py — Orquestrador puro do Laserflix.
-
-Regra de ouro: este arquivo NUNCA deve passar de 250 linhas.
-Se uma função crescer demais → vira módulo novo.
-
-Responsabilidade: instanciar componentes, roteamento de callbacks,
-loop de display, filtros, toggles, IA batch e utilitários simples.
-Nenhuma construção de widget acontece aqui.
+Teto: 300 linhas. Nunca constrói widgets diretamente.
 """
 import os
 import threading
@@ -50,14 +44,12 @@ class LaserflixMainWindow:
         self.root   = root
         self.logger = LOGGER
 
-        # Core
         self.db_manager = DatabaseManager()
         self.db_manager.load_config()
         self.db_manager.load_database()
         self.cache   = ThumbnailCache()
         self.scanner = ProjectScanner(self.db_manager.database)
 
-        # IA
         self.ollama             = OllamaClient(self.db_manager.config.get("models"))
         self.image_analyzer     = ImageAnalyzer(self.ollama)
         self.fallback_generator = FallbackGenerator(self.scanner)
@@ -67,7 +59,6 @@ class LaserflixMainWindow:
             self.text_generator, self.db_manager, self.ollama)
         self._setup_analysis_callbacks()
 
-        # Estado de filtros
         self.database           = self.db_manager.database
         self.current_filter     = "all"
         self.current_categories = []
@@ -75,14 +66,16 @@ class LaserflixMainWindow:
         self.current_origin     = "all"
         self.search_query       = ""
 
-        # Importação
+        # Estado de seleção em massa
+        self._selection_mode    = False
+        self._selected_paths    = set()
+
         self.import_manager = RecursiveImportManager(
             parent=self.root, database=self.database,
             project_scanner=self.scanner, text_generator=self.text_generator,
             on_complete=self._on_import_complete,
         )
 
-        # Janela
         self.root.title(f"LASERFLIX {VERSION}")
         self.root.state("zoomed")
         self.root.configure(bg=BG_PRIMARY)
@@ -91,11 +84,10 @@ class LaserflixMainWindow:
         self.logger.info("✨ Laserflix v%s iniciado", VERSION)
 
     # =========================================================================
-    # UI — montagem dos componentes (sem widgets diretos aqui)
+    # UI
     # =========================================================================
 
     def _build_ui(self) -> None:
-        # Header
         self.header = HeaderBar(self.root, {
             "on_filter":          self.set_filter,
             "on_search":          self._on_search,
@@ -109,23 +101,21 @@ class LaserflixMainWindow:
             "on_export_db":       self.export_database,
             "on_backup":          self.manual_backup,
             "on_model_settings":  self.open_model_settings,
+            "on_toggle_select":   self.toggle_selection_mode,   # botão ☑️
         })
-        self.search_var = self.header.search_var  # alias direto
+        self.search_var = self.header.search_var
 
-        # Container central
         main_container = tk.Frame(self.root, bg=BG_PRIMARY)
         main_container.pack(fill="both", expand=True)
 
-        # Sidebar
         self.sidebar = SidebarPanel(main_container, {
-            "on_origin":           self._on_origin_filter,
-            "on_category":         self._on_category_filter,
-            "on_tag":              self._on_tag_filter,
-            "on_more_categories":  self.open_categories_picker,
+            "on_origin":          self._on_origin_filter,
+            "on_category":        self._on_category_filter,
+            "on_tag":             self._on_tag_filter,
+            "on_more_categories": self.open_categories_picker,
         })
         self.sidebar.refresh(self.database)
 
-        # Área de conteúdo (canvas scrollável)
         content_frame = tk.Frame(main_container, bg=BG_PRIMARY)
         content_frame.pack(side="left", fill="both", expand=True)
         self.content_canvas = tk.Canvas(content_frame, bg=BG_PRIMARY, highlightthickness=0)
@@ -169,6 +159,103 @@ class LaserflixMainWindow:
                                    bg=ACCENT_RED, fg=FG_PRIMARY,
                                    font=("Arial", 10, "bold"), relief="flat", cursor="hand2")
 
+        # Barra de seleção em massa (oculta por padrão)
+        self._sel_bar = tk.Frame(self.root, bg="#1A1A00", height=48)
+        self._sel_bar.pack_propagate(False)
+        self._sel_count_lbl = tk.Label(
+            self._sel_bar, text="0 selecionado(s)",
+            bg="#1A1A00", fg="#FFFF88", font=("Arial", 11, "bold"))
+        self._sel_count_lbl.pack(side="left", padx=16)
+        tk.Button(self._sel_bar, text="☑️ Tudo",
+                  command=self._select_all,
+                  bg="#333300", fg="#FFFF88", font=("Arial", 10),
+                  relief="flat", cursor="hand2", padx=10, pady=6
+                  ).pack(side="left", padx=4)
+        tk.Button(self._sel_bar, text="🔲 Nenhum",
+                  command=self._deselect_all,
+                  bg="#333300", fg="#FFFF88", font=("Arial", 10),
+                  relief="flat", cursor="hand2", padx=10, pady=6
+                  ).pack(side="left", padx=4)
+        tk.Button(self._sel_bar, text="🗑️ Remover selecionados",
+                  command=self._remove_selected,
+                  bg="#5A0000", fg="#FF8888", font=("Arial", 10, "bold"),
+                  relief="flat", cursor="hand2", padx=14, pady=6
+                  ).pack(side="left", padx=12)
+        tk.Button(self._sel_bar, text="✕ Cancelar",
+                  command=self.toggle_selection_mode,
+                  bg="#1A1A00", fg="#888888", font=("Arial", 10),
+                  relief="flat", cursor="hand2", padx=10, pady=6
+                  ).pack(side="right", padx=16)
+
+    # =========================================================================
+    # MODO DE SELEÇÃO EM MASSA
+    # =========================================================================
+
+    def toggle_selection_mode(self) -> None:
+        self._selection_mode = not self._selection_mode
+        self._selected_paths.clear()
+        if self._selection_mode:
+            self._sel_bar.pack(fill="x", before=self.content_canvas.master)
+            self.header.set_select_btn_active(True)
+        else:
+            self._sel_bar.pack_forget()
+            self.header.set_select_btn_active(False)
+        self.display_projects()
+
+    def toggle_card_selection(self, path: str) -> None:
+        if path in self._selected_paths:
+            self._selected_paths.discard(path)
+        else:
+            self._selected_paths.add(path)
+        n = len(self._selected_paths)
+        self._sel_count_lbl.config(text=f"{n} selecionado(s)")
+        self.display_projects()
+
+    def _select_all(self) -> None:
+        self._selected_paths = set(self.get_filtered_projects())
+        self._sel_count_lbl.config(text=f"{len(self._selected_paths)} selecionado(s)")
+        self.display_projects()
+
+    def _deselect_all(self) -> None:
+        self._selected_paths.clear()
+        self._sel_count_lbl.config(text="0 selecionado(s)")
+        self.display_projects()
+
+    def _remove_selected(self) -> None:
+        n = len(self._selected_paths)
+        if not n:
+            messagebox.showinfo("Seleção vazia", "Nenhum projeto selecionado."); return
+        if not messagebox.askyesno(
+            "🗑️ Remover projetos",
+            f"Remover {n} projeto(s) do banco?\n\nOs arquivos no disco NÃO serão apagados.",
+            icon="warning"):
+            return
+        if not messagebox.askyesno(
+            "⚠️ Confirmar remoção",
+            f"Segunda confirmação.\nIsso removerá {n} projeto(s) permanentemente do banco.\n\nTem certeza?",
+            icon="warning"):
+            return
+        for path in list(self._selected_paths):
+            self.database.pop(path, None)
+        self.db_manager.save_database()
+        self._selected_paths.clear()
+        self._selection_mode = False
+        self._sel_bar.pack_forget()
+        self.header.set_select_btn_active(False)
+        self.sidebar.refresh(self.database)
+        self.display_projects()
+        self.status_bar.config(text=f"🗑️ {n} projeto(s) removido(s) do banco.")
+
+    def remove_project(self, path: str) -> None:
+        """Remove individual via modal (F-02)."""
+        if path in self.database:
+            name = self.database[path].get("name", path)
+            self.database.pop(path)
+            self.db_manager.save_database()
+            self.sidebar.refresh(self.database)
+            self.display_projects()
+            self.status_bar.config(text=f"🗑️ '{name}' removido do banco.")
+
     # =========================================================================
     # DISPLAY DE PROJETOS
     # =========================================================================
@@ -200,17 +287,21 @@ class LaserflixMainWindow:
                      ).grid(row=2, column=0, columnspan=COLS, pady=80)
             return
         card_cb = {
-            "on_open_modal":     self.open_project_modal,
+            "on_open_modal":      self.open_project_modal,
             "on_toggle_favorite": self.toggle_favorite,
-            "on_toggle_done":    self.toggle_done,
-            "on_toggle_good":    self.toggle_good,
-            "on_toggle_bad":     self.toggle_bad,
-            "on_analyze_single": self.analyze_single_project,
-            "on_open_folder":    open_folder,
-            "on_set_category":   self.set_category_filter,
-            "on_set_tag":        self.set_tag_filter,
-            "on_set_origin":     self.set_origin_filter,
-            "get_cover_image":   self.cache.get_cover_image,
+            "on_toggle_done":     self.toggle_done,
+            "on_toggle_good":     self.toggle_good,
+            "on_toggle_bad":      self.toggle_bad,
+            "on_analyze_single":  self.analyze_single_project,
+            "on_open_folder":     open_folder,
+            "on_set_category":    self.set_category_filter,
+            "on_set_tag":         self.set_tag_filter,
+            "on_set_origin":      self.set_origin_filter,
+            "get_cover_image":    self.cache.get_cover_image,
+            # seleção em massa
+            "selection_mode":     self._selection_mode,
+            "selected_paths":     self._selected_paths,
+            "on_toggle_select":   self.toggle_card_selection,
         }
         row, col = 2, 0
         for project_path, data in filtered:
@@ -225,9 +316,7 @@ class LaserflixMainWindow:
 
     def set_filter(self, filter_type: str) -> None:
         self.current_filter = filter_type
-        self.current_categories = []
-        self.current_tag = None
-        self.current_origin = "all"
+        self.current_categories = []; self.current_tag = None; self.current_origin = "all"
         self.search_var.set("")
         self.sidebar.set_active_btn(None)
         self.display_projects()
@@ -236,30 +325,26 @@ class LaserflixMainWindow:
         self.search_query = self.search_var.get().strip().lower()
         self.display_projects()
 
-    def _on_origin_filter(self, origin: str, btn=None) -> None:
+    def _on_origin_filter(self, origin, btn=None) -> None:
         self.current_filter = "all"; self.current_origin = origin
         self.current_categories = []; self.current_tag = None
-        self.sidebar.set_active_btn(btn)
-        self.display_projects()
+        self.sidebar.set_active_btn(btn); self.display_projects()
         count = sum(1 for d in self.database.values() if d.get("origin") == origin)
         self.status_bar.config(text=f"Origem: {origin} ({count} projetos)")
 
-    def _on_category_filter(self, cats: list, btn=None) -> None:
+    def _on_category_filter(self, cats, btn=None) -> None:
         self.current_filter = "all"; self.current_categories = cats
         self.current_tag = None; self.current_origin = "all"
-        self.sidebar.set_active_btn(btn)
-        self.display_projects()
+        self.sidebar.set_active_btn(btn); self.display_projects()
 
-    def _on_tag_filter(self, tag: str, btn=None) -> None:
+    def _on_tag_filter(self, tag, btn=None) -> None:
         self.current_filter = "all"; self.current_tag = tag
         self.current_categories = []; self.current_origin = "all"
-        self.sidebar.set_active_btn(btn)
-        self.display_projects()
+        self.sidebar.set_active_btn(btn); self.display_projects()
 
-    # Aliases públicos usados por project_card e project_modal
-    def set_origin_filter(self, origin, btn=None):     self._on_origin_filter(origin, btn)
-    def set_category_filter(self, cats, btn=None):     self._on_category_filter(cats, btn)
-    def set_tag_filter(self, tag, btn=None):            self._on_tag_filter(tag, btn)
+    def set_origin_filter(self, origin, btn=None):  self._on_origin_filter(origin, btn)
+    def set_category_filter(self, cats, btn=None):  self._on_category_filter(cats, btn)
+    def set_tag_filter(self, tag, btn=None):         self._on_tag_filter(tag, btn)
 
     def get_filtered_projects(self) -> list:
         result = []
@@ -285,9 +370,10 @@ class LaserflixMainWindow:
     # =========================================================================
 
     def open_project_modal(self, project_path: str) -> None:
+        if self._selection_mode:
+            self.toggle_card_selection(project_path); return
         ProjectModal(
-            root=self.root,
-            project_path=project_path,
+            root=self.root, project_path=project_path,
             database=self.database,
             cb={
                 "get_all_paths":    lambda: [p for p in self.database if os.path.isdir(p)],
@@ -297,12 +383,12 @@ class LaserflixMainWindow:
                 "on_open_edit":     self.open_edit_mode,
                 "on_reanalize":     self.analyze_single_project,
                 "on_set_tag":       self.set_tag_filter,
+                "on_remove":        self.remove_project,   # F-02
             },
-            cache=self.cache,
-            scanner=self.scanner,
+            cache=self.cache, scanner=self.scanner,
         ).open()
 
-    def _modal_toggle(self, path: str, key: str, value: bool) -> None:
+    def _modal_toggle(self, path, key, value) -> None:
         if path in self.database:
             self.database[path][key] = value
             self.db_manager.save_database()
@@ -330,13 +416,12 @@ class LaserflixMainWindow:
     # =========================================================================
 
     def open_edit_mode(self, project_path: str) -> None:
-        data = self.database.get(project_path, {})
-        EditModal(self.root, project_path, data, self._on_edit_save)
+        EditModal(self.root, project_path, self.database.get(project_path, {}),
+                  self._on_edit_save)
 
-    def _on_edit_save(self, path: str, new_cats: list, new_tags: list) -> None:
+    def _on_edit_save(self, path, new_cats, new_tags) -> None:
         if path in self.database:
-            if new_cats:
-                self.database[path]["categories"] = new_cats
+            if new_cats: self.database[path]["categories"] = new_cats
             self.database[path]["tags"]     = new_tags
             self.database[path]["analyzed"] = True
             self.db_manager.save_database()
@@ -348,23 +433,21 @@ class LaserflixMainWindow:
     # TOGGLES
     # =========================================================================
 
-    def toggle_favorite(self, path: str, btn=None) -> None:
+    def toggle_favorite(self, path, btn=None) -> None:
         if path in self.database:
             nv = not self.database[path].get("favorite", False)
             self.database[path]["favorite"] = nv
             self.db_manager.save_database()
-            if btn: btn.config(text="⭐" if nv else "☆",
-                               fg=ACCENT_GOLD if nv else FG_TERTIARY)
+            if btn: btn.config(text="⭐" if nv else "☆", fg=ACCENT_GOLD if nv else FG_TERTIARY)
 
-    def toggle_done(self, path: str, btn=None) -> None:
+    def toggle_done(self, path, btn=None) -> None:
         if path in self.database:
             nv = not self.database[path].get("done", False)
             self.database[path]["done"] = nv
             self.db_manager.save_database()
-            if btn: btn.config(text="✓" if nv else "○",
-                               fg="#00FF00" if nv else FG_TERTIARY)
+            if btn: btn.config(text="✓" if nv else "○", fg="#00FF00" if nv else FG_TERTIARY)
 
-    def toggle_good(self, path: str, btn=None) -> None:
+    def toggle_good(self, path, btn=None) -> None:
         if path in self.database:
             nv = not self.database[path].get("good", False)
             self.database[path]["good"] = nv
@@ -372,7 +455,7 @@ class LaserflixMainWindow:
             self.db_manager.save_database()
             if btn: btn.config(fg="#00FF00" if nv else FG_TERTIARY)
 
-    def toggle_bad(self, path: str, btn=None) -> None:
+    def toggle_bad(self, path, btn=None) -> None:
         if path in self.database:
             nv = not self.database[path].get("bad", False)
             self.database[path]["bad"] = nv
@@ -391,15 +474,12 @@ class LaserflixMainWindow:
         self.analysis_manager.on_error    = self._on_analysis_error
 
     def _on_analysis_complete(self, done, skipped) -> None:
-        self.hide_progress_ui()
-        self.sidebar.refresh(self.database)
-        self.display_projects()
+        self.hide_progress_ui(); self.sidebar.refresh(self.database); self.display_projects()
         msg = f"✅ Análise concluída: {done} projeto(s)"
         if skipped: msg += f" ({skipped} pulados)"
         self.status_bar.config(text=msg)
 
     def _on_analysis_error(self, error_msg) -> None:
-        from tkinter import messagebox
         messagebox.showwarning("⚠️ Erro", error_msg)
 
     def show_progress_ui(self) -> None:
@@ -417,7 +497,7 @@ class LaserflixMainWindow:
         self.status_bar.config(text=f"{message} ({current}/{total} — {pct:.1f}%)")
         self.root.update_idletasks()
 
-    def analyze_single_project(self, path: str) -> None:
+    def analyze_single_project(self, path) -> None:
         self.analysis_manager.analyze_single(path, self.database)
 
     def analyze_only_new(self) -> None:
@@ -440,14 +520,13 @@ class LaserflixMainWindow:
     # IA — DESCRIÇÕES
     # =========================================================================
 
-    def _batch_generate_descriptions(self, targets: list) -> None:
+    def _batch_generate_descriptions(self, targets) -> None:
         self.show_progress_ui()
         def _run():
             done = skipped = 0
             for i, path in enumerate(targets, 1):
                 if self.ollama.stop_flag: break
-                if not os.path.isdir(path):
-                    skipped += 1; continue
+                if not os.path.isdir(path): skipped += 1; continue
                 try:
                     self.update_progress(i, len(targets),
                         f"📝 Gerando descrição para {os.path.basename(path)}")
@@ -456,11 +535,8 @@ class LaserflixMainWindow:
                     done += 1
                     if done % 5 == 0: self.db_manager.save_database()
                 except Exception as e:
-                    self.logger.error("Erro desc %s: %s", path, e)
-                    skipped += 1
-            self.db_manager.save_database()
-            self.hide_progress_ui()
-            self.display_projects()
+                    self.logger.error("Erro desc %s: %s", path, e); skipped += 1
+            self.db_manager.save_database(); self.hide_progress_ui(); self.display_projects()
             msg = f"✅ {done} descrição(oes) gerada(s)"
             if skipped: msg += f" ({skipped} puladas)"
             self.status_bar.config(text=msg)
@@ -491,27 +567,21 @@ class LaserflixMainWindow:
         self.import_manager.start_import()
 
     def open_prepare_folders(self) -> None:
-        dlg = PrepareFoldersDialog(self.root)
-        self.root.wait_window(dlg)
+        self.root.wait_window(PrepareFoldersDialog(self.root))
 
     def open_model_settings(self) -> None:
-        dlg = ModelSettingsDialog(self.root, self.db_manager)
-        self.root.wait_window(dlg)
+        self.root.wait_window(ModelSettingsDialog(self.root, self.db_manager))
 
     def open_categories_picker(self) -> None:
         all_cats: dict = {}
         for d in self.database.values():
             for c in d.get("categories", []):
                 c = (c or "").strip()
-                if c and c != "Sem Categoria":
-                    all_cats[c] = all_cats.get(c, 0) + 1
+                if c and c != "Sem Categoria": all_cats[c] = all_cats.get(c, 0) + 1
         cats_sorted = sorted(all_cats.items(), key=lambda x: x[1], reverse=True)
         win = tk.Toplevel(self.root)
-        win.title("Todas as Categorias")
-        win.configure(bg=BG_PRIMARY)
-        win.geometry("400x600")
-        win.transient(self.root)
-        win.grab_set()
+        win.title("Todas as Categorias"); win.configure(bg=BG_PRIMARY)
+        win.geometry("400x600"); win.transient(self.root); win.grab_set()
         tk.Label(win, text="Selecione uma categoria", font=("Arial", 13, "bold"),
                  bg=BG_PRIMARY, fg=FG_PRIMARY).pack(pady=10)
         frm = tk.Frame(win, bg=BG_PRIMARY)
@@ -522,8 +592,7 @@ class LaserflixMainWindow:
         inner.bind("<Configure>", lambda e: cv.configure(scrollregion=cv.bbox("all")))
         cv.create_window((0, 0), window=inner, anchor="nw")
         cv.configure(yscrollcommand=sb.set)
-        cv.pack(side="left", fill="both", expand=True)
-        sb.pack(side="right", fill="y")
+        cv.pack(side="left", fill="both", expand=True); sb.pack(side="right", fill="y")
         cv.bind("<MouseWheel>",
                 lambda e: cv.yview_scroll(int(-1*(e.delta/SCROLL_SPEED)), "units"))
         for cat, count in cats_sorted:
