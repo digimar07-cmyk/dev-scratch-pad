@@ -20,6 +20,7 @@ import os
 import re
 from utils.logging_setup import LOGGER
 from utils.text_utils import normalize_project_name, remove_accents
+from config.constants import BANNED_STRINGS
 
 from ai.keyword_maps import (
     DATE_MAP, FUNCTION_MAP, AMBIENTE_MAP,
@@ -28,13 +29,6 @@ from ai.keyword_maps import (
     DATE_INFER_MAP,
     FINAL_FALLBACK_FUNCTION, FINAL_FALLBACK_AMBIENTE,
 )
-
-# Strings proibidas como resultado final (captura erros legados)
-_BANNED = {
-    "diversos", "data especial", "ambiente doméstico",
-    "ambiente domestico", "general", "miscellaneous",
-    "uncategorized", "sem categoria",
-}
 
 
 def _match(name_norm, mapping):
@@ -171,7 +165,7 @@ class FallbackGenerator:
         result = list(existing_categories)
 
         # Remove banidos das categorias da IA antes de avaliar slots
-        result = [c for c in result if c.lower() not in _BANNED]
+        result = [c for c in result if c.lower() not in BANNED_STRINGS]
 
         has_date = any(c in DATE_VALS for c in result)
         has_func = any(c in FUNC_VALS for c in result)
@@ -246,26 +240,26 @@ class FallbackGenerator:
         
         # Prioridade 1: Data (obrigatória)
         for cat in date_cats[:2]:  # Até 2 datas
-            if cat and cat not in seen and cat.lower() not in _BANNED:
+            if cat and cat not in seen and cat.lower() not in BANNED_STRINGS:
                 cats.append(cat)
                 seen.add(cat)
         
         # Prioridade 2: Função (obrigatória)
         for cat in func_cats[:3]:  # Até 3 funções
-            if cat and cat not in seen and cat.lower() not in _BANNED:
+            if cat and cat not in seen and cat.lower() not in BANNED_STRINGS:
                 cats.append(cat)
                 seen.add(cat)
         
         # Prioridade 3: Ambiente (obrigatória)
         for cat in env_cats[:2]:  # Até 2 ambientes
-            if cat and cat not in seen and cat.lower() not in _BANNED:
+            if cat and cat not in seen and cat.lower() not in BANNED_STRINGS:
                 cats.append(cat)
                 seen.add(cat)
         
         # Prioridade 4: Tema, Estilo, Público (opcionais)
         for cat_list in (theme_cats, style_cats, public_cats):
             for cat in cat_list[:2]:  # Até 2 de cada
-                if cat and cat not in seen and cat.lower() not in _BANNED:
+                if cat and cat not in seen and cat.lower() not in BANNED_STRINGS:
                     cats.append(cat)
                     seen.add(cat)
 
@@ -337,7 +331,7 @@ class FallbackGenerator:
         for mapping in (DATE_MAP, FUNCTION_MAP, AMBIENTE_MAP,
                         THEME_MAP, STYLE_MAP, PUBLIC_MAP):
             hit = _match(name_norm, mapping)
-            if hit and hit.lower() not in _BANNED:
+            if hit and hit.lower() not in BANNED_STRINGS:
                 extra.append(hit.lower())
 
         extra += ["corte a laser", "personalizado", "artesanal"]
