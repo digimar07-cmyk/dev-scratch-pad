@@ -974,16 +974,12 @@ class LaserflixMainWindow:
         tk.Frame(lp, bg=SEP_CLR, height=1).pack(fill="x", pady=(16, 0))
         action_bar = tk.Frame(lp, bg=BG)
         action_bar.pack(fill="x", padx=PAD, pady=12)
-
-        BTN_P   = dict(bg=ACCENT,     fg=FG_PRIMARY, font=("Arial", 10, "bold"),
+        BTN_P   = dict(bg=ACCENT,  fg=FG_PRIMARY, font=("Arial", 10, "bold"),
                        relief="flat", cursor="hand2", padx=16, pady=9, bd=0)
-        BTN_G   = dict(bg=BG_CARD,    fg=FG_PRI,     font=("Arial", 10),
+        BTN_G   = dict(bg=BG_CARD, fg=FG_PRI,     font=("Arial", 10),
                        relief="flat", cursor="hand2", padx=16, pady=9, bd=0)
-        BTN_DEL = dict(bg="#3B0000",  fg="#FF6B6B",   font=("Arial", 10, "bold"),
-                       relief="flat", cursor="hand2", padx=16, pady=9, bd=0)
-        BTN_NAV = dict(bg=BG_CARD,    fg=FG_SEC,      font=("Arial", 11),
+        BTN_NAV = dict(bg=BG_CARD, fg=FG_SEC,     font=("Arial", 11),
                        relief="flat", cursor="hand2", padx=14, pady=9, bd=0)
-
         tk.Button(action_bar, text="✏️  Editar",
                   command=lambda: self.open_edit_mode(modal, project_path, data),
                   **BTN_P).pack(side="left", padx=(0, 6))
@@ -994,15 +990,6 @@ class LaserflixMainWindow:
                   command=lambda: [modal.destroy(),
                                    self.analyze_single_project(project_path)],
                   **BTN_G).pack(side="left", padx=(0, 6))
-
-        # ── F-02: Botão Remover projeto ──
-        tk.Button(
-            action_bar,
-            text="🗑️  Remover",
-            command=lambda: self.remove_project(project_path, modal),
-            **BTN_DEL,
-        ).pack(side="left", padx=(0, 6))
-
         tk.Button(action_bar, text="✕", command=modal.destroy,
                   bg=BG, fg=FG_TER, font=("Arial", 14),
                   relief="flat", cursor="hand2", padx=10, pady=9, bd=0
@@ -1063,52 +1050,6 @@ class LaserflixMainWindow:
 
             right_outer.bind("<Configure>", lambda e: _redraw_cover())
             modal.after(80, _redraw_cover)
-
-    # =========================================================================
-    # F-02 — REMOVER PROJETO DO BANCO
-    # =========================================================================
-
-    def remove_project(self, project_path, modal):
-        """
-        Remove o projeto do banco de dados (apenas o registro JSON).
-        NÃO apaga nenhum arquivo em disco — só a entrada no banco.
-        Requer confirmação dupla para evitar remoção acidental.
-        """
-        project_name = self.database.get(project_path, {}).get("name", os.path.basename(project_path))
-
-        # 1ª confirmação — alerta claro
-        first = messagebox.askyesno(
-            "🗑️ Remover projeto?",
-            f"Tem certeza que deseja remover:\n\n"
-            f"  "{project_name}"\n\n"
-            f"O projeto será removido do banco de dados.\n"
-            f"Os arquivos em disco NÃO serão apagados.",
-            icon="warning",
-        )
-        if not first:
-            return
-
-        # 2ª confirmação — anti-clique acidental
-        second = messagebox.askyesno(
-            "⚠️ Confirmar remoção",
-            f"Confirma a remoção definitiva de:\n\n"
-            f"  "{project_name}"\n\n"
-            f"Esta ação não pode ser desfeita.",
-            icon="warning",
-        )
-        if not second:
-            return
-
-        # Remove do banco e salva
-        if project_path in self.database:
-            del self.database[project_path]
-            self.db_manager.save_database()
-
-        self.logger.info("🗑️ Projeto removido do banco: %s", project_path)
-        modal.destroy()
-        self.update_sidebar()
-        self.display_projects()
-        self.status_bar.config(text=f"🗑️ Removido: {project_name}")
 
     # =========================================================================
     # EDIÇÃO DE PROJETO
@@ -1406,4 +1347,4 @@ class LaserflixMainWindow:
         r, g, b = tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
         return (f"#{max(0, int(r*.8)):02x}"
                 f"{max(0, int(g*.8)):02x}"
-                f"#{max(0, int(b*.8)):02x}")
+                f"{max(0, int(b*.8)):02x}")
