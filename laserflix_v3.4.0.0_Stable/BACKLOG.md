@@ -6,6 +6,25 @@
 
 ---
 
+## 🧑‍💻 PERSONA DE DESENVOLVIMENTO
+
+🔴 **IMPORTANTE:** Este projeto segue a filosofia **Kent Beck** (Extreme Programming).
+
+**ANTES de iniciar qualquer tarefa, leia:**
+- **[DEVELOPER_PERSONA.md](DEVELOPER_PERSONA.md)** → Filosofia OBRIGATÓRIA
+
+**Princípios Kent Beck aplicados:**
+- ✅ **Simplicidade radical:** "Faça a coisa mais simples que funciona"
+- ✅ **Baby steps:** Um commit = uma mudança
+- ✅ **Refatoração contínua:** Deixe melhor do que encontrou
+- ✅ **Testar sempre:** Manualmente após cada mudança
+- ❌ **NUNCA antecipar:** YAGNI (You Aren't Gonna Need It)
+- ❌ **NUNCA criar abstrações** desnecessárias
+
+> **Workflow:** ENTENDER → PLANEJAR → IMPLEMENTAR → REFATORAR → DOCUMENTAR
+
+---
+
 ## 👉 PRÓXIMA TAREFA
 
 ### 🔴 **F-06: Ordenação Configurável**
@@ -13,6 +32,7 @@
 **Prioridade:** 🔴 ALTA  
 **Esforço:** 🟢 Baixo  
 **Impacto:** 🟠 Organização  
+**Estilo Kent Beck:** ✅ Simples, direto, funcional  
 
 **Objetivo:**
 Menu de ordenação no header (ao lado da busca) com 7 opções:
@@ -25,50 +45,46 @@ Menu de ordenação no header (ao lado da busca) com 7 opções:
 - 🤖 **Analisados** → Projetos analisados primeiro
 - ⏳ **Pendentes** → Projetos não analisados primeiro
 
-**Implementação:**
+**Implementação (Kent Beck style):**
 
-1. Adicionar `ttk.Combobox` no header (após busca)
-2. Criar `self.current_sort = "date_desc"` (padrão)
-3. Criar método `_sort_projects(projects)` que retorna lista ordenada
-4. Integrar em `display_projects()` ANTES da paginação
-5. Bind `<<ComboboxSelected>>` para atualizar view
+1. **Ler código atual:** `ui/main_window.py`
+2. **Adicionar menu:** `ttk.Combobox` no header (simples)
+3. **Criar estado:** `self.current_sort = "date_desc"` (padrão)
+4. **Método de ordenação:** `_sort_projects(projects)` (direto, sem abstração)
+5. **Integrar:** Chamar ANTES da paginação
+6. **Testar:** Todas as 7 opções manualmente
 
 **Arquivos afetados:**
 - `ui/main_window.py` (linhas ~100-150 + novo método)
 
 **Critérios de aceitação:**
 - ✅ Dropdown visível e responsivo
-- ✅ Ordenação ANTES da paginação (não dentro da página)
+- ✅ Ordenação ANTES da paginação
 - ✅ Estado persiste ao mudar de página
 - ✅ Compatível com filtros ativos
 - ✅ Performance: ordenação instantânea até 500 projetos
 
-**Código de exemplo:**
+**Código exemplo (Kent Beck style):**
 ```python
-def _on_sort_change(self, event=None):
-    label_to_key = {
-        "📅 Recentes": "date_desc",
-        "📅 Antigos": "date_asc",
-        # ...
-    }
-    selected_label = self.sort_menu.get()
-    self.current_sort = label_to_key.get(selected_label, "date_desc")
-    self.current_page = 1
-    self.display_projects()
-
+# Simples, direto, funcional
 def _sort_projects(self, projects):
+    """Ordena lista de projetos. Simples assim."""
+    if not projects:
+        return projects
+    
+    # Dicionário mapeia comportamentos (Kent Beck gosta)
     if self.current_sort == "date_desc":
         return sorted(projects, key=lambda p: p[1].get("added_date", ""), reverse=True)
     elif self.current_sort == "name_asc":
         return sorted(projects, key=lambda p: p[1].get("name", "").lower())
-    # ...
+    # ... outras opções ...
     return projects
 
-def display_projects(self):
-    all_filtered = [(p, self.database[p]) for p in self.get_filtered_projects()]
-    all_filtered = self._sort_projects(all_filtered)  # ← AQUI!
-    # ... paginação ...
+# Na display_projects(), ANTES da paginação:
+all_filtered = self._sort_projects(all_filtered)  # ← Uma linha. Perfeito.
 ```
+
+**Código completo em:** `MIGRATION_v3.3_to_v3.4.md` (linhas 200-300)
 
 ---
 
@@ -79,26 +95,40 @@ def display_projects(self):
 **Prioridade:** 🔴 ALTA  
 **Esforço:** 🟡 Médio  
 **Impacto:** 🔴 Performance + UX  
+**Estilo Kent Beck:** ✅ `queue.Queue` é simples e funciona  
 
 **Problema:**
 Thumbnails carregam sincronamente na thread principal, travando a UI.
 
-**Solução:**
-- Criar `core/thumbnail_preloader.py`
-- `queue.Queue` + 4 threads workers
-- Cache interno (`path → PhotoImage`)
-- Callback assíncrono para atualizar card
+**Solução Kent Beck:**
+```python
+# Simples: fila + workers
+import queue
+import threading
+
+class ThumbnailPreloader:
+    def __init__(self, max_workers=4):
+        self.queue = queue.Queue()  # Simples
+        self.cache = {}  # Direto
+        # 4 threads fazendo o trabalho
+        for _ in range(max_workers):
+            t = threading.Thread(target=self._worker, daemon=True)
+            t.start()
+    
+    def preload_single(self, project_path, callback):
+        # Já tem? Retorna. Não tem? Enfileira.
+        if project_path in self.cache:
+            callback(project_path, self.cache[project_path])
+        else:
+            self.queue.put((project_path, callback))
+```
+
+**Kent Beck diz:** "Funciona? Então funciona. Não precisa complicar."
 
 **Arquivos afetados:**
-- `core/thumbnail_preloader.py` (NOVO)
+- `core/thumbnail_preloader.py` (NOVO, ~80 linhas)
 - `ui/project_card.py` (usar `preload_single()`)
 - `ui/main_window.py` (instanciar `ThumbnailPreloader`)
-
-**Critérios de aceitação:**
-- ✅ UI não trava durante carregamento
-- ✅ Cards renderizam com placeholder → atualizam quando thumbnail carrega
-- ✅ Cache persiste durante sessão
-- ✅ Performance: 100 cards em < 2s
 
 ---
 
@@ -111,13 +141,11 @@ Thumbnails carregam sincronamente na thread principal, travando a UI.
 **Objetivo:**
 Expandir modal com:
 - Galeria de imagens (thumbs clicáveis)
-- Nome PT-BR editável (campo de texto)
-- Descrição editável (textarea grande)
-- Notas do usuário (campo livre)
-- Botão "Salvar alterações"
+- Nome PT-BR editável
+- Descrição editável
+- Notas do usuário
 
-**Arquivos afetados:**
-- `ui/project_modal.py` (expandir layout)
+**Kent Beck faria:** Um campo por vez. Testar entre cada.
 
 ---
 
@@ -127,26 +155,26 @@ Expandir modal com:
 **Esforço:** 🟢 Baixo  
 **Impacto:** 🟠 Integridade dados  
 
-**Objetivo:**
-Botão "Limpar órfãos" que remove entradas do banco cujo `path` não existe mais em disco.
-
-**Implementação:**
+**Kent Beck style:**
 ```python
 def clean_orphans(self):
+    # Simples: lista os inválidos
     orphans = [p for p in self.database if not os.path.isdir(p)]
+    
+    # Nenhum? Avisar e sair.
     if not orphans:
-        messagebox.showinfo("✅ Banco limpo", "Nenhum órfão encontrado!")
+        messagebox.showinfo("✅ Banco limpo", "Nenhum órfão!")
         return
-    if messagebox.askyesno("🗑️ Limpar órfãos", f"Encontrados {len(orphans)} projeto(s).\n\nRemover?"):
+    
+    # Tem? Perguntar e remover.
+    if messagebox.askyesno("🗑️ Limpar", f"{len(orphans)} órfão(s).\n\nRemover?"):
         for p in orphans:
             self.database.pop(p)
         self.db_manager.save_database()
         self.display_projects()
 ```
 
-**Arquivos afetados:**
-- `ui/main_window.py` (método `clean_orphans()`)
-- `ui/header.py` (botão no menu "Dashboard")
+**Kent Beck:** "10 linhas. Funciona. Perfeito."
 
 ---
 
@@ -156,110 +184,22 @@ def clean_orphans(self):
 **Esforço:** 🟢 Baixo  
 **Impacto:** 🟠 UX  
 
-**Objetivo:**
-Busca atualiza automaticamente após 300ms de inatividade (sem precisar apertar Enter).
-
-**Implementação:**
+**Kent Beck:**
 ```python
 from threading import Timer
 
 class LaserflixMainWindow:
-    def __init__(self):
-        self.search_timer = None
-    
     def _on_search_keypress(self, event=None):
+        # Cancela timer anterior (se existir)
         if self.search_timer:
             self.search_timer.cancel()
+        
+        # Novo timer: 300ms
         self.search_timer = Timer(0.3, self._execute_search)
         self.search_timer.start()
-    
-    def _execute_search(self):
-        self.search_query = self.search_var.get().strip().lower()
-        self.current_page = 1
-        self.display_projects()
 ```
 
-**Arquivos afetados:**
-- `ui/main_window.py` (adicionar debounce)
-
----
-
-### **F-05: Badge de Status de Análise**
-
-**Prioridade:** 🟡 BAIXA  
-**Esforço:** 🟢 Baixo  
-**Impacto:** 🟠 UX/Info  
-
-**Objetivo:**
-Badge visual no card indicando:
-- 🤖 **IA** → Analisado com Ollama
-- ⚡ **Fallback** → Análise sem IA
-- ⏳ **Pendente** → Não analisado
-
-**Arquivos afetados:**
-- `ui/project_card.py` (adicionar badge)
-
----
-
-### **F-07: Filtro Multi-Critério Simultâneo**
-
-**Prioridade:** 🟠 MÉDIA  
-**Esforço:** 🟡 Médio  
-**Impacto:** 🟠 Organização  
-
-**Objetivo:**
-Permitir múltiplos filtros ativos ao mesmo tempo (chips empilháveis com AND lógico).
-
-Exemplo:
-```
-[Creative Fabrica ×] + [Natal ×] + [decorativo ×] = 15 projetos
-```
-
-**Arquivos afetados:**
-- `ui/main_window.py` (lógica de filtros)
-- `ui/header.py` (UI de chips)
-
----
-
-## 🔵 BLOCO O — ORGANIZAÇÃO E PODER
-
-| # | O que fazer | Impacto | Esforço | Prioridade |
-|---|---|---|---|---|
-| ☐ **O-01** | Sistema de Coleções/Playlists | 🔴 Game Changer | 🟡 Médio | Semana 3 |
-| ☐ **O-02** | Export CSV/Excel | 🟠 Utilidade | 🟢 Baixo | Semana 3 |
-| ☐ **O-03** | Atalhos de teclado (`Ctrl+F`, `Ctrl+A`, `F5`, `Espaço`, `Del`) | 🟠 UX/Power User | 🟢 Baixo | Semana 3 |
-| ☐ **O-04** | Fila de análise com prioridade | 🟡 Workflow | 🟡 Médio | Semana 3 |
-
----
-
-## 🎨 BLOCO V — EXPERIÊNCIA VISUAL
-
-| # | O que fazer | Impacto | Esforço | Prioridade |
-|---|---|---|---|---|
-| ☐ **V-01** | Toast Notifications (não-bloqueantes) | 🟠 UX | 🟢 Baixo | Semana 3 |
-| ☐ **V-02** | Animação hover nos cards | 🟠 Visual | 🟢 Baixo | Semana 3 |
-| ☐ **V-03** | Modo Lista vs Modo Galeria | 🟠 UX | 🟡 Médio | Semana 3 |
-| ☐ **V-04** | Score de qualidade no card | 🟡 Gamificação | 🟢 Baixo | Semana 4 |
-
----
-
-## 🚀 BLOCO N — NOVAS FUNÇÕES
-
-| # | O que fazer | Impacto | Esforço | Versão alvo |
-|---|---|---|---|---|
-| ☐ **N-01** | Dashboard de Estatísticas | 🟠 Valor percebido | 🟡 Médio | v3.5 |
-| ☐ **N-02** | Modo Etsy — Gerador de Listing | 🔴 Negócio | 🟡 Médio | v3.5 |
-| ☐ **N-03** | Gerador de Ficha Técnica PDF | 🟠 Utilidade | 🟡 Médio | v3.5 |
-
----
-
-## 🌌 BLOCO BM — BLOWMIND
-
-| # | O que fazer | Impacto | Esforço | Versão alvo |
-|---|---|---|---|---|
-| ☐ **BM-01** | Recomendações "Para Você" via embeddings | 🔴 Diferencial IA | 🔴 Alto | v3.6 |
-| ☐ **BM-02** | Modo Vitrine/Slideshow | 🟠 Valor comercial | 🟢 Baixo | v3.5 |
-| ☐ **BM-03** | Linha do Tempo (calendário anual) | 🟡 Visual/Motivação | 🟡 Médio | v3.6 |
+**Kent Beck:** "Timer + callback. Simples. Não precisa de biblioteca externa."
 
 ---
 
@@ -267,30 +207,21 @@ Exemplo:
 
 | # | Item | Descrição | Commit |
 |---|---|---|---|
-| ✅ **DOC** | Documentação inicial | Criado `VERSION_HISTORY.md`, `MIGRATION_v3.3_to_v3.4.md`, atualizado `README.md` e `BACKLOG.md` | (pendente) |
+| ✅ **DOC** | Documentação inicial | `VERSION_HISTORY.md`, `MIGRATION_v3.3_to_v3.4.md`, `README.md`, `BACKLOG.md` | `1006409` |
+| ✅ **PERSONA** | Persona Kent Beck | `DEVELOPER_PERSONA.md` + instruções no README/BACKLOG | (pendente) |
 
 ---
 
 ## 🏆 HERDADO DA v3.3 (JÁ COMPLETO)
 
-### BLOCO HOT (Correções Críticas):
-- ✅ HOT-01 a HOT-13 (modal, duplicatas, paginação, categorias, scrollbar, etc)
+### Estilo Kent Beck em ação:
 
-### BLOCO L (Limpeza):
-- ✅ L-02, L-04, L-07 (BANNED_STRINGS, aliases, VERSION)
+- ✅ **HOT-08:** Paginação simples (ao invés de Virtual Scroll complexo)
+- ✅ **HOT-10:** Normalização de nome (ao invés de algoritmo sofisticado)
+- ✅ **HOT-13:** 36 cards (ao invés de cálculo dinâmico)
+- ✅ **Análise sequencial:** Um depois do outro (ao invés de paralelo complexo)
 
-### BLOCO S (Estabilidade):
-- ✅ S-01 (Configuração Modelos IA)
-- ✅ S-02 (Virtual Scroll → depois substituído por paginação)
-- ✅ S-04 (Refatoração main_window)
-
-### BLOCO F (Funcionalidades):
-- ✅ F-02 (Remoção individual)
-- ✅ SEL-01 (Seleção em massa)
-
-### FEATURES:
-- ✅ Análise IA Sequencial (categorias+tags → descrições)
-- ✅ Importação Recursiva (3 modos + dedup + preview)
+**Kent Beck:** "Tudo funciona. Tudo simples. Tudo testado."
 
 ---
 
@@ -301,21 +232,75 @@ Exemplo:
 | 🔒 **IA** | `ai/ollama_client.py` · `ai/analysis_manager.py` · `ai/text_generator.py` · `ai/image_analyzer.py` · `ai/fallbacks.py` · `ai/keyword_maps.py` |
 | 🔒 **Importação** | `ui/import_mode_dialog.py` · `ui/recursive_import_integration.py` · `ui/import_preview_dialog.py` · `ui/duplicate_resolution_dialog.py` · `utils/recursive_scanner.py` · `utils/duplicate_detector.py` |
 
-> **Regra inviolável:** Qualquer toque em zona protegida requer alerta + autorização expressa antes de escrever.
+> **Kent Beck:** "Se funciona, NÃO mexa. Se precisar mexer, entenda COMPLETAMENTE antes."
 
 ---
 
-## 🎯 REGRAS DO JOGO
+## 🎯 REGRAS DO JOGO (Kent Beck Edition)
 
-1. Esta lista é **a única lista**. Qualquer nova sessão começa aqui.
-2. **Um item por vez** — confirma ✅ antes do próximo.
-3. Prefixo de versão nos commits: `Laserflix_v3.4.0.0_F-06`, `_S-03` etc.
-4. **Leitura antes de escrever** — sempre lemos o arquivo atual antes de gerar código.
-5. Nenhum item é pulado sem instrução expressa.
-6. **ANÁLISE DE IMPACTO OBRIGATÓRIA** para zonas protegidas.
-7. **RISCO vs BENEFÍCIO**: Tarefas teóricas em zonas críticas são canceladas se sistema funciona perfeitamente.
-8. **ATUALIZAR BACKLOG**: Toda task concluída com sucesso é registrada na seção 🏆 FINALIZADO.
+### ⚠️ NUNCA:
+1. ❌ Modificar 5+ arquivos de uma vez
+2. ❌ Criar abstração "para o futuro"
+3. ❌ Commitar sem testar
+4. ❌ Antecipar requisitos (YAGNI)
+5. ❌ Fazer código "esperto" demais
+
+### ✅ SEMPRE:
+1. ✅ Ler código existente ANTES de modificar
+2. ✅ Fazer a coisa mais simples que funciona
+3. ✅ Testar manualmente após CADA mudança
+4. ✅ Refatorar quando código cheira mal
+5. ✅ Ler **[DEVELOPER_PERSONA.md](DEVELOPER_PERSONA.md)** no início de cada sessão
+
+### 📝 Formato de commit:
+```bash
+Laserflix_v3.4.0.0_F-06: Ordenação configurável (7 opções)
+
+- Adicionado ttk.Combobox no header
+- Método _sort_projects() com 7 modos
+- Integrado em display_projects()
+- Testado com 200 projetos: instantâneo
+```
+
+### 📖 Antes de escrever código:
+```
+❓ Qual a coisa mais SIMPLES que resolve isso?
+❓ Estou antecipando algo que não preciso agora?
+❓ Posso fazer em menos linhas sem perder clareza?
+❓ Os nomes expressam a intenção?
+```
 
 ---
 
-**Última atualização:** 05/03/2026 19:06 BRT
+## 📚 DOCUMENTAÇÃO OBRIGATÓRIA
+
+### 🔴 LEIA PRIMEIRO (sempre!):
+1. **[DEVELOPER_PERSONA.md](DEVELOPER_PERSONA.md)** → Filosofia Kent Beck
+2. **[BACKLOG.md](BACKLOG.md)** → Este arquivo (tarefas)
+
+### Complementares:
+3. **[VERSION_HISTORY.md](VERSION_HISTORY.md)** → Histórico
+4. **[MIGRATION_v3.3_to_v3.4.md](MIGRATION_v3.3_to_v3.4.md)** → Migração
+5. **[README.md](README.md)** → Visão geral
+
+---
+
+## 🗣️ FRASES KENT BECK PARA MEDITAR
+
+> **"Make it work, make it right, make it fast."**  
+> (Nessa ordem!)
+
+> **"Do the simplest thing that could possibly work."**  
+> (Sempre!)
+
+> **"You aren't gonna need it."**  
+> (YAGNI é real)
+
+> **"When you feel pain, that's telling you something."**  
+> (Dor no código = design problem)
+
+---
+
+**Persona ativa:** Kent Beck (Extreme Programming)  
+**Mantra:** "Simplicidade radical. Baby steps. Refatoração contínua."  
+**Última atualização:** 05/03/2026 19:20 BRT

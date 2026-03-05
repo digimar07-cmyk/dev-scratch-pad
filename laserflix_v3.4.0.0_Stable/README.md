@@ -4,6 +4,25 @@
 
 ---
 
+## 👨‍💻 PERSONA DE DESENVOLVIMENTO
+
+🔴 **IMPORTANTE:** Este projeto segue a filosofia **Kent Beck** (Extreme Programming).
+
+**Antes de contribuir, leia:**
+- **[DEVELOPER_PERSONA.md](DEVELOPER_PERSONA.md)** → Filosofia de desenvolvimento OBRIGATÓRIA
+
+**Princípios:**
+- ✅ Simplicidade radical ("faça a coisa mais simples que funciona")
+- ✅ Baby steps (um commit = uma mudança)
+- ✅ Refatoração contínua (deixe melhor do que encontrou)
+- ✅ Código autoexplicativo (comente o PORQUÊ, não o QUE)
+- ❌ NUNCA antecipar requisitos futuros (YAGNI)
+- ❌ NUNCA criar abstrações desnecessárias
+
+> **Leia `DEVELOPER_PERSONA.md` ANTES de iniciar qualquer desenvolvimento!**
+
+---
+
 ## 🔥 O QUE HÁ DE NOVO NA v3.4?
 
 ### 🆕 FEATURES EM DESENVOLVIMENTO:
@@ -84,6 +103,7 @@ laserflix_v3.4.0.0_Stable/
 ├── main.py                    # Entry point
 ├── requirements.txt
 ├── README.md                  # Este arquivo
+├── DEVELOPER_PERSONA.md       # 🔴 Filosofia Kent Beck (LEIA PRIMEIRO!)
 ├── VERSION_HISTORY.md         # Histórico de versões
 ├── MIGRATION_v3.3_to_v3.4.md  # Guia de migração
 ├── BACKLOG.md                 # Tarefas (fonte única)
@@ -166,13 +186,42 @@ python main.py
 
 ## 📚 DOCUMENTAÇÃO
 
-### Arquivos importantes:
+### 🔴 Arquivos OBRIGATÓRIOS:
+
+- **[DEVELOPER_PERSONA.md](DEVELOPER_PERSONA.md)** → 🔴 **LEIA PRIMEIRO!** Filosofia Kent Beck
+- **[BACKLOG.md](BACKLOG.md)** → Tarefas pendentes (fonte única)
+
+### Arquivos complementares:
 
 - **[VERSION_HISTORY.md](VERSION_HISTORY.md)** → Histórico completo de versões
 - **[MIGRATION_v3.3_to_v3.4.md](MIGRATION_v3.3_to_v3.4.md)** → Guia de migração
-- **[BACKLOG.md](BACKLOG.md)** → Tarefas pendentes (fonte única)
 - **[BACKUP_GUIDE.md](BACKUP_GUIDE.md)** → Sistema de backup automático
 - **[LAYOUT_CHECKLIST.md](LAYOUT_CHECKLIST.md)** → Checklist de layout
+
+---
+
+## 🧑‍💻 CONTRIBUINDO
+
+### 🔴 ANTES DE CONTRIBUIR:
+
+1. ✅ Ler **[DEVELOPER_PERSONA.md](DEVELOPER_PERSONA.md)** COMPLETAMENTE
+2. ✅ Entender filosofia Kent Beck
+3. ✅ Seguir workflow de 5 fases:
+   - ENTENDER → PLANEJAR → IMPLEMENTAR → REFATORAR → DOCUMENTAR
+4. ✅ Fazer baby steps (um commit por vez)
+5. ✅ Testar manualmente após CADA mudança
+
+### Checklist antes de commitar:
+
+```
+☐ Código funciona? (testei manualmente)
+☐ Código é o mais simples possível?
+☐ Nomes são claros?
+☐ Funções têm < 20 linhas?
+☐ Não há código duplicado?
+☐ Commit message é descritiva?
+☐ BACKLOG.md foi atualizado?
+```
 
 ---
 
@@ -208,6 +257,7 @@ utils/duplicate_detector.py
 
 - **v740:** Base visual (layout Netflix)
 - **v3.x:** Refactoring modular + novas features
+- **Persona:** Kent Beck (Extreme Programming)
 - **Perplexity (Claude Sonnet 4.6):** Arquitetura e desenvolvimento
 
 ---
@@ -216,11 +266,12 @@ utils/duplicate_detector.py
 
 **v3.4.0.0 Stable**  
 **Data:** 05/03/2026  
-**Status:** 🔴 EM DESENVOLVIMENTO
+**Status:** 🔴 EM DESENVOLVIMENTO  
+**Persona:** Kent Beck (XP)  
 
-**Última feature:** Documentação inicial  
+**Última feature:** Documentação inicial + Persona de desenvolvimento  
 **Próxima feature:** F-06 - Ordenação configurável
 
 ---
 
-**Última atualização:** 05/03/2026 19:06 BRT
+**Última atualização:** 05/03/2026 19:20 BRT
