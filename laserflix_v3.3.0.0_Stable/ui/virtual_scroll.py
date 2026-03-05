@@ -45,7 +45,7 @@ class VirtualScrollGrid:
         
         # Constantes de scroll suave
         self.SCROLL_PIXELS = 80  # Pixels por clique do mouse (era 120)
-        self.BUFFER_ROWS   = 2   # Linhas extras acima/abaixo para suavizar
+        self.BUFFER_ROWS   = 3   # Linhas extras acima/abaixo para suavizar
         
         # Bind de scroll suave
         self._setup_smooth_scroll()
@@ -77,7 +77,8 @@ class VirtualScrollGrid:
         
         Args:
             items: Lista de tuplas (project_path, project_data)
-            card_builder: Callback(container, path, data, callbacks, row, col)
+            card_builder: Callback(container, path, data, row, col) -> widget
+                         IMPORTANTE: Callback já deve ter callbacks internos (via closure)
         """
         self.items        = items
         self.card_builder = card_builder
@@ -165,8 +166,8 @@ class VirtualScrollGrid:
             
             project_path, project_data = self.items[idx]
             
-            # Callback build_card deve retornar o widget criado (frame do card)
-            # Nota: row+2 porque header ocupa rows 0-1
+            # ← BUGFIX: card_builder já vem com callbacks fechados (closure)
+            # Assinatura esperada: card_builder(container, path, data, row, col)
             widget = self.card_builder(
                 self.container, 
                 project_path, 
