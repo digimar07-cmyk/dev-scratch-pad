@@ -11,22 +11,17 @@ from PIL import Image, ImageTk
 from config.settings import VERSION
 from config.card_layout import COLS, CARD_W, CARD_H, COVER_H, CARD_PAD
 from config.ui_constants import (
-    # Truncamento
     CARD_NAME_MAX_LENGTH, CARD_NAME_TRUNCATE_AT,
     CARD_TAG_MAX_LENGTH, CARD_TAG_TRUNCATE_AT,
     CARD_CATEGORY_MAX_LENGTH,
-    # Limites
     SIDEBAR_MAX_CATEGORIES, SIDEBAR_MAX_TAGS,
     CARD_MAX_CATEGORIES, CARD_MAX_TAGS,
     MODAL_MAX_GRID_IMAGES, MODAL_THUMBNAIL_SIZE, MODAL_GRID_COLUMNS,
-    # Cores
     BG_PRIMARY, BG_SECONDARY, BG_CARD, BG_HOVER, BG_SEPARATOR,
     ACCENT_RED, ACCENT_GREEN, ACCENT_GOLD,
     FG_PRIMARY, FG_SECONDARY, FG_TERTIARY,
     ORIGIN_COLORS, CATEGORY_COLORS,
-    # Strings proibidas
     CARD_BANNED_STRINGS,
-    # Comportamento
     SCROLL_SPEED,
 )
 
@@ -46,10 +41,9 @@ from ai.analysis_manager import AnalysisManager
 from utils.logging_setup import LOGGER
 from utils.platform_utils import open_file, open_folder
 
-# ── NOVOS MÓDULOS (importação recursiva + preparação de pastas) ──────────────
+# Módulos de importação unificada
 from ui.recursive_import_integration import RecursiveImportManager
 from ui.prepare_folders_dialog import PrepareFoldersDialog
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class LaserflixMainWindow:
@@ -61,44 +55,38 @@ class LaserflixMainWindow:
         self.db_manager.load_config()
         self.db_manager.load_database()
 
-        self.cache = ThumbnailCache()
+        self.cache   = ThumbnailCache()
         self.scanner = ProjectScanner(self.db_manager.database)
 
-        self.ollama = OllamaClient(self.db_manager.config.get("models"))
-        self.image_analyzer = ImageAnalyzer(self.ollama)
+        self.ollama           = OllamaClient(self.db_manager.config.get("models"))
+        self.image_analyzer   = ImageAnalyzer(self.ollama)
         self.fallback_generator = FallbackGenerator(self.scanner)
-        self.text_generator = TextGenerator(
-            self.ollama,
-            self.image_analyzer,
-            self.scanner,
-            self.fallback_generator,
+        self.text_generator   = TextGenerator(
+            self.ollama, self.image_analyzer,
+            self.scanner, self.fallback_generator,
         )
-
         self.analysis_manager = AnalysisManager(
-            self.text_generator,
-            self.db_manager,
-            self.ollama
+            self.text_generator, self.db_manager, self.ollama
         )
         self._setup_analysis_callbacks()
 
-        self.folders = self.db_manager.config.get("folders", [])
-        self.database = self.db_manager.database
-        self.current_filter = "all"
+        self.folders           = self.db_manager.config.get("folders", [])
+        self.database          = self.db_manager.database
+        self.current_filter    = "all"
         self.current_categories = []
-        self.current_tag = None
-        self.current_origin = "all"
-        self.search_query = ""
+        self.current_tag       = None
+        self.current_origin    = "all"
+        self.search_query      = ""
         self._active_sidebar_btn = None
 
-        # ── Gerenciador de importação recursiva ───────────────────────────────
-        self.recursive_import_manager = RecursiveImportManager(
+        # Gerenciador unificado de importação
+        self.import_manager = RecursiveImportManager(
             parent=self.root,
             database=self.database,
             project_scanner=self.scanner,
             text_generator=self.text_generator,
-            on_complete=self._on_recursive_import_complete,
+            on_complete=self._on_import_complete,
         )
-        # ─────────────────────────────────────────────────────────────────────
 
         self.root.title(f"LASERFLIX {VERSION}")
         self.root.state('zoomed')
@@ -107,6 +95,10 @@ class LaserflixMainWindow:
         self.create_ui()
         self.display_projects()
         self.logger.info("✨ Laserflix v%s iniciado", VERSION)
+
+    # =========================================================================
+    # CALLBACKS
+    # =========================================================================
 
     def _setup_analysis_callbacks(self):
         self.analysis_manager.on_start    = self.show_progress_ui
@@ -127,18 +119,18 @@ class LaserflixMainWindow:
     def _on_analysis_error(self, error_msg):
         messagebox.showwarning("⚠️ Erro", error_msg)
 
-    def _on_recursive_import_complete(self):
-        """Callback pós-importação recursiva: recarrega tudo."""
+    def _on_import_complete(self):
+        """Callback pós qualquer importação (simples, híbrida ou pura)."""
         self.database = self.db_manager.database
-        self.recursive_import_manager.database = self.database
+        self.import_manager.database = self.database
         self.db_manager.save_database()
         self.update_sidebar()
         self.display_projects()
-        self.status_bar.config(text="✅ Importação recursiva concluída!")
-        self.logger.info("Importação recursiva concluída")
+        self.status_bar.config(text="✅ Importação concluída!")
+        self.logger.info("Importação concluída")
 
     # =========================================================================
-    # UI
+    # UI PRINCIPAL
     # =========================================================================
 
     def create_ui(self):
@@ -151,17 +143,20 @@ class LaserflixMainWindow:
         tk.Label(header, text=f"v{VERSION}", font=("Arial", 10),
                  bg="#000000", fg=FG_TERTIARY).pack(side="left", padx=5)
 
+        # Nav
         nav_frame = tk.Frame(header, bg="#000000")
         nav_frame.pack(side="left", padx=30)
-        for text, ftype in [("🏠 Home","all"),("⭐ Favoritos","favorite"),
-                             ("✓ Já Feitos","done"),("👍 Bons","good"),("👎 Ruins","bad")]:
-            btn = tk.Button(nav_frame, text=text, command=lambda f=ftype: self.set_filter(f),
+        for text, ftype in [("🏠 Home", "all"), ("⭐ Favoritos", "favorite"),
+                             ("✓ Já Feitos", "done"), ("👍 Bons", "good"), ("👎 Ruins", "bad")]:
+            btn = tk.Button(nav_frame, text=text,
+                            command=lambda f=ftype: self.set_filter(f),
                             bg="#000000", fg=FG_PRIMARY, font=("Arial", 12),
                             relief="flat", cursor="hand2", padx=10)
             btn.pack(side="left", padx=5)
             btn.bind("<Enter>", lambda e, w=btn: w.config(fg=ACCENT_RED))
             btn.bind("<Leave>", lambda e, w=btn: w.config(fg=FG_PRIMARY))
 
+        # Busca
         search_frame = tk.Frame(header, bg="#000000")
         search_frame.pack(side="right", padx=20)
         tk.Label(search_frame, text="🔍", bg="#000000", fg=FG_PRIMARY,
@@ -172,32 +167,37 @@ class LaserflixMainWindow:
                  fg=FG_PRIMARY, font=("Arial", 12), width=30, relief="flat",
                  insertbackground=FG_PRIMARY).pack(side="left", padx=5, ipady=5)
 
+        # Botões direita
         extras_frame = tk.Frame(header, bg="#000000")
         extras_frame.pack(side="right", padx=10)
 
-        # ── Menu ⚙️ (agora com Importar Recursivo e Preparar Pastas) ─────────
+        # ── Menu ⚙️ ─ sem “Importar Recursivo” (foi pro botão vermelho) ──
         menu_btn = tk.Menubutton(extras_frame, text="⚙️ Menu", bg="#444444",
                                   fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                                   relief="flat", cursor="hand2", padx=15, pady=8)
         menu_btn.pack(side="left", padx=5)
         menu = tk.Menu(menu_btn, tearoff=0, bg=BG_CARD, fg=FG_PRIMARY)
         menu_btn["menu"] = menu
-        menu.add_command(label="📁 Importar Recursivo",
-                         command=self.start_recursive_import)          # ← NOVO
-        menu.add_command(label="📦 Preparar Pastas",
-                         command=self.open_prepare_folders)            # ← NOVO
+        menu.add_command(label="📦 Preparar Pastas",      command=self.open_prepare_folders)
         menu.add_separator()
-        menu.add_command(label="📥 Importar Banco",  command=self.import_database)
-        menu.add_command(label="💾 Exportar Banco",  command=self.export_database)
-        menu.add_command(label="🔄 Backup Manual",   command=self.manual_backup)
+        menu.add_command(label="📥 Importar Banco",       command=self.import_database)
+        menu.add_command(label="💾 Exportar Banco",       command=self.export_database)
+        menu.add_command(label="🔄 Backup Manual",        command=self.manual_backup)
         menu.add_separator()
         menu.add_command(label="🤖 Configurar Modelos IA", command=self.open_model_settings)
-        # ─────────────────────────────────────────────────────────────────────
 
-        tk.Button(extras_frame, text="➕ Pastas", command=self.add_folders,
-                  bg=ACCENT_RED, fg=FG_PRIMARY, font=("Arial", 11, "bold"),
-                  relief="flat", cursor="hand2", padx=15, pady=8).pack(side="left", padx=5)
+        # ── Botão vermelho → agora abre a janela unificada de importação ──
+        tk.Button(
+            extras_frame,
+            text="📁 Importar Pastas",
+            command=self.open_import_dialog,          # ← NOVO PONTO DE ENTRADA
+            bg=ACCENT_RED, fg=FG_PRIMARY,
+            font=("Arial", 11, "bold"),
+            relief="flat", cursor="hand2",
+            padx=15, pady=8,
+        ).pack(side="left", padx=5)
 
+        # Análise IA
         ai_btn = tk.Menubutton(extras_frame, text="🤖 Análise", bg=ACCENT_GREEN,
                                 fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                                 relief="flat", cursor="hand2", padx=15, pady=8)
@@ -208,6 +208,7 @@ class LaserflixMainWindow:
         ai_menu.add_command(label="🆕 Analisar apenas novos", command=self.analyze_only_new)
         ai_menu.add_command(label="🔄 Reanalisar todos",      command=self.reanalyze_all)
 
+        # Descrições IA
         desc_btn = tk.Menubutton(extras_frame, text="📝 Descrições", bg="#3A7BD5",
                                   fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                                   relief="flat", cursor="hand2", padx=15, pady=8)
@@ -215,23 +216,25 @@ class LaserflixMainWindow:
         desc_menu = tk.Menu(desc_btn, tearoff=0, bg=BG_CARD, fg=FG_PRIMARY,
                             activebackground=ACCENT_RED, activeforeground=FG_PRIMARY)
         desc_btn["menu"] = desc_menu
-        desc_menu.add_command(label="📝 Gerar para novos",  command=self.generate_descriptions_for_new)
-        desc_menu.add_command(label="📝 Gerar para todos",  command=self.generate_descriptions_for_all)
+        desc_menu.add_command(label="📝 Gerar para novos", command=self.generate_descriptions_for_new)
+        desc_menu.add_command(label="📝 Gerar para todos", command=self.generate_descriptions_for_all)
 
+        # ── Área de conteúdo ──
         main_container = tk.Frame(self.root, bg=BG_PRIMARY)
         main_container.pack(fill="both", expand=True)
-
         self.create_sidebar(main_container)
 
         content_frame = tk.Frame(main_container, bg=BG_PRIMARY)
         content_frame.pack(side="left", fill="both", expand=True)
 
         self.content_canvas = tk.Canvas(content_frame, bg=BG_PRIMARY, highlightthickness=0)
-        content_sb = ttk.Scrollbar(content_frame, orient="vertical", command=self.content_canvas.yview)
+        content_sb = ttk.Scrollbar(content_frame, orient="vertical",
+                                    command=self.content_canvas.yview)
         self.scrollable_frame = tk.Frame(self.content_canvas, bg=BG_PRIMARY)
         self.scrollable_frame.bind(
             "<Configure>",
-            lambda e: self.content_canvas.configure(scrollregion=self.content_canvas.bbox("all")))
+            lambda e: self.content_canvas.configure(
+                scrollregion=self.content_canvas.bbox("all")))
         self.content_canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
         self.content_canvas.configure(yscrollcommand=content_sb.set)
         self.content_canvas.pack(side="left", fill="both", expand=True, padx=10, pady=10)
@@ -242,14 +245,18 @@ class LaserflixMainWindow:
 
         def _mw(e):
             self.content_canvas.yview_scroll(int(-1*(e.delta/SCROLL_SPEED)), "units")
-        self.content_canvas.bind("<Enter>", lambda e: self.content_canvas.bind("<MouseWheel>", _mw))
-        self.content_canvas.bind("<Leave>", lambda e: self.content_canvas.unbind("<MouseWheel>"))
+        self.content_canvas.bind("<Enter>",
+            lambda e: self.content_canvas.bind("<MouseWheel>", _mw))
+        self.content_canvas.bind("<Leave>",
+            lambda e: self.content_canvas.unbind("<MouseWheel>"))
 
+        # Status bar
         self.status_frame = tk.Frame(self.root, bg="#000000", height=40)
         self.status_frame.pack(side="bottom", fill="x")
         self.status_frame.pack_propagate(False)
-        self.status_bar = tk.Label(self.status_frame, text="Pronto.", bg="#000000",
-                                   fg=FG_SECONDARY, font=("Arial", 10), anchor="w")
+        self.status_bar = tk.Label(self.status_frame, text="Pronto.",
+                                   bg="#000000", fg=FG_SECONDARY,
+                                   font=("Arial", 10), anchor="w")
         self.status_bar.pack(side="left", padx=10, fill="both", expand=True)
 
         style = ttk.Style()
@@ -257,20 +264,28 @@ class LaserflixMainWindow:
         style.configure("G.Horizontal.TProgressbar", troughcolor=BG_CARD,
                         background=ACCENT_GREEN, bordercolor="#000000")
         self.progress_bar = ttk.Progressbar(self.status_frame, mode="determinate",
-                                             length=300, style="G.Horizontal.TProgressbar")
+                                             length=300,
+                                             style="G.Horizontal.TProgressbar")
         self.stop_btn = tk.Button(self.status_frame, text="⏹ Parar",
                                    command=self.analysis_manager.stop,
                                    bg=ACCENT_RED, fg=FG_PRIMARY,
-                                   font=("Arial", 10, "bold"), relief="flat", cursor="hand2")
+                                   font=("Arial", 10, "bold"),
+                                   relief="flat", cursor="hand2")
 
     # =========================================================================
-    # IMPORTAÇÃO RECURSIVA + PREPARAR PASTAS  (novos métodos)
+    # IMPORTAÇÃO — ponto de entrada único
     # =========================================================================
 
-    def start_recursive_import(self):
-        """Dispara o fluxo completo de importação recursiva."""
-        self.recursive_import_manager.database = self.database
-        self.recursive_import_manager.start_import()
+    def open_import_dialog(self):
+        """
+        Ponto de entrada do botão 'Importar Pastas'.
+        Abre a janela unificada com os 3 modos:
+          - Recursivo Híbrido
+          - Recursivo Puro
+          - Importação Simples (antigo + Pastas, com dedup)
+        """
+        self.import_manager.database = self.database
+        self.import_manager.start_import()
 
     def open_prepare_folders(self):
         """Abre dialog para preparar pastas (gerar folder.jpg)."""
@@ -286,30 +301,36 @@ class LaserflixMainWindow:
         sidebar_container.pack(side="left", fill="both")
         sidebar_container.pack_propagate(False)
 
-        self.sidebar_canvas = tk.Canvas(sidebar_container, bg=BG_SECONDARY, highlightthickness=0)
-        sb = ttk.Scrollbar(sidebar_container, orient="vertical", command=self.sidebar_canvas.yview)
+        self.sidebar_canvas = tk.Canvas(sidebar_container, bg=BG_SECONDARY,
+                                         highlightthickness=0)
+        sb = ttk.Scrollbar(sidebar_container, orient="vertical",
+                            command=self.sidebar_canvas.yview)
         self.sidebar_content = tk.Frame(self.sidebar_canvas, bg=BG_SECONDARY)
         self.sidebar_content.bind(
             "<Configure>",
-            lambda e: self.sidebar_canvas.configure(scrollregion=self.sidebar_canvas.bbox("all")))
-        self.sidebar_canvas.create_window((0,0), window=self.sidebar_content, anchor="nw", width=230)
+            lambda e: self.sidebar_canvas.configure(
+                scrollregion=self.sidebar_canvas.bbox("all")))
+        self.sidebar_canvas.create_window((0, 0), window=self.sidebar_content,
+                                           anchor="nw", width=230)
         self.sidebar_canvas.configure(yscrollcommand=sb.set)
         self.sidebar_canvas.pack(side="left", fill="both", expand=True)
         sb.pack(side="right", fill="y")
         self.sidebar_canvas.bind(
             "<MouseWheel>",
-            lambda e: self.sidebar_canvas.yview_scroll(int(-1*(e.delta/SCROLL_SPEED)), "units"))
+            lambda e: self.sidebar_canvas.yview_scroll(
+                int(-1*(e.delta/SCROLL_SPEED)), "units"))
 
-        for title, attr in [("🌐 Origem","origins_frame"),
-                             ("📂 Categorias","categories_frame"),
-                             ("🏷️ Tags Populares","tags_frame")]:
-            tk.Label(self.sidebar_content, text=title, font=("Arial",14,"bold"),
+        for title, attr in [("🌐 Origem",        "origins_frame"),
+                             ("📂 Categorias",    "categories_frame"),
+                             ("🏷️ Tags Populares", "tags_frame")]:
+            tk.Label(self.sidebar_content, text=title, font=("Arial", 14, "bold"),
                      bg=BG_SECONDARY, fg=FG_PRIMARY, anchor="w"
-                     ).pack(fill="x", padx=15, pady=(15,5))
+                     ).pack(fill="x", padx=15, pady=(15, 5))
             frame = tk.Frame(self.sidebar_content, bg=BG_SECONDARY)
             frame.pack(fill="x", padx=10, pady=5)
             setattr(self, attr, frame)
-            tk.Frame(self.sidebar_content, bg=BG_SEPARATOR, height=2).pack(fill="x", padx=10, pady=10)
+            tk.Frame(self.sidebar_content, bg=BG_SEPARATOR, height=2
+                     ).pack(fill="x", padx=10, pady=10)
 
         tk.Frame(self.sidebar_content, bg=BG_SECONDARY, height=50).pack(fill="x")
         self.update_sidebar()
@@ -349,13 +370,16 @@ class LaserflixMainWindow:
             origins[o] = origins.get(o, 0) + 1
         for origin in sorted(origins):
             color = ORIGIN_COLORS.get(origin, ORIGIN_COLORS["default"])
-            btn = tk.Button(self.origins_frame, text=f"{origin} ({origins[origin]})",
-                            bg=BG_SECONDARY, fg=color, font=("Arial",10,"bold"),
+            btn = tk.Button(self.origins_frame,
+                            text=f"{origin} ({origins[origin]})",
+                            bg=BG_SECONDARY, fg=color, font=("Arial", 10, "bold"),
                             relief="flat", cursor="hand2", anchor="w", padx=15, pady=8)
             btn.config(command=lambda o=origin, b=btn: self.set_origin_filter(o, b))
             btn.pack(fill="x", pady=2)
-            btn.bind("<Enter>", lambda e, b=btn: b.config(bg=BG_CARD) if b is not self._active_sidebar_btn else None)
-            btn.bind("<Leave>", lambda e, b=btn: b.config(bg=BG_SECONDARY) if b is not self._active_sidebar_btn else None)
+            btn.bind("<Enter>", lambda e, b=btn:
+                     b.config(bg=BG_CARD) if b is not self._active_sidebar_btn else None)
+            btn.bind("<Leave>", lambda e, b=btn:
+                     b.config(bg=BG_SECONDARY) if b is not self._active_sidebar_btn else None)
         self._bind_sidebar_scroll(self.origins_frame)
 
     def update_categories_list(self):
@@ -369,25 +393,28 @@ class LaserflixMainWindow:
                     all_cats[c] = all_cats.get(c, 0) + 1
         if not all_cats:
             tk.Label(self.categories_frame, text="Nenhuma categoria",
-                     bg=BG_SECONDARY, fg=FG_TERTIARY, font=("Arial",10,"italic"),
+                     bg=BG_SECONDARY, fg=FG_TERTIARY, font=("Arial", 10, "italic"),
                      anchor="w", padx=15, pady=10).pack(fill="x")
             return
         cats_sorted = sorted(all_cats.items(), key=lambda x: x[1], reverse=True)
         for cat, count in cats_sorted[:SIDEBAR_MAX_CATEGORIES]:
-            btn = tk.Button(self.categories_frame, text=f"{cat} ({count})",
-                            bg=BG_SECONDARY, fg="#CCCCCC", font=("Arial",10),
+            btn = tk.Button(self.categories_frame,
+                            text=f"{cat} ({count})",
+                            bg=BG_SECONDARY, fg="#CCCCCC", font=("Arial", 10),
                             relief="flat", cursor="hand2", anchor="w", padx=15, pady=8)
             btn.config(command=lambda c=cat, b=btn: self.set_category_filter([c], b))
             btn.pack(fill="x", pady=2)
-            btn.bind("<Enter>", lambda e, b=btn: b.config(bg=BG_CARD) if b is not self._active_sidebar_btn else None)
-            btn.bind("<Leave>", lambda e, b=btn: b.config(bg=BG_SECONDARY) if b is not self._active_sidebar_btn else None)
+            btn.bind("<Enter>", lambda e, b=btn:
+                     b.config(bg=BG_CARD) if b is not self._active_sidebar_btn else None)
+            btn.bind("<Leave>", lambda e, b=btn:
+                     b.config(bg=BG_SECONDARY) if b is not self._active_sidebar_btn else None)
         if len(cats_sorted) > SIDEBAR_MAX_CATEGORIES:
             mb = tk.Button(self.categories_frame,
-                           text=f"+ Ver mais ({len(cats_sorted)-SIDEBAR_MAX_CATEGORIES})",
-                           bg=BG_CARD, fg="#888888", font=("Arial",9),
+                           text=f"+ Ver mais ({len(cats_sorted) - SIDEBAR_MAX_CATEGORIES})",
+                           bg=BG_CARD, fg="#888888", font=("Arial", 9),
                            relief="flat", cursor="hand2", anchor="w", padx=15, pady=6,
                            command=self.open_categories_picker)
-            mb.pack(fill="x", pady=(4,2))
+            mb.pack(fill="x", pady=(4, 2))
         self._bind_sidebar_scroll(self.categories_frame)
 
     def update_tags_list(self):
@@ -401,13 +428,13 @@ class LaserflixMainWindow:
                     tag_count[t] = tag_count.get(t, 0) + 1
         tags_sorted = sorted(tag_count.items(), key=lambda x: x[1], reverse=True)
         if not tags_sorted:
-            tk.Label(self.tags_frame, text="Nenhuma tag", bg=BG_SECONDARY,
-                     fg=FG_TERTIARY, font=("Arial",10,"italic"),
+            tk.Label(self.tags_frame, text="Nenhuma tag",
+                     bg=BG_SECONDARY, fg=FG_TERTIARY, font=("Arial", 10, "italic"),
                      anchor="w", padx=15, pady=10).pack(fill="x")
             return
         for tag, count in tags_sorted[:SIDEBAR_MAX_TAGS]:
             btn = tk.Button(self.tags_frame, text=f"{tag} ({count})",
-                            bg=BG_SECONDARY, fg="#CCCCCC", font=("Arial",10),
+                            bg=BG_SECONDARY, fg="#CCCCCC", font=("Arial", 10),
                             relief="flat", cursor="hand2", anchor="w", padx=15, pady=6)
             btn.config(command=lambda t=tag, b=btn: self.set_tag_filter(t, b))
             btn.pack(fill="x", pady=1)
@@ -430,25 +457,29 @@ class LaserflixMainWindow:
         elif self.current_filter == "bad":     title_text = "👎 Ruins"
         if self.current_origin != "all":       title_text += f" — {self.current_origin}"
         if self.current_categories:            title_text += f" — {', '.join(self.current_categories)}"
-        if self.current_tag:                    title_text += f" — #{self.current_tag}"
-        if self.search_query:                   title_text += f' — "{self.search_query}"'
+        if self.current_tag:                   title_text += f" — #{self.current_tag}"
+        if self.search_query:                  title_text += f' — "{self.search_query}"'
 
-        tk.Label(self.scrollable_frame, text=title_text, font=("Arial",20,"bold"),
-                 bg=BG_PRIMARY, fg=FG_PRIMARY, anchor="w"
-                 ).grid(row=0, column=0, columnspan=COLS, sticky="w", padx=10, pady=(0,5))
+        tk.Label(self.scrollable_frame, text=title_text,
+                 font=("Arial", 20, "bold"), bg=BG_PRIMARY, fg=FG_PRIMARY,
+                 anchor="w").grid(row=0, column=0, columnspan=COLS,
+                                  sticky="w", padx=10, pady=(0, 5))
 
-        filtered = [(p, self.database[p]) for p in self.get_filtered_projects() if p in self.database]
+        filtered = [(p, self.database[p])
+                    for p in self.get_filtered_projects() if p in self.database]
 
         tk.Label(self.scrollable_frame, text=f"{len(filtered)} projeto(s)",
-                 font=("Arial",12), bg=BG_PRIMARY, fg="#999999"
-                 ).grid(row=1, column=0, columnspan=COLS, sticky="w", padx=10, pady=(0,15))
+                 font=("Arial", 12), bg=BG_PRIMARY, fg="#999999"
+                 ).grid(row=1, column=0, columnspan=COLS,
+                        sticky="w", padx=10, pady=(0, 15))
 
         if not filtered:
-            tk.Label(self.scrollable_frame,
-                     text="Nenhum projeto.\nClique em '+ Pastas' para adicionar.",
-                     font=("Arial",14), bg=BG_PRIMARY, fg=FG_TERTIARY,
-                     justify="center"
-                     ).grid(row=2, column=0, columnspan=COLS, pady=80)
+            tk.Label(
+                self.scrollable_frame,
+                text="Nenhum projeto.\nClique em 'Importar Pastas' para adicionar.",
+                font=("Arial", 14), bg=BG_PRIMARY, fg=FG_TERTIARY,
+                justify="center",
+            ).grid(row=2, column=0, columnspan=COLS, pady=80)
             return
 
         row, col = 2, 0
@@ -462,12 +493,10 @@ class LaserflixMainWindow:
     def create_project_card(self, project_path, data, row, col):
         card = tk.Frame(self.scrollable_frame, bg=BG_CARD,
                         width=CARD_W, height=CARD_H)
-        card.grid(row=row, column=col,
-                  padx=CARD_PAD, pady=CARD_PAD, sticky="n")
+        card.grid(row=row, column=col, padx=CARD_PAD, pady=CARD_PAD, sticky="n")
         card.grid_propagate(False)
 
-        cover_frame = tk.Frame(card, bg=BG_SECONDARY,
-                               width=CARD_W, height=COVER_H)
+        cover_frame = tk.Frame(card, bg=BG_SECONDARY, width=CARD_W, height=COVER_H)
         cover_frame.pack(fill="x")
         cover_frame.pack_propagate(False)
         cover_frame.bind("<Button-1>", lambda e: self.open_project_modal(project_path))
@@ -489,11 +518,11 @@ class LaserflixMainWindow:
         info.pack(fill="both", expand=True, padx=8, pady=6)
 
         name = data.get("name", "Sem nome")
-        nm   = (name[:CARD_NAME_TRUNCATE_AT] + "...") if len(name) > CARD_NAME_MAX_LENGTH else name
+        nm   = (name[:CARD_NAME_TRUNCATE_AT] + "...") \
+               if len(name) > CARD_NAME_MAX_LENGTH else name
         nl   = tk.Label(info, text=nm, font=("Arial", 10, "bold"),
                         bg=BG_CARD, fg=FG_PRIMARY,
-                        wraplength=CARD_W - 20,
-                        justify="left", cursor="hand2")
+                        wraplength=CARD_W - 20, justify="left", cursor="hand2")
         nl.pack(anchor="w")
         nl.bind("<Button-1>", lambda e: self.open_project_modal(project_path))
 
@@ -518,7 +547,8 @@ class LaserflixMainWindow:
             tf = tk.Frame(info, bg=BG_CARD)
             tf.pack(anchor="w", pady=(3, 0), fill="x")
             for tag in tags[:CARD_MAX_TAGS]:
-                disp = (tag[:CARD_TAG_TRUNCATE_AT] + "...") if len(tag) > CARD_TAG_MAX_LENGTH else tag
+                disp = (tag[:CARD_TAG_TRUNCATE_AT] + "...") \
+                       if len(tag) > CARD_TAG_MAX_LENGTH else tag
                 b = tk.Button(tf, text=disp,
                               command=lambda t=tag: self.set_tag_filter(t),
                               bg="#3A3A3A", fg=FG_PRIMARY, font=("Arial", 7),
@@ -527,11 +557,11 @@ class LaserflixMainWindow:
                 b.bind("<Enter>", lambda e, w=b: w.config(bg=ACCENT_RED))
                 b.bind("<Leave>", lambda e, w=b: w.config(bg="#3A3A3A"))
 
-        origin = data.get("origin", "Desconhecido")
+        origin       = data.get("origin", "Desconhecido")
         origin_color = ORIGIN_COLORS.get(origin, ORIGIN_COLORS["default"])
         tk.Button(info, text=origin, font=("Arial", 7),
-                  bg=origin_color, fg=FG_PRIMARY,
-                  padx=4, pady=2, relief="flat", cursor="hand2",
+                  bg=origin_color, fg=FG_PRIMARY, padx=4, pady=2,
+                  relief="flat", cursor="hand2",
                   command=lambda o=origin: self.set_origin_filter(o)
                   ).pack(anchor="w", pady=(4, 0))
 
@@ -543,28 +573,32 @@ class LaserflixMainWindow:
                   bg=BG_CARD, fg=ACCENT_GOLD, relief="flat", cursor="hand2"
                   ).pack(side="left", padx=1)
 
-        btn_fav = tk.Button(af, font=("Arial", 12), bg=BG_CARD, relief="flat", cursor="hand2")
+        btn_fav = tk.Button(af, font=("Arial", 12), bg=BG_CARD,
+                             relief="flat", cursor="hand2")
         btn_fav.config(
             text="⭐" if data.get("favorite") else "☆",
             fg=ACCENT_GOLD if data.get("favorite") else FG_TERTIARY,
             command=lambda b=btn_fav: self.toggle_favorite(project_path, b))
         btn_fav.pack(side="left", padx=1)
 
-        btn_done = tk.Button(af, font=("Arial", 12), bg=BG_CARD, relief="flat", cursor="hand2")
+        btn_done = tk.Button(af, font=("Arial", 12), bg=BG_CARD,
+                              relief="flat", cursor="hand2")
         btn_done.config(
             text="✓" if data.get("done") else "○",
             fg="#00FF00" if data.get("done") else FG_TERTIARY,
             command=lambda b=btn_done: self.toggle_done(project_path, b))
         btn_done.pack(side="left", padx=1)
 
-        btn_good = tk.Button(af, font=("Arial", 12), bg=BG_CARD, relief="flat", cursor="hand2")
+        btn_good = tk.Button(af, font=("Arial", 12), bg=BG_CARD,
+                              relief="flat", cursor="hand2")
         btn_good.config(
             text="👍",
             fg="#00FF00" if data.get("good") else FG_TERTIARY,
             command=lambda b=btn_good: self.toggle_good(project_path, b))
         btn_good.pack(side="left", padx=1)
 
-        btn_bad = tk.Button(af, font=("Arial", 12), bg=BG_CARD, relief="flat", cursor="hand2")
+        btn_bad = tk.Button(af, font=("Arial", 12), bg=BG_CARD,
+                             relief="flat", cursor="hand2")
         btn_bad.config(
             text="👎",
             fg="#FF0000" if data.get("bad") else FG_TERTIARY,
@@ -582,10 +616,10 @@ class LaserflixMainWindow:
     # =========================================================================
 
     def set_filter(self, filter_type):
-        self.current_filter = filter_type
+        self.current_filter     = filter_type
         self.current_categories = []
-        self.current_tag = None
-        self.current_origin = "all"
+        self.current_tag        = None
+        self.current_origin     = "all"
         self.search_var.set("")
         self._set_active_sidebar_btn(None)
         self.display_projects()
@@ -595,28 +629,29 @@ class LaserflixMainWindow:
         self.display_projects()
 
     def set_origin_filter(self, origin, btn=None):
-        self.current_filter = "all"
-        self.current_origin = origin
+        self.current_filter     = "all"
+        self.current_origin     = origin
         self.current_categories = []
-        self.current_tag = None
+        self.current_tag        = None
         self._set_active_sidebar_btn(btn)
         self.display_projects()
-        count = sum(1 for d in self.database.values() if d.get("origin") == origin)
+        count = sum(1 for d in self.database.values()
+                    if d.get("origin") == origin)
         self.status_bar.config(text=f"Origem: {origin} ({count} projetos)")
 
     def set_category_filter(self, categories, btn=None):
-        self.current_filter = "all"
+        self.current_filter     = "all"
         self.current_categories = categories
-        self.current_tag = None
-        self.current_origin = "all"
+        self.current_tag        = None
+        self.current_origin     = "all"
         self._set_active_sidebar_btn(btn)
         self.display_projects()
 
     def set_tag_filter(self, tag, btn=None):
-        self.current_filter = "all"
-        self.current_tag = tag
+        self.current_filter     = "all"
+        self.current_tag        = tag
         self.current_categories = []
-        self.current_origin = "all"
+        self.current_origin     = "all"
         self._set_active_sidebar_btn(btn)
         self.display_projects()
 
@@ -631,45 +666,17 @@ class LaserflixMainWindow:
                 or (self.current_filter == "bad"      and data.get("bad"))
             )
             if not show: continue
-            if self.current_origin != "all" and data.get("origin") != self.current_origin: continue
-            if self.current_categories and not any(c in data.get("categories",[]) for c in self.current_categories): continue
-            if self.current_tag and self.current_tag not in data.get("tags",[]): continue
-            if self.search_query and self.search_query not in data.get("name","").lower(): continue
+            if (self.current_origin != "all"
+                    and data.get("origin") != self.current_origin): continue
+            if (self.current_categories
+                    and not any(c in data.get("categories", [])
+                                for c in self.current_categories)): continue
+            if (self.current_tag
+                    and self.current_tag not in data.get("tags", [])): continue
+            if (self.search_query
+                    and self.search_query not in data.get("name", "").lower()): continue
             filtered.append(project_path)
         return filtered
-
-    # =========================================================================
-    # ADD FOLDERS
-    # =========================================================================
-
-    def add_folders(self):
-        while True:
-            folder = filedialog.askdirectory(
-                title="Selecione pasta com projetos laser",
-                mustexist=True
-            )
-            if not folder:
-                break
-            if folder in self.folders:
-                messagebox.showinfo("⚠️ Já adicionada", f"A pasta já está na lista:\n{folder}")
-            else:
-                self.folders.append(folder)
-                self.status_bar.config(text=f"⏳ Escaneando {folder}...")
-                self.root.update_idletasks()
-                new_count = self.scanner.scan_projects([folder])
-                self.db_manager.database = self.scanner.database
-                self.database = self.db_manager.database
-                self.db_manager.config["folders"] = self.folders
-                self.db_manager.save_config()
-                self.db_manager.save_database()
-                self.status_bar.config(
-                    text=f"✅ {new_count} novos projetos adicionados de {os.path.basename(folder)}")
-                self.logger.info("Pasta adicionada: %s | %d projetos novos", folder, new_count)
-            mais = messagebox.askyesno("Adicionar mais?", "Deseja adicionar outra pasta?")
-            if not mais:
-                break
-        self.update_sidebar()
-        self.display_projects()
 
     # =========================================================================
     # TOGGLES
@@ -772,7 +779,8 @@ class LaserflixMainWindow:
         lc.configure(yscrollcommand=lsb.set)
         lc.pack(side="left", fill="both", expand=True)
         lsb.pack(side="right", fill="y")
-        lc.bind("<MouseWheel>", lambda ev: lc.yview_scroll(int(-1*(ev.delta/SCROLL_SPEED)), "units"))
+        lc.bind("<MouseWheel>",
+                lambda ev: lc.yview_scroll(int(-1*(ev.delta/SCROLL_SPEED)), "units"))
 
         _desc_lbl_ref = [None]
 
@@ -787,7 +795,8 @@ class LaserflixMainWindow:
 
         def _section_label(text):
             tk.Label(lp, text=text.upper(), font=FONT_SECTION,
-                     bg=BG, fg=FG_TER, anchor="w").pack(fill="x", padx=PAD, pady=(20, 6))
+                     bg=BG, fg=FG_TER, anchor="w"
+                     ).pack(fill="x", padx=PAD, pady=(20, 6))
 
         def _sep():
             tk.Frame(lp, bg=SEP_CLR, height=1).pack(fill="x", padx=PAD, pady=(4, 0))
@@ -796,26 +805,28 @@ class LaserflixMainWindow:
         origin       = data.get("origin", "Desconhecido")
         origin_color = ORIGIN_COLORS.get(origin, ORIGIN_COLORS["default"])
         tk.Label(lp, text="  " + origin + "  ", font=FONT_SMALL,
-                 bg=origin_color, fg=FG_PRIMARY).pack(anchor="w", padx=PAD, pady=(8,4))
+                 bg=origin_color, fg=FG_PRIMARY
+                 ).pack(anchor="w", padx=PAD, pady=(8, 4))
         tk.Label(lp, text=data.get("name", "Sem nome"),
                  font=FONT_TITLE, bg=BG, fg=FG_PRI,
-                 wraplength=500, justify="left", anchor="w").pack(fill="x", padx=PAD, pady=(0,4))
+                 wraplength=500, justify="left", anchor="w"
+                 ).pack(fill="x", padx=PAD, pady=(0, 4))
 
         _sep()
         _section_label("Marcadores")
         act = tk.Frame(lp, bg=BG)
-        act.pack(anchor="w", padx=PAD, pady=(0,4))
+        act.pack(anchor="w", padx=PAD, pady=(0, 4))
 
         def _make_toggle(parent, emoji, label, key, active_fg):
-            is_on = data.get(key, False)
-            f = tk.Frame(parent, bg=BG_CARD, cursor="hand2")
-            f.pack(side="left", padx=(0,6), pady=4)
+            is_on   = data.get(key, False)
+            f       = tk.Frame(parent, bg=BG_CARD, cursor="hand2")
+            f.pack(side="left", padx=(0, 6), pady=4)
             inner_f = tk.Frame(f, bg=BG_CARD, padx=10, pady=7)
             inner_f.pack()
-            il = tk.Label(inner_f, text=emoji, font=("Arial",13), bg=BG_CARD,
+            il = tk.Label(inner_f, text=emoji, font=("Arial", 13), bg=BG_CARD,
                           fg=active_fg if is_on else FG_TER)
             il.pack()
-            tl = tk.Label(inner_f, text=label, font=("Arial",8), bg=BG_CARD,
+            tl = tk.Label(inner_f, text=label, font=("Arial", 8), bg=BG_CARD,
                           fg=FG_SEC if is_on else FG_TER)
             tl.pack()
             all_w = [f, inner_f, il, tl]
@@ -833,8 +844,8 @@ class LaserflixMainWindow:
             def _leave(ev, ws=all_w): [w.config(bg=BG_CARD)  for w in ws]
             for w in all_w:
                 w.bind("<Button-1>", _toggle)
-                w.bind("<Enter>", _enter)
-                w.bind("<Leave>", _leave)
+                w.bind("<Enter>",    _enter)
+                w.bind("<Leave>",    _leave)
 
         _make_toggle(act, "⭐", "Favorito", "favorite", ACCENT_GOLD)
         _make_toggle(act, "✓",  "Feito",    "done",     ACCENT_GREEN)
@@ -845,7 +856,7 @@ class LaserflixMainWindow:
         _section_label("Descrição IA")
         desc_text = (data.get("ai_description") or "").strip()
         desc_box  = tk.Frame(lp, bg=BG_CARD)
-        desc_box.pack(fill="x", padx=PAD, pady=(0,8))
+        desc_box.pack(fill="x", padx=PAD, pady=(0, 8))
         desc_lbl  = tk.Label(
             desc_box,
             text=desc_text if desc_text else "Nenhuma descrição gerada ainda.",
@@ -882,20 +893,20 @@ class LaserflixMainWindow:
             threading.Thread(target=_generate_in_thread, daemon=True).start()
 
         gen_btn = tk.Button(lp, text="🤖  Gerar com IA", command=_gen_desc,
-                            bg=GREEN, fg=FG_PRIMARY, font=("Arial",10,"bold"),
+                            bg=GREEN, fg=FG_PRIMARY, font=("Arial", 10, "bold"),
                             relief="flat", cursor="hand2", padx=16, pady=9, bd=0)
-        gen_btn.pack(anchor="w", padx=PAD, pady=(0,4))
+        gen_btn.pack(anchor="w", padx=PAD, pady=(0, 4))
 
         _sep()
         _section_label("Categorias")
         cats_row = tk.Frame(lp, bg=BG)
-        cats_row.pack(anchor="w", padx=PAD, fill="x", pady=(0,4))
+        cats_row.pack(anchor="w", padx=PAD, fill="x", pady=(0, 4))
         cats = data.get("categories", []) or []
         if cats:
             for cat in cats:
                 tk.Label(cats_row, text=cat, font=FONT_SMALL,
                          bg="#1E3A2F", fg=ACCENT_GREEN,
-                         padx=10, pady=5).pack(side="left", padx=(0,6), pady=2)
+                         padx=10, pady=5).pack(side="left", padx=(0, 6), pady=2)
         else:
             tk.Label(cats_row, text="Sem categoria", font=FONT_SMALL,
                      bg=BG, fg=FG_TER).pack(anchor="w")
@@ -903,44 +914,48 @@ class LaserflixMainWindow:
         _sep()
         _section_label("Tags")
         tw = tk.Frame(lp, bg=BG)
-        tw.pack(anchor="w", padx=PAD, fill="x", pady=(0,4))
+        tw.pack(anchor="w", padx=PAD, fill="x", pady=(0, 4))
         for tag in (data.get("tags", []) or ["Nenhuma tag"]):
             t = tk.Label(tw, text=tag, font=FONT_SMALL,
                          bg=BG_CARD, fg=FG_SEC, padx=10, pady=5, cursor="hand2")
-            t.pack(side="left", padx=(0,4), pady=3)
+            t.pack(side="left", padx=(0, 4), pady=3)
             t.bind("<Enter>", lambda e, w=t: w.config(bg=ACCENT, fg=FG_PRIMARY))
             t.bind("<Leave>", lambda e, w=t: w.config(bg=BG_CARD, fg=FG_SEC))
-            t.bind("<Button-1>", lambda e, tg=tag: (modal.destroy(), self.set_tag_filter(tg)))
+            t.bind("<Button-1>",
+                   lambda e, tg=tag: (modal.destroy(), self.set_tag_filter(tg)))
 
         _sep()
         _section_label("Arquivos")
-        struct = data.get("structure") or self.scanner.analyze_project_structure(project_path)
+        struct = (data.get("structure")
+                  or self.scanner.analyze_project_structure(project_path))
         fmt_row = tk.Frame(lp, bg=BG)
-        fmt_row.pack(anchor="w", padx=PAD, pady=(0,4))
+        fmt_row.pack(anchor="w", padx=PAD, pady=(0, 4))
         for lbl_t, lbl_c, present in [
             ("SVG", "#FF6B6B", struct.get("has_svg")),
             ("PDF", "#4ECDC4", struct.get("has_pdf")),
             ("DXF", "#95E1D3", struct.get("has_dxf")),
             ("AI",  "#F7DC6F", struct.get("has_ai")),
         ]:
-            tk.Label(fmt_row, text=lbl_t, font=("Arial",9,"bold"),
+            tk.Label(fmt_row, text=lbl_t, font=("Arial", 9, "bold"),
                      bg=BG_CARD if present else BG,
-                     fg=lbl_c if present else FG_TER,
-                     padx=10, pady=5).pack(side="left", padx=(0,4))
+                     fg=lbl_c   if present else FG_TER,
+                     padx=10, pady=5).pack(side="left", padx=(0, 4))
         tf  = struct.get("total_files", 0)
         sf  = struct.get("total_subfolders", 0)
         suf = "s" if tf != 1 else ""
         tk.Label(lp, text=f"{tf} arquivo{suf}  ·  {sf} subpasta(s)",
-                 font=FONT_SMALL, bg=BG, fg=FG_TER).pack(anchor="w", padx=PAD, pady=(4,4))
+                 font=FONT_SMALL, bg=BG, fg=FG_TER
+                 ).pack(anchor="w", padx=PAD, pady=(4, 4))
 
         _sep()
         _section_label("Localização")
         par_f = os.path.basename(os.path.dirname(project_path))
         prj_n = os.path.basename(project_path)
         lr = tk.Frame(lp, bg=BG)
-        lr.pack(fill="x", padx=PAD, pady=(0,4))
-        tk.Label(lr, text=f"{par_f} / {prj_n}", font=FONT_SMALL,
-                 bg=BG, fg=FG_SEC).pack(side="left")
+        lr.pack(fill="x", padx=PAD, pady=(0, 4))
+        tk.Label(lr, text=f"{par_f} / {prj_n}",
+                 font=FONT_SMALL, bg=BG, fg=FG_SEC).pack(side="left")
+
         def _copy_path():
             modal.clipboard_clear()
             modal.clipboard_append(project_path)
@@ -953,35 +968,40 @@ class LaserflixMainWindow:
         added   = (data.get("added_date") or "")[:10] or "—"
         model_u = data.get("analyzed_model", "não analisado")
         tk.Label(lp, text=f"Adicionado: {added}   ·   Modelo IA: {model_u}",
-                 font=FONT_SMALL, bg=BG, fg=FG_TER).pack(anchor="w", padx=PAD, pady=(2,4))
+                 font=FONT_SMALL, bg=BG, fg=FG_TER
+                 ).pack(anchor="w", padx=PAD, pady=(2, 4))
 
-        tk.Frame(lp, bg=SEP_CLR, height=1).pack(fill="x", pady=(16,0))
+        tk.Frame(lp, bg=SEP_CLR, height=1).pack(fill="x", pady=(16, 0))
         action_bar = tk.Frame(lp, bg=BG)
         action_bar.pack(fill="x", padx=PAD, pady=12)
-        BTN_PRIMARY = dict(bg=ACCENT,  fg=FG_PRIMARY, font=("Arial",10,"bold"), relief="flat", cursor="hand2", padx=16, pady=9, bd=0)
-        BTN_GHOST   = dict(bg=BG_CARD, fg=FG_PRI,   font=("Arial",10),        relief="flat", cursor="hand2", padx=16, pady=9, bd=0)
-        BTN_NAV     = dict(bg=BG_CARD, fg=FG_SEC,   font=("Arial",11),        relief="flat", cursor="hand2", padx=14, pady=9, bd=0)
+        BTN_P   = dict(bg=ACCENT,  fg=FG_PRIMARY, font=("Arial", 10, "bold"),
+                       relief="flat", cursor="hand2", padx=16, pady=9, bd=0)
+        BTN_G   = dict(bg=BG_CARD, fg=FG_PRI,     font=("Arial", 10),
+                       relief="flat", cursor="hand2", padx=16, pady=9, bd=0)
+        BTN_NAV = dict(bg=BG_CARD, fg=FG_SEC,     font=("Arial", 11),
+                       relief="flat", cursor="hand2", padx=14, pady=9, bd=0)
         tk.Button(action_bar, text="✏️  Editar",
                   command=lambda: self.open_edit_mode(modal, project_path, data),
-                  **BTN_PRIMARY).pack(side="left", padx=(0,6))
+                  **BTN_P).pack(side="left", padx=(0, 6))
         tk.Button(action_bar, text="📂  Pasta",
                   command=lambda: open_folder(project_path),
-                  **BTN_GHOST).pack(side="left", padx=(0,6))
+                  **BTN_G).pack(side="left", padx=(0, 6))
         tk.Button(action_bar, text="🤖  Reanalisar",
-                  command=lambda: [modal.destroy(), self.analyze_single_project(project_path)],
-                  **BTN_GHOST).pack(side="left", padx=(0,6))
-        tk.Button(action_bar, text="✕",
-                  command=modal.destroy,
-                  bg=BG, fg=FG_TER, font=("Arial",14),
-                  relief="flat", cursor="hand2", padx=10, pady=9, bd=0).pack(side="right")
-        tk.Label(action_bar, text=f"{nav_idx+1} / {nav_tot}",
+                  command=lambda: [modal.destroy(),
+                                   self.analyze_single_project(project_path)],
+                  **BTN_G).pack(side="left", padx=(0, 6))
+        tk.Button(action_bar, text="✕", command=modal.destroy,
+                  bg=BG, fg=FG_TER, font=("Arial", 14),
+                  relief="flat", cursor="hand2", padx=10, pady=9, bd=0
+                  ).pack(side="right")
+        tk.Label(action_bar, text=f"{nav_idx + 1} / {nav_tot}",
                  font=FONT_SMALL, bg=BG, fg=FG_TER).pack(side="right", padx=8)
         tk.Button(action_bar, text="▶", command=lambda: _nav(+1),
-                  state="normal" if nav_idx < nav_tot-1 else "disabled",
-                  **BTN_NAV).pack(side="right", padx=(0,2))
+                  state="normal" if nav_idx < nav_tot - 1 else "disabled",
+                  **BTN_NAV).pack(side="right", padx=(0, 2))
         tk.Button(action_bar, text="◄", command=lambda: _nav(-1),
                   state="normal" if nav_idx > 0 else "disabled",
-                  **BTN_NAV).pack(side="right", padx=(0,4))
+                  **BTN_NAV).pack(side="right", padx=(0, 4))
 
         tk.Frame(main, bg=SEP_CLR, width=1).grid(row=0, column=1, sticky="ns")
 
@@ -995,12 +1015,13 @@ class LaserflixMainWindow:
         rc.configure(yscrollcommand=rsb.set)
         rc.pack(side="left", fill="both", expand=True)
         rsb.pack(side="right", fill="y")
-        rc.bind("<MouseWheel>", lambda ev: rc.yview_scroll(int(-1*(ev.delta/SCROLL_SPEED)), "units"))
+        rc.bind("<MouseWheel>",
+                lambda ev: rc.yview_scroll(int(-1*(ev.delta/SCROLL_SPEED)), "units"))
 
         images = self.cache.get_all_project_images(project_path)
 
         if not images:
-            tk.Label(rp, text="🖼️", font=("Arial",64),
+            tk.Label(rp, text="🖼️", font=("Arial", 64),
                      bg="#0A0A0A", fg="#1E1E1E").pack(expand=True, pady=100)
             tk.Label(rp, text="Sem imagens nesta pasta",
                      font=FONT_BODY, bg="#0A0A0A", fg=FG_TER).pack()
@@ -1016,7 +1037,9 @@ class LaserflixMainWindow:
                 try:
                     img   = Image.open(_path).convert("RGB")
                     ratio = cw / img.width
-                    img   = img.resize((cw, max(1, int(img.height * ratio))), Image.Resampling.LANCZOS)
+                    img   = img.resize(
+                        (cw, max(1, int(img.height * ratio))),
+                        Image.Resampling.LANCZOS)
                     photo = ImageTk.PhotoImage(img)
                     _lbl.config(image=photo)
                     _lbl.image = photo
@@ -1036,20 +1059,24 @@ class LaserflixMainWindow:
                 tk.Frame(rp, bg=SEP_CLR, height=1).pack(fill="x", pady=8)
                 tk.Label(rp, text=f"MAIS IMAGENS  ({len(rest)})",
                          font=FONT_SECTION, bg="#0A0A0A", fg=FG_TER,
-                         anchor="w").pack(fill="x", padx=12, pady=(0,6))
+                         anchor="w").pack(fill="x", padx=12, pady=(0, 6))
                 gf = tk.Frame(rp, bg="#0A0A0A")
                 gf.pack(fill="x", padx=6)
                 col_idx = row_idx = 0
                 for img_path in rest[:MODAL_MAX_GRID_IMAGES]:
                     try:
                         img = Image.open(img_path)
-                        img.thumbnail((MODAL_THUMBNAIL_SIZE, MODAL_THUMBNAIL_SIZE),
-                                      Image.Resampling.LANCZOS)
+                        img.thumbnail(
+                            (MODAL_THUMBNAIL_SIZE, MODAL_THUMBNAIL_SIZE),
+                            Image.Resampling.LANCZOS)
                         photo = ImageTk.PhotoImage(img)
-                        lbl = tk.Label(gf, image=photo, bg="#0A0A0A", cursor="hand2", bd=0)
+                        lbl = tk.Label(gf, image=photo,
+                                       bg="#0A0A0A", cursor="hand2", bd=0)
                         lbl.image = photo
-                        lbl.grid(row=row_idx, column=col_idx, padx=3, pady=3, sticky="nw")
-                        lbl.bind("<Button-1>", lambda e, p=img_path: open_file(p))
+                        lbl.grid(row=row_idx, column=col_idx,
+                                 padx=3, pady=3, sticky="nw")
+                        lbl.bind("<Button-1>",
+                                 lambda e, p=img_path: open_file(p))
                         col_idx += 1
                         if col_idx >= MODAL_GRID_COLUMNS:
                             col_idx = 0
@@ -1071,48 +1098,52 @@ class LaserflixMainWindow:
         edit_win.transient(self.root)
         edit_win.grab_set()
 
-        tk.Label(edit_win, text="✏️ Editar Projeto", font=("Arial",20,"bold"),
+        tk.Label(edit_win, text="✏️ Editar Projeto", font=("Arial", 20, "bold"),
                  bg="#181818", fg=ACCENT_RED).pack(pady=20)
-        tk.Label(edit_win, text="📁 Nome do Projeto", font=("Arial",12,"bold"),
-                 bg="#181818", fg=FG_PRIMARY).pack(anchor="w", padx=30, pady=(10,5))
+        tk.Label(edit_win, text="📁 Nome do Projeto", font=("Arial", 12, "bold"),
+                 bg="#181818", fg=FG_PRIMARY).pack(anchor="w", padx=30, pady=(10, 5))
         name_text = tk.Text(edit_win, height=2, bg=BG_CARD, fg=FG_PRIMARY,
-                            font=("Arial",11), relief="flat", wrap="word")
-        name_text.insert("1.0", data.get("name",""))
+                            font=("Arial", 11), relief="flat", wrap="word")
+        name_text.insert("1.0", data.get("name", ""))
         name_text.config(state="disabled")
-        name_text.pack(fill="x", padx=30, pady=(0,15))
+        name_text.pack(fill="x", padx=30, pady=(0, 15))
 
-        tk.Label(edit_win, text="📂 Categorias (separadas por vírgula)", font=("Arial",12,"bold"),
-                 bg="#181818", fg=FG_PRIMARY).pack(anchor="w", padx=30, pady=(10,5))
+        tk.Label(edit_win, text="📂 Categorias (separadas por vírgula)",
+                 font=("Arial", 12, "bold"), bg="#181818", fg=FG_PRIMARY
+                 ).pack(anchor="w", padx=30, pady=(10, 5))
         categories_text = tk.Text(edit_win, height=3, bg=BG_CARD, fg=FG_PRIMARY,
-                                  font=("Arial",11), relief="flat", wrap="word")
-        categories_text.insert("1.0", ", ".join(data.get("categories",[])))
-        categories_text.pack(fill="x", padx=30, pady=(0,15))
+                                   font=("Arial", 11), relief="flat", wrap="word")
+        categories_text.insert("1.0", ", ".join(data.get("categories", [])))
+        categories_text.pack(fill="x", padx=30, pady=(0, 15))
 
-        tk.Label(edit_win, text="🏷️ Tags", font=("Arial",12,"bold"),
-                 bg="#181818", fg=FG_PRIMARY).pack(anchor="w", padx=30, pady=(10,5))
+        tk.Label(edit_win, text="🏷️ Tags", font=("Arial", 12, "bold"),
+                 bg="#181818", fg=FG_PRIMARY
+                 ).pack(anchor="w", padx=30, pady=(10, 5))
         tags_container = tk.Frame(edit_win, bg="#181818")
-        tags_container.pack(fill="x", padx=30, pady=(0,10))
+        tags_container.pack(fill="x", padx=30, pady=(0, 10))
         tags_list_frame = tk.Frame(tags_container, bg=BG_CARD)
-        tags_list_frame.pack(side="left", fill="both", expand=True, padx=(0,10))
+        tags_list_frame.pack(side="left", fill="both", expand=True, padx=(0, 10))
         tags_scrollbar = ttk.Scrollbar(tags_list_frame, orient="vertical")
-        tags_listbox = tk.Listbox(tags_list_frame, bg=BG_CARD, fg=FG_PRIMARY,
-                                  font=("Arial",10), height=6,
-                                  yscrollcommand=tags_scrollbar.set,
-                                  selectmode=tk.SINGLE, relief="flat")
+        tags_listbox   = tk.Listbox(
+            tags_list_frame, bg=BG_CARD, fg=FG_PRIMARY,
+            font=("Arial", 10), height=6,
+            yscrollcommand=tags_scrollbar.set,
+            selectmode=tk.SINGLE, relief="flat")
         tags_scrollbar.config(command=tags_listbox.yview)
         tags_listbox.pack(side="left", fill="both", expand=True, padx=5, pady=5)
         tags_scrollbar.pack(side="right", fill="y")
-        for tag in data.get("tags",[]): tags_listbox.insert(tk.END, tag)
+        for tag in data.get("tags", []):
+            tags_listbox.insert(tk.END, tag)
 
         tags_buttons_frame = tk.Frame(tags_container, bg="#181818")
         tags_buttons_frame.pack(side="right")
         for text, cmd, color in [
-            ("➕ Add",     lambda: self._add_tag_to_listbox(tags_listbox),    ACCENT_GREEN),
-            ("➖ Remover", lambda: self._remove_tag_from_listbox(tags_listbox),ACCENT_RED),
-            ("🗑️ Limpar",  lambda: tags_listbox.delete(0, tk.END),            FG_TERTIARY),
+            ("➕ Add",     lambda: self._add_tag_to_listbox(tags_listbox),     ACCENT_GREEN),
+            ("➖ Remover", lambda: self._remove_tag_from_listbox(tags_listbox), ACCENT_RED),
+            ("🗑️ Limpar",  lambda: tags_listbox.delete(0, tk.END),             FG_TERTIARY),
         ]:
             tk.Button(tags_buttons_frame, text=text, command=cmd,
-                      bg=color, fg=FG_PRIMARY, font=("Arial",10),
+                      bg=color, fg=FG_PRIMARY, font=("Arial", 10),
                       relief="flat", cursor="hand2", padx=10, pady=8, width=10
                       ).pack(pady=2)
 
@@ -1121,14 +1152,17 @@ class LaserflixMainWindow:
         tk.Button(final_buttons, text="💾 Salvar e Fechar",
                   command=lambda: self._save_edit_modal(
                       edit_win, project_path, categories_text, tags_listbox),
-                  bg=ACCENT_GREEN, fg=FG_PRIMARY, font=("Arial",12,"bold"),
-                  relief="flat", cursor="hand2", padx=20, pady=12).pack(side="left", padx=5)
+                  bg=ACCENT_GREEN, fg=FG_PRIMARY, font=("Arial", 12, "bold"),
+                  relief="flat", cursor="hand2", padx=20, pady=12
+                  ).pack(side="left", padx=5)
         tk.Button(final_buttons, text="✕ Cancelar", command=edit_win.destroy,
-                  bg=ACCENT_RED, fg=FG_PRIMARY, font=("Arial",12,"bold"),
-                  relief="flat", cursor="hand2", padx=20, pady=12).pack(side="right", padx=5)
+                  bg=ACCENT_RED, fg=FG_PRIMARY, font=("Arial", 12, "bold"),
+                  relief="flat", cursor="hand2", padx=20, pady=12
+                  ).pack(side="right", padx=5)
 
     def _add_tag_to_listbox(self, listbox):
-        new_tag = simpledialog.askstring("Nova Tag", "Digite a nova tag:", parent=self.root)
+        new_tag = simpledialog.askstring("Nova Tag", "Digite a nova tag:",
+                                         parent=self.root)
         if new_tag and new_tag.strip():
             new_tag = new_tag.strip()
             if new_tag not in listbox.get(0, tk.END):
@@ -1141,11 +1175,11 @@ class LaserflixMainWindow:
 
     def _save_edit_modal(self, modal, project_path, categories_text, tags_listbox):
         if project_path in self.database:
-            cats_str = categories_text.get("1.0","end-1c").strip()
+            cats_str = categories_text.get("1.0", "end-1c").strip()
             new_cats = [c.strip() for c in cats_str.split(",") if c.strip()]
             if new_cats:
                 self.database[project_path]["categories"] = new_cats
-            self.database[project_path]["tags"] = list(tags_listbox.get(0, tk.END))
+            self.database[project_path]["tags"]     = list(tags_listbox.get(0, tk.END))
             self.database[project_path]["analyzed"] = True
             self.db_manager.save_database()
             self.update_sidebar()
@@ -1154,7 +1188,7 @@ class LaserflixMainWindow:
             self.status_bar.config(text="✓ Projeto atualizado!")
 
     # =========================================================================
-    # IA: ANÁLISE (DELEGADAS PARA AnalysisManager)
+    # IA: ANÁLISE
     # =========================================================================
 
     def show_progress_ui(self):
@@ -1179,7 +1213,8 @@ class LaserflixMainWindow:
     def analyze_only_new(self):
         targets = self.analysis_manager.get_unanalyzed_projects(self.database)
         if not targets:
-            messagebox.showinfo("✅ Tudo analisado", "Todos os projetos já foram analisados!")
+            messagebox.showinfo("✅ Tudo analisado",
+                                "Todos os projetos já foram analisados!")
             return
         if messagebox.askyesno(
             "🤖 Analisar novos",
@@ -1245,7 +1280,8 @@ class LaserflixMainWindow:
             if not data.get("ai_description", "").strip()
         ]
         if not targets:
-            messagebox.showinfo("✅ Completo", "Todos os projetos já têm descrição!")
+            messagebox.showinfo("✅ Completo",
+                                "Todos os projetos já têm descrição!")
             return
         if messagebox.askyesno(
             "📝 Gerar descrições",
@@ -1282,29 +1318,32 @@ class LaserflixMainWindow:
         win.geometry("400x600")
         win.transient(self.root)
         win.grab_set()
-        tk.Label(win, text="Selecione uma categoria", font=("Arial",13,"bold"),
+        tk.Label(win, text="Selecione uma categoria", font=("Arial", 13, "bold"),
                  bg=BG_PRIMARY, fg=FG_PRIMARY).pack(pady=10)
         frm = tk.Frame(win, bg=BG_PRIMARY)
         frm.pack(fill="both", expand=True, padx=10, pady=5)
         cv = tk.Canvas(frm, bg=BG_PRIMARY, highlightthickness=0)
         sb = ttk.Scrollbar(frm, orient="vertical", command=cv.yview)
         inner = tk.Frame(cv, bg=BG_PRIMARY)
-        inner.bind("<Configure>", lambda e: cv.configure(scrollregion=cv.bbox("all")))
-        cv.create_window((0,0), window=inner, anchor="nw")
+        inner.bind("<Configure>",
+                   lambda e: cv.configure(scrollregion=cv.bbox("all")))
+        cv.create_window((0, 0), window=inner, anchor="nw")
         cv.configure(yscrollcommand=sb.set)
         cv.pack(side="left", fill="both", expand=True)
         sb.pack(side="right", fill="y")
-        cv.bind("<MouseWheel>", lambda e: cv.yview_scroll(int(-1*(e.delta/SCROLL_SPEED)), "units"))
+        cv.bind("<MouseWheel>",
+                lambda e: cv.yview_scroll(int(-1*(e.delta/SCROLL_SPEED)), "units"))
         for cat, count in cats_sorted:
             b = tk.Button(inner, text=f"{cat} ({count})",
-                          command=lambda c=cat: (self.set_category_filter([c]), win.destroy()),
-                          bg=BG_CARD, fg=FG_PRIMARY, font=("Arial",10),
+                          command=lambda c=cat: (self.set_category_filter([c]),
+                                                 win.destroy()),
+                          bg=BG_CARD, fg=FG_PRIMARY, font=("Arial", 10),
                           relief="flat", cursor="hand2", anchor="w", padx=12, pady=8)
             b.pack(fill="x", pady=2, padx=5)
             b.bind("<Enter>", lambda e, w=b: w.config(bg=ACCENT_RED))
             b.bind("<Leave>", lambda e, w=b: w.config(bg=BG_CARD))
         tk.Button(win, text="Fechar", command=win.destroy,
-                  bg="#555555", fg=FG_PRIMARY, font=("Arial",11,"bold"),
+                  bg="#555555", fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                   relief="flat", cursor="hand2", padx=14, pady=8).pack(pady=10)
 
     def open_model_settings(self):
@@ -1312,7 +1351,7 @@ class LaserflixMainWindow:
 
     def export_database(self):
         path = filedialog.asksaveasfilename(
-            defaultextension=".json", filetypes=[("JSON","*.json")],
+            defaultextension=".json", filetypes=[("JSON", "*.json")],
             title="Exportar banco de dados")
         if path:
             import shutil
@@ -1321,7 +1360,7 @@ class LaserflixMainWindow:
 
     def import_database(self):
         path = filedialog.askopenfilename(
-            filetypes=[("JSON","*.json")], title="Importar banco de dados")
+            filetypes=[("JSON", "*.json")], title="Importar banco de dados")
         if path:
             import shutil
             shutil.copy2(path, "laserflix_database.json")
@@ -1338,4 +1377,6 @@ class LaserflixMainWindow:
     def darken_color(self, hex_color):
         h = hex_color.lstrip("#")
         r, g, b = tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
-        return f"#{max(0,int(r*.8)):02x}{max(0,int(g*.8)):02x}{max(0,int(b*.8)):02x}"
+        return (f"#{max(0, int(r*.8)):02x}"
+                f"{max(0, int(g*.8)):02x}"
+                f"{max(0, int(b*.8)):02x}")
