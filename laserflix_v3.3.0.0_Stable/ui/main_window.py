@@ -37,6 +37,7 @@ from ui.sidebar import SidebarPanel
 from ui.project_card import build_card
 from ui.edit_modal import EditModal
 from ui.project_modal import ProjectModal
+from ui.virtual_scroll import VirtualScrollGrid  # ← NOVO!
 
 
 class LaserflixMainWindow:
@@ -132,14 +133,13 @@ class LaserflixMainWindow:
         content_sb.pack(side="right", fill="y")
         for i in range(COLS):
             self.scrollable_frame.columnconfigure(i, weight=1, uniform="card")
-        self.content_canvas.bind(
-            "<Enter>",
-            lambda e: self.content_canvas.bind(
-                "<MouseWheel>",
-                lambda ev: self.content_canvas.yview_scroll(
-                    int(-1*(ev.delta/SCROLL_SPEED)), "units")))
-        self.content_canvas.bind(
-            "<Leave>", lambda e: self.content_canvas.unbind("<MouseWheel>"))
+        
+        # ← VIRTUAL SCROLL GRID (substitui binding manual de mousewheel)
+        self.virtual_grid = VirtualScrollGrid(
+            canvas=self.content_canvas,
+            container=self.scrollable_frame,
+            cols=COLS
+        )
 
         # Status bar
         sf = tk.Frame(self.root, bg="#000000", height=40)
@@ -261,8 +261,11 @@ class LaserflixMainWindow:
     # =========================================================================
 
     def display_projects(self) -> None:
+        # Limpa apenas os widgets de card (mantém header)
         for w in self.scrollable_frame.winfo_children():
             w.destroy()
+        
+        # Header de filtros
         title_map = {
             "favorite": "⭐ Favoritos", "done": "✓ Já Feitos",
             "good":     "👍 Bons",      "bad":  "👎 Ruins",
@@ -275,17 +278,21 @@ class LaserflixMainWindow:
         tk.Label(self.scrollable_frame, text=title,
                  font=("Arial", 20, "bold"), bg=BG_PRIMARY, fg=FG_PRIMARY, anchor="w"
                  ).grid(row=0, column=0, columnspan=COLS, sticky="w", padx=10, pady=(0, 5))
+        
         filtered = [(p, self.database[p])
                     for p in self.get_filtered_projects() if p in self.database]
         tk.Label(self.scrollable_frame, text=f"{len(filtered)} projeto(s)",
                  font=("Arial", 12), bg=BG_PRIMARY, fg="#999999"
                  ).grid(row=1, column=0, columnspan=COLS, sticky="w", padx=10, pady=(0, 15))
+        
         if not filtered:
             tk.Label(self.scrollable_frame,
                      text="Nenhum projeto.\nClique em 'Importar Pastas' para adicionar.",
                      font=("Arial", 14), bg=BG_PRIMARY, fg=FG_TERTIARY, justify="center"
                      ).grid(row=2, column=0, columnspan=COLS, pady=80)
             return
+        
+        # Callbacks para os cards
         card_cb = {
             "on_open_modal":      self.open_project_modal,
             "on_toggle_favorite": self.toggle_favorite,
@@ -303,12 +310,13 @@ class LaserflixMainWindow:
             "selected_paths":     self._selected_paths,
             "on_toggle_select":   self.toggle_card_selection,
         }
-        row, col = 2, 0
-        for project_path, data in filtered:
-            build_card(self.scrollable_frame, project_path, data, card_cb, row, col)
-            col += 1
-            if col >= COLS:
-                col = 0; row += 1
+        
+        # ← USA VIRTUAL SCROLL (renderiza só visíveis)
+        def _card_builder(container, path, data, row, col):
+            return build_card(container, path, data, card_cb, row, col)
+        
+        self.virtual_grid.update_items(filtered, _card_builder)
+        self.content_canvas.yview_moveto(0)  # Volta pro topo
 
     # =========================================================================
     # FILTROS
