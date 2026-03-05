@@ -37,7 +37,7 @@ from ui.sidebar import SidebarPanel
 from ui.project_card import build_card
 from ui.edit_modal import EditModal
 from ui.project_modal import ProjectModal
-from ui.virtual_scroll import VirtualScrollGrid  # ← NOVO!
+from ui.virtual_scroll import VirtualScrollGrid
 
 
 class LaserflixMainWindow:
@@ -84,6 +84,11 @@ class LaserflixMainWindow:
         self.display_projects()
         self.logger.info("✨ Laserflix v%s iniciado", VERSION)
 
+    def __del__(self):
+        # Para worker de thumbnails ao fechar
+        if hasattr(self, 'cache'):
+            self.cache.stop()
+
     # =========================================================================
     # UI
     # =========================================================================
@@ -102,7 +107,7 @@ class LaserflixMainWindow:
             "on_export_db":       self.export_database,
             "on_backup":          self.manual_backup,
             "on_model_settings":  self.open_model_settings,
-            "on_toggle_select":   self.toggle_selection_mode,   # botão ☑️
+            "on_toggle_select":   self.toggle_selection_mode,
         })
         self.search_var = self.header.search_var
 
@@ -134,7 +139,6 @@ class LaserflixMainWindow:
         for i in range(COLS):
             self.scrollable_frame.columnconfigure(i, weight=1, uniform="card")
         
-        # ← VIRTUAL SCROLL GRID (substitui binding manual de mousewheel)
         self.virtual_grid = VirtualScrollGrid(
             canvas=self.content_canvas,
             container=self.scrollable_frame,
@@ -294,24 +298,25 @@ class LaserflixMainWindow:
         
         # Callbacks para os cards
         card_cb = {
-            "on_open_modal":      self.open_project_modal,
-            "on_toggle_favorite": self.toggle_favorite,
-            "on_toggle_done":     self.toggle_done,
-            "on_toggle_good":     self.toggle_good,
-            "on_toggle_bad":      self.toggle_bad,
-            "on_analyze_single":  self.analyze_single_project,
-            "on_open_folder":     open_folder,
-            "on_set_category":    self.set_category_filter,
-            "on_set_tag":         self.set_tag_filter,
-            "on_set_origin":      self.set_origin_filter,
-            "get_cover_image":    self.cache.get_cover_image,
+            "on_open_modal":         self.open_project_modal,
+            "on_toggle_favorite":    self.toggle_favorite,
+            "on_toggle_done":        self.toggle_done,
+            "on_toggle_good":        self.toggle_good,
+            "on_toggle_bad":         self.toggle_bad,
+            "on_analyze_single":     self.analyze_single_project,
+            "on_open_folder":        open_folder,
+            "on_set_category":       self.set_category_filter,
+            "on_set_tag":            self.set_tag_filter,
+            "on_set_origin":         self.set_origin_filter,
+            # ← NOVO: Thumbnail assíncrona
+            "get_cover_image_async": self.cache.get_cover_image_async,
             # seleção em massa
-            "selection_mode":     self._selection_mode,
-            "selected_paths":     self._selected_paths,
-            "on_toggle_select":   self.toggle_card_selection,
+            "selection_mode":        self._selection_mode,
+            "selected_paths":        self._selected_paths,
+            "on_toggle_select":      self.toggle_card_selection,
         }
         
-        # ← USA VIRTUAL SCROLL (renderiza só visíveis)
+        # Virtual scroll (renderiza só visíveis)
         def _card_builder(container, path, data, row, col):
             return build_card(container, path, data, card_cb, row, col)
         
@@ -391,7 +396,7 @@ class LaserflixMainWindow:
                 "on_open_edit":     self.open_edit_mode,
                 "on_reanalize":     self.analyze_single_project,
                 "on_set_tag":       self.set_tag_filter,
-                "on_remove":        self.remove_project,   # F-02
+                "on_remove":        self.remove_project,
             },
             cache=self.cache, scanner=self.scanner,
         ).open()
