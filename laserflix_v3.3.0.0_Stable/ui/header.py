@@ -3,6 +3,7 @@ ui/header.py — Barra superior completa do Laserflix.
 Teto: 150 linhas.
 
 F-06: Dropdown de ordenação (Nome A-Z/Z-A, Data, Origem, Status)
+      POSIÇÃO: DEPOIS da navegação, ANTES dos botões extras
 """
 import tkinter as tk
 from tkinter import ttk
@@ -76,25 +77,15 @@ class HeaderBar:
             btn.bind("<Enter>", lambda e, w=btn: w.config(fg=ACCENT_RED))
             btn.bind("<Leave>", lambda e, w=btn: w.config(fg=FG_PRIMARY))
 
-        # Busca PRIMEIRO (fica mais à direita)
-        search_frm = tk.Frame(hdr, bg="#000000")
-        search_frm.pack(side="right", padx=20)
-        tk.Label(search_frm, text="🔍", bg="#000000",
-                 fg=FG_PRIMARY, font=("Arial", 16)).pack(side="left", padx=5)
-        self.search_var.trace_add("write", lambda *_: self._cb["on_search"]())
-        tk.Entry(
-            search_frm, textvariable=self.search_var,
-            bg="#333333", fg=FG_PRIMARY, font=("Arial", 12),
-            width=30, relief="flat", insertbackground=FG_PRIMARY,
-        ).pack(side="left", padx=5, ipady=5)
-
         # ══════════════════════════════════════════════════════════════════
-        # F-06: DROPDOWN DE ORDENAÇÃO (entre busca e extras)
+        # F-06: DROPDOWN DE ORDENAÇÃO
+        # POSIÇÃO: DEPOIS da navegação, ANTES dos botões extras
         # ══════════════════════════════════════════════════════════════════
         sort_frame = tk.Frame(hdr, bg="#000000")
-        sort_frame.pack(side="right", padx=10)
-        tk.Label(sort_frame, text="📊 Ordenar:", bg="#000000",
-                 fg=FG_TERTIARY, font=("Arial", 10)).pack(side="left", padx=5)
+        sort_frame.pack(side="left", padx=15)  # ← AQUI: lado esquerdo, depois da nav
+        
+        tk.Label(sort_frame, text="📊", bg="#000000",
+                 fg=FG_TERTIARY, font=("Arial", 14)).pack(side="left", padx=(0, 5))
         
         # Combobox estilizado
         style = ttk.Style()
@@ -119,33 +110,32 @@ class HeaderBar:
             sort_frame,
             textvariable=self.sort_var,
             values=[
-                "date_desc",    # Mais recentes primeiro
-                "date_asc",     # Mais antigos primeiro
-                "name_asc",     # Nome A-Z
-                "name_desc",    # Nome Z-A
-                "origin",       # Agrupado por origem
-                "analyzed",     # Analisados primeiro
-                "not_analyzed", # Não analisados primeiro
+                "date_desc",
+                "date_asc",
+                "name_asc",
+                "name_desc",
+                "origin",
+                "analyzed",
+                "not_analyzed",
             ],
             state="readonly",
-            width=18,
+            width=16,
             font=("Arial", 10),
             style="Sort.TCombobox",
         )
-        sort_combo.pack(side="left", padx=5)
+        sort_combo.pack(side="left")
         
-        # Labels amigáveis no dropdown
+        # Labels amigáveis
         sort_labels = {
             "date_desc":    "📅 Mais Recentes",
             "date_asc":     "📅 Mais Antigos",
-            "name_asc":     "🔤 Nome A→Z",
-            "name_desc":    "🔥 Nome Z→A",
+            "name_asc":     "🔤 A→Z",
+            "name_desc":    "🔥 Z→A",
             "origin":       "🏛️ Por Origem",
             "analyzed":     "🤖 Analisados",
             "not_analyzed": "⏳ Não Analisados",
         }
         
-        # Atualiza display do combobox para mostrar label amigável
         def update_display(*args):
             current = self.sort_var.get()
             sort_combo.set(sort_labels.get(current, current))
@@ -153,10 +143,22 @@ class HeaderBar:
                 self._cb["on_sort"](current)
         
         self.sort_var.trace_add("write", update_display)
-        update_display()  # Init display
+        update_display()
         # ══════════════════════════════════════════════════════════════════
 
-        # Extras (botões) DEPOIS (ficam à esquerda da busca)
+        # Busca (fica mais à direita)
+        search_frm = tk.Frame(hdr, bg="#000000")
+        search_frm.pack(side="right", padx=20)
+        tk.Label(search_frm, text="🔍", bg="#000000",
+                 fg=FG_PRIMARY, font=("Arial", 16)).pack(side="left", padx=5)
+        self.search_var.trace_add("write", lambda *_: self._cb["on_search"]())
+        tk.Entry(
+            search_frm, textvariable=self.search_var,
+            bg="#333333", fg=FG_PRIMARY, font=("Arial", 12),
+            width=30, relief="flat", insertbackground=FG_PRIMARY,
+        ).pack(side="left", padx=5, ipady=5)
+
+        # Botões extras (IGUAIS AO ORIGINAL - SEM MUDANÇA)
         extras = tk.Frame(hdr, bg="#000000")
         extras.pack(side="right", padx=10)
         self._build_select_btn(extras)
