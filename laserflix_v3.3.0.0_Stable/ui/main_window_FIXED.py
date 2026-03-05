@@ -44,6 +44,7 @@ from utils.platform_utils import open_file, open_folder
 # Módulos de importação unificada
 from ui.recursive_import_integration import RecursiveImportManager
 from ui.prepare_folders_dialog import PrepareFoldersDialog
+from ui.model_settings_dialog import ModelSettingsDialog  # S-01
 
 
 class LaserflixMainWindow:
@@ -146,7 +147,7 @@ class LaserflixMainWindow:
         # Nav
         nav_frame = tk.Frame(header, bg="#000000")
         nav_frame.pack(side="left", padx=30)
-        for text, ftype in [("🏠 Home", "all"), ("⭐ Favoritos", "favorite"),
+        for text, ftype in [("\U0001f3e0 Home", "all"), ("⭐ Favoritos", "favorite"),
                              ("✓ Já Feitos", "done"), ("👍 Bons", "good"), ("👎 Ruins", "bad")]:
             btn = tk.Button(nav_frame, text=text,
                             command=lambda f=ftype: self.set_filter(f),
@@ -171,7 +172,7 @@ class LaserflixMainWindow:
         extras_frame = tk.Frame(header, bg="#000000")
         extras_frame.pack(side="right", padx=10)
 
-        # ── Menu ⚙️ ─ sem “Importar Recursivo” (foi pro botão vermelho) ──
+        # ── Menu ⚙️ ──
         menu_btn = tk.Menubutton(extras_frame, text="⚙️ Menu", bg="#444444",
                                   fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                                   relief="flat", cursor="hand2", padx=15, pady=8)
@@ -186,11 +187,11 @@ class LaserflixMainWindow:
         menu.add_separator()
         menu.add_command(label="🤖 Configurar Modelos IA", command=self.open_model_settings)
 
-        # ── Botão vermelho → agora abre a janela unificada de importação ──
+        # ── Botão vermelho importação ──
         tk.Button(
             extras_frame,
             text="📁 Importar Pastas",
-            command=self.open_import_dialog,          # ← NOVO PONTO DE ENTRADA
+            command=self.open_import_dialog,
             bg=ACCENT_RED, fg=FG_PRIMARY,
             font=("Arial", 11, "bold"),
             relief="flat", cursor="hand2",
@@ -320,9 +321,9 @@ class LaserflixMainWindow:
             lambda e: self.sidebar_canvas.yview_scroll(
                 int(-1*(e.delta/SCROLL_SPEED)), "units"))
 
-        for title, attr in [("🌐 Origem",        "origins_frame"),
-                             ("📂 Categorias",    "categories_frame"),
-                             ("🏷️ Tags Populares", "tags_frame")]:
+        for title, attr in [("\U0001f310 Origem",        "origins_frame"),
+                             ("\U0001f4c2 Categorias",    "categories_frame"),
+                             ("\U0001f3f7\ufe0f Tags Populares", "tags_frame")]:
             tk.Label(self.sidebar_content, text=title, font=("Arial", 14, "bold"),
                      bg=BG_SECONDARY, fg=FG_PRIMARY, anchor="w"
                      ).pack(fill="x", padx=15, pady=(15, 5))
@@ -1116,7 +1117,7 @@ class LaserflixMainWindow:
         categories_text.insert("1.0", ", ".join(data.get("categories", [])))
         categories_text.pack(fill="x", padx=30, pady=(0, 15))
 
-        tk.Label(edit_win, text="🏷️ Tags", font=("Arial", 12, "bold"),
+        tk.Label(edit_win, text="🌷 Tags", font=("Arial", 12, "bold"),
                  bg="#181818", fg=FG_PRIMARY
                  ).pack(anchor="w", padx=30, pady=(10, 5))
         tags_container = tk.Frame(edit_win, bg="#181818")
@@ -1347,7 +1348,9 @@ class LaserflixMainWindow:
                   relief="flat", cursor="hand2", padx=14, pady=8).pack(pady=10)
 
     def open_model_settings(self):
-        messagebox.showinfo("⚙️ Em breve", "Configurar modelos IA — Parte 4")
+        """Abre dialog de configuração de modelos IA (S-01)."""
+        dlg = ModelSettingsDialog(self.root, self.db_manager)
+        self.root.wait_window(dlg)
 
     def export_database(self):
         path = filedialog.asksaveasfilename(
