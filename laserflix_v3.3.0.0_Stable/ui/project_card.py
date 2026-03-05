@@ -73,17 +73,31 @@ def build_card(
     cover_frm.pack_propagate(False)
     cover_frm.bind("<Button-1>", _open_or_select)
 
-    cover_img = cb.get("get_cover_image") and cb["get_cover_image"](project_path)
-    if cover_img:
-        lbl = tk.Label(cover_frm, image=cover_img, bg=BG_SECONDARY, cursor="hand2")
-        lbl.image = cover_img
-        lbl.pack(expand=True)
-        lbl.bind("<Button-1>", _open_or_select)
-    else:
-        ph = tk.Label(cover_frm, text="📁", font=("Arial", 52),
-                      bg=BG_SECONDARY, fg=FG_TERTIARY, cursor="hand2")
-        ph.pack(expand=True)
-        ph.bind("<Button-1>", _open_or_select)
+    # ← NOVO: Carregamento assíncrono de thumbnail
+    # Placeholder instantâneo
+    placeholder = tk.Label(cover_frm, text="📁", font=("Arial", 52),
+                           bg=BG_SECONDARY, fg=FG_TERTIARY, cursor="hand2")
+    placeholder.pack(expand=True)
+    placeholder.bind("<Button-1>", _open_or_select)
+    
+    # Callback para quando thumbnail carregar
+    def _on_thumb_loaded(path, photo):
+        if not placeholder.winfo_exists():
+            return  # Card foi destruído antes da thumb carregar
+        try:
+            placeholder.config(image=photo, text="")  # Remove emoji, mostra imagem
+            placeholder.image = photo  # Prevent garbage collection
+        except tk.TclError:
+            pass  # Widget já foi destruído
+    
+    # Agenda carregamento assíncrono
+    get_cover_async = cb.get("get_cover_image_async")
+    if get_cover_async:
+        # Wrapper para chamar callback na thread principal (Tkinter-safe)
+        def _safe_callback(path, photo):
+            if placeholder.winfo_exists():
+                parent.after(0, lambda: _on_thumb_loaded(path, photo))
+        get_cover_async(project_path, _safe_callback)
 
     # Info
     info = tk.Frame(inner, bg=BG_CARD)
