@@ -9,6 +9,8 @@ HOT-08: Paginação simples (Kent Beck style):
   - SIMPLES, PREVISÍVEL, FUNCIONAL
 
 HOT-12: Scrollbar vertical (cards com categorias ficaram mais altos)
+
+F-06: Sistema de ordenação (Nome A-Z/Z-A, Data, Origem, Status)
 """
 import os
 import threading
@@ -76,6 +78,11 @@ class LaserflixMainWindow:
         self.current_tag        = None
         self.current_origin     = "all"
         self.search_query       = ""
+        
+        # ══════════════════════════════════════════════════════════════════
+        # F-06: ESTADO DE ORDENAÇÃO
+        self.current_sort = "date_desc"  # Padrão: mais recentes primeiro
+        # ══════════════════════════════════════════════════════════════════
 
         # Estado de seleção em massa
         self._selection_mode    = False
@@ -99,7 +106,7 @@ class LaserflixMainWindow:
         self.root.configure(bg=BG_PRIMARY)
         self._build_ui()
         self.display_projects()
-        self.logger.info("✨ Laserflix v%s iniciado (36 cards/página)", VERSION)
+        self.logger.info("✨ Laserflix v%s iniciado (36 cards/página + ordenação)", VERSION)
 
     def __del__(self):
         # Para workers ao fechar
@@ -114,6 +121,7 @@ class LaserflixMainWindow:
         self.header = HeaderBar(self.root, {
             "on_filter":          self.set_filter,
             "on_search":          self._on_search,
+            "on_sort":            self._on_sort,  # ← F-06: NOVO
             "on_import":          self.open_import_dialog,
             "on_analyze_new":     self.analyze_only_new,
             "on_analyze_all":     self.reanalyze_all,
@@ -300,6 +308,7 @@ class LaserflixMainWindow:
         Renderiza projetos com paginação simples.
         
         ← HOT-13: 36 cards por página (6 linhas × 6 cols)
+        ← F-06: Aplica ordenação antes da paginação
         """
         # Limpa tudo
         for w in self.scrollable_frame.winfo_children():
@@ -311,6 +320,13 @@ class LaserflixMainWindow:
             for p in self.get_filtered_projects()
             if p in self.database
         ]
+        
+        # ══════════════════════════════════════════════════════════════════
+        # F-06: APLICA ORDENAÇÃO
+        # ══════════════════════════════════════════════════════════════════
+        all_filtered = self._apply_sorting(all_filtered)
+        # ══════════════════════════════════════════════════════════════════
+        
         total_count = len(all_filtered)
         
         # 2. CALCULA PAGINAÇÃO
@@ -436,6 +452,75 @@ class LaserflixMainWindow:
                 self.logger.debug(f"Widget destruído antes do callback: {e}")
         
         self.thumbnail_preloader.preload_single(project_path, _ui_safe_callback)
+
+    # ══════════════════════════════════════════════════════════════════
+    # F-06: LÓGICA DE ORDENAÇÃO
+    # ══════════════════════════════════════════════════════════════════
+    
+    def _on_sort(self, sort_type: str) -> None:
+        """Callback quando dropdown de ordenação muda."""
+        self.current_sort = sort_type
+        self.current_page = 1  # Reseta para primeira página
+        self.display_projects()
+    
+    def _apply_sorting(self, items: list) -> list:
+        """
+        Aplica ordenação na lista de (path, data).
+        
+        Tipos suportados:
+        - date_desc: Mais recentes primeiro (por added_at)
+        - date_asc: Mais antigos primeiro
+        - name_asc: Nome A→Z
+        - name_desc: Nome Z→A
+        - origin: Agrupado por origem
+        - analyzed: Analisados primeiro
+        - not_analyzed: Não analisados primeiro
+        """
+        if not items:
+            return items
+        
+        if self.current_sort == "date_desc":
+            # Mais recentes primeiro (maior timestamp = mais recente)
+            return sorted(items, key=lambda x: x[1].get("added_at", 0), reverse=True)
+        
+        elif self.current_sort == "date_asc":
+            # Mais antigos primeiro
+            return sorted(items, key=lambda x: x[1].get("added_at", 0))
+        
+        elif self.current_sort == "name_asc":
+            # Nome A→Z (case-insensitive)
+            return sorted(items, key=lambda x: x[1].get("name", "").lower())
+        
+        elif self.current_sort == "name_desc":
+            # Nome Z→A (case-insensitive)
+            return sorted(items, key=lambda x: x[1].get("name", "").lower(), reverse=True)
+        
+        elif self.current_sort == "origin":
+            # Agrupado por origem + nome dentro de cada origem
+            return sorted(items, key=lambda x: (
+                x[1].get("origin", "zzz"),  # Origem
+                x[1].get("name", "").lower()  # Nome dentro da origem
+            ))
+        
+        elif self.current_sort == "analyzed":
+            # Analisados primeiro, depois por data
+            return sorted(items, key=lambda x: (
+                not x[1].get("analyzed", False),  # False < True, então analyzed=True vem primeiro
+                -x[1].get("added_at", 0)  # Mais recentes primeiro dentro de cada grupo
+            ))
+        
+        elif self.current_sort == "not_analyzed":
+            # Não analisados primeiro, depois por data
+            return sorted(items, key=lambda x: (
+                x[1].get("analyzed", False),  # False < True
+                -x[1].get("added_at", 0)
+            ))
+        
+        else:
+            # Fallback: sem ordenação
+            return items
+    
+    # ══════════════════════════════════════════════════════════════════
 
     # ← HOT-08: FUNÇÕES DE NAVEGAÇÃO
     def next_page(self) -> None:
