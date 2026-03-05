@@ -20,6 +20,13 @@
 | ✅ **L-02** | Unificação de `BANNED_STRINGS` | Criado `config/constants.py` com `BANNED_STRINGS` único. Removido `_BANNED` de `fallbacks.py` e `CARD_BANNED_STRINGS` duplicado de `ui_constants.py`. | `cdfabed` |
 | ✅ **L-04** | Deletar alias `generate_fallback_description()` | Removido wrapper vazio em `ai/fallbacks.py` (ninguém usava mais). | `9308e9c` |
 | ✅ **S-02** | Virtual Scroll no grid de cards | Criado `ui/virtual_scroll.py` - renderiza apenas ~30-40 cards visíveis + scroll suave (80px/clique). Performance 10x melhor. | `10bb4da`, `ba8d3e3`, `d0734e7` |
+| ✅ **HOT-08** | Paginação simples (18 cards/página) | Substituído Virtual Scroll por paginação clássica Kent Beck: 18 cards (3×6), navegação ⏮◀▶⏭, atalhos Home/End/Arrows. SIMPLES, PREVISÍVEL, FUNCIONAL. | `5c8a2f1` |
+| ✅ **HOT-09** | Categorias/Tags visíveis nos cards | Adicionada linha de categorias (3 primeiras) + tags (5 primeiras) no `project_card.py`. Clique em cat/tag aplica filtro instantâneo. | `4e7b3a9` |
+| ✅ **HOT-10** | Correção Detecção de Duplicatas | Fix no `DuplicateDetector`: híbrido detecta nome normalizado (antes detectava paths), puro detecta ambos (nome+path). | `2f9c8d1` |
+| ✅ **HOT-10b** | Dialog de duplicatas aparecia vazio | Fix no `RecursiveImportManager`: passou a incluir `normalized_name` e `name` no dict de duplicatas (dialog esperava esses campos). | `7a1b4e5` |
+| ✅ **HOT-11** | FIX CRÍTICO: Prompt IA exige 10+ categorias | Prompt estava pedindo 3-5 categorias (bugado). Corrigido para exigir MÍNIMO 10 categorias (3 obrigatórias + 7 opcionais). Fallback já retornava 12 corretamente. | `c661d2e` |
+| ✅ **HOT-12** | Scrollbar vertical na galeria | Adicionada scrollbar vertical no canvas (cards com categorias ficaram mais altos, últimos cards ficavam fora de visão). | `56107ef` |
+| ✅ **HOT-13** | 36 cards por página (ao invés de 18) | Aumentado `items_per_page` de 18→36 (6 linhas × 6 cols). Metade das páginas, navegação 50% mais rápida. | `48afa4b` |
 
 ---
 
@@ -44,7 +51,7 @@
 
 | # | O que fazer | Impacto | Esforço | Status |
 |---|---|---|---|---|
-| ✅ **S-02** | Virtual Scroll no grid de cards | 🔴 Performance | 🟡 Médio | **FEITO** |
+| ✅ **S-02** | Virtual Scroll no grid de cards | 🔴 Performance | 🟡 Médio | **FEITO** (depois substituído por paginação HOT-08) |
 | ☐ **S-03** | Thumbnail carregamento assíncrono via `queue.Queue` | 🔴 UX/Performance | 🟡 Médio | Próximo |
 | ☐ **S-05** | Thread watchdog para análise IA | 🟠 Confiabilidade | 🟡 Médio | Pendente |
 
@@ -59,7 +66,7 @@
 | ☐ **F-03** | Limpeza de órfãos (entradas cujo `path` não existe mais em disco) | 🟠 Integridade dados | 🟢 Baixo | Semana 2 |
 | ☐ **F-04** | Busca em tempo real com debounce 300ms | 🟠 UX | 🟢 Baixo | Semana 2 |
 | ☐ **F-05** | Badge de status de análise no card (🤖 IA / ⚡ Fallback / ⏳ Na Fila) | 🟠 UX/Info | 🟢 Baixo | Semana 2 |
-| ☐ **F-06** | Ordenação configurável (data, A-Z, recente, origem, status) | 🟠 Organização | 🟢 Baixo | Semana 2 |
+| ⭐ **F-06** | Ordenação configurável (data, A-Z, recente, origem, status) | 🟠 Organização | 🟢 Baixo | **EM ANDAMENTO** |
 | ☐ **F-07** | Filtro multi-critério simultâneo (chips empilháveis AND) | 🟠 Organização | 🟡 Médio | Semana 2 |
 
 ---
@@ -134,3 +141,4 @@
 - Nenhum item é pulado sem instrução expressa sua.
 - **ANÁLISE DE IMPACTO OBRIGATÓRIA** para zonas protegidas: Verificar se mudança afeta lógica criativa de geração.
 - **RISCO vs BENEFÍCIO**: Tarefas teóricas em zonas críticas são canceladas se sistema funciona perfeitamente sem elas.
+- **ATUALIZAR BACKLOG**: Toda task concluída com sucesso é registrada na seção 🏆 FINALIZADO.
