@@ -5,7 +5,7 @@ Tkinter puro — sem customtkinter.
 FLUXO (todos os modos):
   1. ImportModeDialog  → usuário escolhe modo e pasta
   2. Scan              → escaneia produtos
-  3. DuplicateDetector → detecta duplicatas por nome
+  3. DuplicateDetector → detecta duplicatas por nome (CONTRA DATABASE EXISTENTE!)
   4. DuplicateResolutionDialog → usuário resolve (se houver)
   5. ImportPreviewDialog → usuário confirma
   6. Import Loop       → importa em thread separada
@@ -14,6 +14,11 @@ Modos:
   'hybrid'  — recursivo, folder.jpg + fallback
   'pure'    — recursivo, apenas folder.jpg
   'simple'  — 1 nível, qualquer subpasta direta (com dedup)
+
+HOT-10: FIX duplicatas entre métodos
+  - Agora compara produtos escaneados com database existente
+  - Evita duplicatas ao usar métodos diferentes na mesma pasta
+  - Hybrid → Pure → Simple na mesma pasta = SEM duplicatas!
 
 USO:
     from ui.recursive_import_integration import RecursiveImportManager
@@ -38,6 +43,8 @@ class RecursiveImportManager:
     """
     Gerenciador unificado de importação — recursiva (hybrid/pure) e simples.
     Todos os modos passam pelo mesmo pipeline de dedup + preview.
+    
+    HOT-10: Detecta duplicatas comparando com database existente!
     """
 
     def __init__(
@@ -55,7 +62,7 @@ class RecursiveImportManager:
         self.on_complete     = on_complete
         self.logger          = LOGGER
         self.scanner         = RecursiveScanner()
-        self.duplicate_detector = DuplicateDetector()  # ← HOT-09d: SEM database no __init__
+        self.duplicate_detector = DuplicateDetector()
         self.import_thread   = None
 
     # ================================================================
@@ -85,35 +92,74 @@ class RecursiveImportManager:
             return
         self.logger.info("Encontrados: %d produtos", len(all_products))
 
-        # 3 ─ Duplicatas (nome normalizado)
-        # ← HOT-09d: Passa database como parâmetro do método (não __init__)
-        # Primeiro cria dict temporário dos produtos escaneados
-        scanned_db = {p["path"]: {"name": p["name"]} for p in all_products}
-        duplicates_result = self.duplicate_detector.find_duplicates(scanned_db)
+        # ═══════════════════════════════════════════════════════════════
+        # 3 ─ DUPLICATAS (HOT-10: COMPARA COM DATABASE EXISTENTE!)
+        # ═══════════════════════════════════════════════════════════════
         
-        # Converte para formato esperado pelo dialog (se houver duplicatas)
+        # 3.1 - Cria dict dos produtos escaneados
+        scanned_db = {p["path"]: {"name": p["name"]} for p in all_products}
+        
+        # 3.2 - COMBINA com database existente (CRUCIAL!)
+        combined_db = {**self.database, **scanned_db}
+        
+        # 3.3 - Detecta duplicatas no conjunto COMPLETO
+        duplicates_result = self.duplicate_detector.find_duplicates(combined_db)
+        
+        self.logger.info(
+            f"🔍 Verificação: {len(self.database)} existentes + "
+            f"{len(scanned_db)} escaneados = {len(combined_db)} total"
+        )
+        
+        # 3.4 - Filtra apenas duplicatas envolvendo produtos NOVOS
         duplicates = []
+        scanned_paths = set(scanned_db.keys())
+        existing_paths = set(self.database.keys())
+        
         if duplicates_result:
             for norm_name, paths in duplicates_result.items():
-                if len(paths) >= 2:
-                    # Pega primeiro como "existente" e demais como "novos"
-                    existing_path = paths[0]
-                    for new_path in paths[1:]:
-                        duplicates.append({
-                            "existing": {
-                                "path": existing_path,
-                                "name": os.path.basename(existing_path),
-                            },
-                            "new": {
-                                "path": new_path,
-                                "name": os.path.basename(new_path),
-                            },
-                        })
+                if len(paths) < 2:
+                    continue
+                
+                # Separa existentes vs novos
+                existing_in_group = [p for p in paths if p in existing_paths]
+                new_in_group = [p for p in paths if p in scanned_paths]
+                
+                # Só reporta se tem NOVOS duplicando algo
+                if new_in_group:
+                    # Se tem existente, compara novo vs existente
+                    if existing_in_group:
+                        for new_path in new_in_group:
+                            duplicates.append({
+                                "existing": {
+                                    "path": existing_in_group[0],
+                                    "name": os.path.basename(existing_in_group[0]),
+                                },
+                                "new": {
+                                    "path": new_path,
+                                    "name": os.path.basename(new_path),
+                                },
+                            })
+                    # Se não tem existente, compara novos entre si
+                    elif len(new_in_group) >= 2:
+                        first_new = new_in_group[0]
+                        for other_new in new_in_group[1:]:
+                            duplicates.append({
+                                "existing": {
+                                    "path": first_new,
+                                    "name": os.path.basename(first_new),
+                                },
+                                "new": {
+                                    "path": other_new,
+                                    "name": os.path.basename(other_new),
+                                },
+                            })
         
         products_to_import = all_products
 
         if duplicates:
-            self.logger.warning("%d duplicatas encontradas", len(duplicates))
+            self.logger.warning("⚠️ %d duplicatas encontradas (contra database existente)", len(duplicates))
+            
+            # Mostra dialog de resolução
             choices = show_duplicate_resolution(self.parent, duplicates)
             if choices is None:
                 self.logger.info("Importação cancelada (resolução duplicatas)")
@@ -124,14 +170,19 @@ class RecursiveImportManager:
             for i, choice in enumerate(choices):
                 if choice == "skip":  # Pula novo
                     skip_paths.add(duplicates[i]["new"]["path"])
-                elif choice == "replace":  # Pula existente
-                    skip_paths.add(duplicates[i]["existing"]["path"])
+                elif choice == "replace":  # Remove existente + importa novo
+                    existing_path = duplicates[i]["existing"]["path"]
+                    if existing_path in self.database:
+                        self.logger.info(f"🔄 Substituindo: {os.path.basename(existing_path)}")
+                        self.database.pop(existing_path)
             
             products_to_import = [
                 p for p in all_products
                 if p["path"] not in skip_paths
             ]
-            self.logger.info("Ã¢pos resolução: %d produtos", len(products_to_import))
+            self.logger.info(f"Após resolução: {len(products_to_import)} produtos")
+        else:
+            self.logger.info("✅ Nenhuma duplicata encontrada")
 
         if not products_to_import:
             messagebox.showinfo("ℹ️ Importação",
@@ -139,7 +190,7 @@ class RecursiveImportManager:
                                 parent=self.parent)
             return
 
-        # 4 ─ Existentes por path exato
+        # 4 ─ Existentes por path exato (redundante mas mantido por segurança)
         new_products, existing_products = self._check_existing(products_to_import)
         self.logger.info("Novos: %d | Existentes: %d",
                          len(new_products), len(existing_products))
