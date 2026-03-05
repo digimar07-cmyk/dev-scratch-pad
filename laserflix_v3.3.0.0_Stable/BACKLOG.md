@@ -18,6 +18,7 @@
 | ✅ **SEL-01** | Seleção em massa na tela inicial | Botão `☑️ Selecionar` no header + barra flutuante + checkbox nos cards + remoção de múltiplos com confirmação dupla. | `8b6f8bc` |
 | ✅ **HOT-02** | Altura dos cards (410px fixo) | Cards estavam compridos após SEL-01. Restaurado `height=CARD_H` no frame externo conforme v3.2. | `c7fd863` |
 | ✅ **L-02** | Unificação de `BANNED_STRINGS` | Criado `config/constants.py` com `BANNED_STRINGS` único. Removido `_BANNED` de `fallbacks.py` e `CARD_BANNED_STRINGS` duplicado de `ui_constants.py`. | `cdfabed` |
+| ✅ **L-04** | Deletar alias `generate_fallback_description()` | Removido wrapper vazio em `ai/fallbacks.py` (ninguém usava mais). | `9308e9c` |
 
 ---
 
@@ -29,9 +30,8 @@
 | # | O que fazer | Impacto | Esforço | Zona Prot.? |
 |---|---|---|---|---|
 | ❌ **L-01** | ~~Deletar `_clean_name()`~~ | **CANCELADO**: Funções diferentes (display vs matching) | — | — |
-| ◻ **L-03** | Substituir os 2 usos de `_match()` em `_build_tags()` por `_match_all()` e deletar `_match()` | 🟠 Código morto | 🟢 Baixo | ⚠️ Sim |
-| ◻ **L-04** | Deletar alias `generate_fallback_description()` em `fallbacks.py` | 🟡 Confusão | 🟢 Baixo | ⚠️ Sim |
-| ◻ **L-05** | Remover parâmetro `structure` de `fallback_description()` e de todas as chamadas | 🟡 Ruído | 🟢 Baixo | ⚠️ Sim |
+| ❌ **L-03** | ~~Substituir `_match()` por `_match_all()` em `_build_tags()`~~ | **CANCELADO**: `_match()` tem propósito específico (1 tag/categoria = diversidade). Mudar quebraria lógica criativa. | — | — |
+| ❌ **L-05** | ~~Remover parâmetro `structure` de `fallback_description()`~~ | **CANCELADO**: Risco de quebrar chamadas externas que passam esse argumento. Não vale o risco. | — | — |
 | ◻ **L-06** | Remover `database` do `__init__` do `DuplicateDetector` | 🟠 Acoplamento | 🟢 Baixo | ⚠️ Sim |
 
 ---
@@ -130,3 +130,4 @@
 - Prefixo de versão nos commits: `Laserflix_v3.3.0.0_L-01`, `_S-01` etc.
 - **Leitura antes de escrever** — sempre lemos o arquivo atual antes de gerar código.
 - Nenhum item é pulado sem instrução expressa sua.
+- **ANÁLISE DE IMPACTO OBRIGATÓRIA** para zonas protegidas: Verificar se mudança afeta lógica criativa de geração.
