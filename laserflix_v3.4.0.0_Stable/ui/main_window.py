@@ -13,6 +13,7 @@ HOT-12: Scrollbar vertical (cards com categorias ficaram mais altos)
 FEATURE: Ordenação FUNCIONAL na linha de paginação
 FEATURE: Análise SEQUENCIAL pós-importação (categorias+tags → descrições)
 F-01.1: Nome PT-BR editável (projeto completo)
+F-01.2: Tradução automática EN→PT-BR (dicionário + IA opcional)
 """
 import os
 import threading
@@ -37,6 +38,7 @@ from ai.image_analyzer import ImageAnalyzer
 from ai.text_generator import TextGenerator
 from ai.fallbacks import FallbackGenerator
 from ai.analysis_manager import AnalysisManager
+from ai.translator import Translator  # ← F-01.2: NOVO IMPORT
 
 from utils.logging_setup import LOGGER
 from utils.platform_utils import open_folder
@@ -66,8 +68,17 @@ class LaserflixMainWindow:
         self.ollama             = OllamaClient(self.db_manager.config.get("models"))
         self.image_analyzer     = ImageAnalyzer(self.ollama)
         self.fallback_generator = FallbackGenerator(self.scanner)
+        
+        # ═════════════════════════════════════════════════════════════════════════
+        # F-01.2: TRADUTOR ISOLADO (funciona COM ou SEM Ollama)
+        # ═════════════════════════════════════════════════════════════════════════
+        self.translator = Translator(self.ollama)  # Opcional: None = só dicionário
+        # ═════════════════════════════════════════════════════════════════════════
+        
         self.text_generator     = TextGenerator(
-            self.ollama, self.image_analyzer, self.scanner, self.fallback_generator)
+            self.ollama, self.image_analyzer, self.scanner, 
+            self.fallback_generator, self.translator)  # ← Passa tradutor
+        
         self.analysis_manager   = AnalysisManager(
             self.text_generator, self.db_manager, self.ollama)
         self._setup_analysis_callbacks()
@@ -615,7 +626,7 @@ class LaserflixMainWindow:
                 "on_reanalize":     self.analyze_single_project,
                 "on_set_tag":       self.set_tag_filter,
                 "on_remove":        self.remove_project,
-                "on_save_name":     self._save_project_name,  # ← F-01.1: NOVO CALLBACK
+                "on_save_name":     self._save_project_name,  # ← F-01.1: CALLBACK
             },
             cache=self.thumbnail_preloader,
             scanner=self.scanner,
