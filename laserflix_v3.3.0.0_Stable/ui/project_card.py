@@ -37,16 +37,16 @@ def build_card(
     selected_paths  = cb.get("selected_paths", set())
     is_selected     = project_path in selected_paths
 
-    # Borda destaca se selecionado
+    # Card externo — sem forçar altura, deixa o conteúdo ditar
     border_color = "#FFFF00" if is_selected else BG_CARD
-    card = tk.Frame(parent, bg=border_color, width=CARD_W, height=CARD_H,
+    card = tk.Frame(parent, bg=border_color, width=CARD_W,
                     highlightbackground=border_color, highlightthickness=2 if is_selected else 0)
     card.grid(row=row, column=col, padx=pad, pady=pad, sticky="n")
     card.grid_propagate(False)
 
-    inner = tk.Frame(card, bg=BG_CARD, width=CARD_W - 4, height=CARD_H - 4)
-    inner.pack(fill="both", expand=True, padx=2 if is_selected else 0,
-               pady=2 if is_selected else 0)
+    # Inner — altura fixa, sem expand
+    inner = tk.Frame(card, bg=BG_CARD, width=CARD_W - 4, height=CARD_H)
+    inner.pack(padx=2 if is_selected else 0, pady=2 if is_selected else 0)
     inner.pack_propagate(False)
 
     # Checkbox de seleção (canto sup. esq. — só no modo seleção)

@@ -72,16 +72,7 @@ class HeaderBar:
             btn.bind("<Enter>", lambda e, w=btn: w.config(fg=ACCENT_RED))
             btn.bind("<Leave>", lambda e, w=btn: w.config(fg=FG_PRIMARY))
 
-        # Extras (direita)
-        extras = tk.Frame(hdr, bg="#000000")
-        extras.pack(side="right", padx=10)
-        self._build_menu_btn(extras)
-        self._build_import_btn(extras)
-        self._build_ai_btn(extras)
-        self._build_desc_btn(extras)
-        self._build_select_btn(extras)
-
-        # Busca
+        # Busca PRIMEIRO (fica mais à direita)
         search_frm = tk.Frame(hdr, bg="#000000")
         search_frm.pack(side="right", padx=20)
         tk.Label(search_frm, text="🔍", bg="#000000",
@@ -93,11 +84,20 @@ class HeaderBar:
             width=30, relief="flat", insertbackground=FG_PRIMARY,
         ).pack(side="left", padx=5, ipady=5)
 
+        # Extras (botões) DEPOIS (ficam à esquerda da busca)
+        extras = tk.Frame(hdr, bg="#000000")
+        extras.pack(side="right", padx=10)
+        self._build_select_btn(extras)
+        self._build_desc_btn(extras)
+        self._build_ai_btn(extras)
+        self._build_import_btn(extras)
+        self._build_menu_btn(extras)
+
     def _build_menu_btn(self, parent) -> None:
         mb = tk.Menubutton(parent, text="⚙️ Menu", bg="#444444",
                            fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                            relief="flat", cursor="hand2", padx=15, pady=8)
-        mb.pack(side="left", padx=5)
+        mb.pack(side="right", padx=5)
         m = tk.Menu(mb, tearoff=0, bg=BG_CARD, fg=FG_PRIMARY)
         mb["menu"] = m
         m.add_command(label="📦 Preparar Pastas",       command=self._cb["on_prepare_folders"])
@@ -113,13 +113,13 @@ class HeaderBar:
                   command=self._cb["on_import"],
                   bg=ACCENT_RED, fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                   relief="flat", cursor="hand2", padx=15, pady=8,
-                  ).pack(side="left", padx=5)
+                  ).pack(side="right", padx=5)
 
     def _build_ai_btn(self, parent) -> None:
         ab = tk.Menubutton(parent, text="🤖 Análise", bg=ACCENT_GREEN,
                            fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                            relief="flat", cursor="hand2", padx=15, pady=8)
-        ab.pack(side="left", padx=5)
+        ab.pack(side="right", padx=5)
         am = tk.Menu(ab, tearoff=0, bg=BG_CARD, fg=FG_PRIMARY,
                      activebackground=ACCENT_RED, activeforeground=FG_PRIMARY)
         ab["menu"] = am
@@ -130,7 +130,7 @@ class HeaderBar:
         db = tk.Menubutton(parent, text="📝 Descrições", bg="#3A7BD5",
                            fg=FG_PRIMARY, font=("Arial", 11, "bold"),
                            relief="flat", cursor="hand2", padx=15, pady=8)
-        db.pack(side="left", padx=5)
+        db.pack(side="right", padx=5)
         dm = tk.Menu(db, tearoff=0, bg=BG_CARD, fg=FG_PRIMARY,
                      activebackground=ACCENT_RED, activeforeground=FG_PRIMARY)
         db["menu"] = dm
@@ -144,4 +144,4 @@ class HeaderBar:
             bg="#444444", fg=FG_PRIMARY, font=("Arial", 11, "bold"),
             relief="flat", cursor="hand2", padx=15, pady=8,
         )
-        self._select_btn.pack(side="left", padx=5)
+        self._select_btn.pack(side="right", padx=5)
