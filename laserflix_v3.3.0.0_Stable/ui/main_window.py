@@ -1,6 +1,6 @@
 """
 ui/main_window.py — Orquestrador puro do Laserflix.
-Teto: 300 linhas. Nunca constrói widgets diretamente.
+Teto: 350 linhas. Nunca constrói widgets diretamente.
 
 HOT-08: Paginação simples (Kent Beck style):
   - HOT-13: 36 cards por página (6 linhas × 6 cols)
@@ -9,6 +9,9 @@ HOT-08: Paginação simples (Kent Beck style):
   - SIMPLES, PREVISÍVEL, FUNCIONAL
 
 HOT-12: Scrollbar vertical (cards com categorias ficaram mais altos)
+
+FEATURE: Menu de ordenação na linha de paginação (canto direito)
+FEATURE: Análise automática pós-importação
 """
 import os
 import threading
@@ -25,7 +28,7 @@ from config.ui_constants import (
 )
 
 from core.database import DatabaseManager
-from core.thumbnail_preloader import ThumbnailPreloader  # ← Mantido (funciona bem)
+from core.thumbnail_preloader import ThumbnailPreloader
 from core.project_scanner import ProjectScanner
 
 from ai.ollama_client import OllamaClient
@@ -56,9 +59,7 @@ class LaserflixMainWindow:
         self.db_manager.load_config()
         self.db_manager.load_database()
         
-        # ← HOT-08: Thumbnail Preloader (mantido - funciona bem)
         self.thumbnail_preloader = ThumbnailPreloader(max_workers=4)
-        
         self.scanner = ProjectScanner(self.db_manager.database)
 
         self.ollama             = OllamaClient(self.db_manager.config.get("models"))
@@ -76,21 +77,20 @@ class LaserflixMainWindow:
         self.current_tag        = None
         self.current_origin     = "all"
         self.search_query       = ""
+        self.current_sort       = "date_desc"  # ← NOVO: Ordenação padrão
 
-        # Estado de seleção em massa
         self._selection_mode    = False
         self._selected_paths    = set()
         
-        # ══════════════════════════════════════════════════════════════════
-        # HOT-13: 36 CARDS POR PÁGINA (6 linhas × 6 colunas)
-        # ══════════════════════════════════════════════════════════════════
-        self.items_per_page = 36  # HOT-13: Aumentado de 18 para 36
+        self.items_per_page = 36
         self.current_page   = 1
         self.total_pages    = 1
 
+        # ← NOVO: Passa analysis_manager para auto-análise
         self.import_manager = RecursiveImportManager(
             parent=self.root, database=self.database,
             project_scanner=self.scanner, text_generator=self.text_generator,
+            analysis_manager=self.analysis_manager,  # ← NOVO!
             on_complete=self._on_import_complete,
         )
 
@@ -102,7 +102,6 @@ class LaserflixMainWindow:
         self.logger.info("✨ Laserflix v%s iniciado (36 cards/página)", VERSION)
 
     def __del__(self):
-        # Para workers ao fechar
         if hasattr(self, 'thumbnail_preloader'):
             self.thumbnail_preloader.shutdown()
 
@@ -142,12 +141,7 @@ class LaserflixMainWindow:
         content_frame = tk.Frame(main_container, bg=BG_PRIMARY)
         content_frame.pack(side="left", fill="both", expand=True)
         
-        # ═════════════════════════════════════════════════════════════════
-        # HOT-12: Canvas COM SCROLLBAR VERTICAL
-        # ═════════════════════════════════════════════════════════════════
         self.content_canvas = tk.Canvas(content_frame, bg=BG_PRIMARY, highlightthickness=0)
-        
-        # Scrollbar vertical
         scrollbar = ttk.Scrollbar(content_frame, orient="vertical", command=self.content_canvas.yview)
         self.content_canvas.configure(yscrollcommand=scrollbar.set)
         
@@ -158,14 +152,11 @@ class LaserflixMainWindow:
                 scrollregion=self.content_canvas.bbox("all")))
         self.content_canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
         
-        # Pack canvas e scrollbar
         self.content_canvas.pack(side="left", fill="both", expand=True, padx=10, pady=10)
         scrollbar.pack(side="right", fill="y")
         
-        # Mouse wheel binding
         self.content_canvas.bind("<MouseWheel>",
             lambda e: self.content_canvas.yview_scroll(int(-1*(e.delta/SCROLL_SPEED)), "units"))
-        # ═════════════════════════════════════════════════════════════════
         
         for i in range(COLS):
             self.scrollable_frame.columnconfigure(i, weight=1, uniform="card")
@@ -188,7 +179,7 @@ class LaserflixMainWindow:
                                    bg=ACCENT_RED, fg=FG_PRIMARY,
                                    font=("Arial", 10, "bold"), relief="flat", cursor="hand2")
 
-        # Barra de seleção em massa (oculta por padrão)
+        # Barra de seleção em massa
         self._sel_bar = tk.Frame(self.root, bg="#1A1A00", height=48)
         self._sel_bar.pack_propagate(False)
         self._sel_count_lbl = tk.Label(
@@ -216,11 +207,46 @@ class LaserflixMainWindow:
                   relief="flat", cursor="hand2", padx=10, pady=6
                   ).pack(side="right", padx=16)
         
-        # ← HOT-08: ATALHOS DE TECLADO
         self.root.bind("<Left>", lambda e: self.prev_page())
         self.root.bind("<Right>", lambda e: self.next_page())
         self.root.bind("<Home>", lambda e: self.first_page())
         self.root.bind("<End>", lambda e: self.last_page())
+
+    # =========================================================================
+    # ORDENAÇÃO
+    # =========================================================================
+
+    def _on_sort(self, sort_type: str) -> None:
+        """Callback quando usuário muda ordenação."""
+        self.current_sort = sort_type
+        self.current_page = 1
+        self.display_projects()
+
+    def _apply_sorting(self, projects: list) -> list:
+        """Aplica ordenação aos projetos filtrados."""
+        if not projects:
+            return projects
+        
+        try:
+            if self.current_sort == "date_desc":
+                return sorted(projects, key=lambda p: p[1].get("added_date", ""), reverse=True)
+            elif self.current_sort == "date_asc":
+                return sorted(projects, key=lambda p: p[1].get("added_date", ""))
+            elif self.current_sort == "name_asc":
+                return sorted(projects, key=lambda p: p[1].get("name", "").lower())
+            elif self.current_sort == "name_desc":
+                return sorted(projects, key=lambda p: p[1].get("name", "").lower(), reverse=True)
+            elif self.current_sort == "origin":
+                return sorted(projects, key=lambda p: (p[1].get("origin", "zzz"), p[1].get("name", "").lower()))
+            elif self.current_sort == "analyzed":
+                return sorted(projects, key=lambda p: (not p[1].get("analyzed", False), p[1].get("name", "").lower()))
+            elif self.current_sort == "not_analyzed":
+                return sorted(projects, key=lambda p: (p[1].get("analyzed", False), p[1].get("name", "").lower()))
+            else:
+                return projects
+        except Exception as e:
+            self.logger.error("Erro ao ordenar: %s", e)
+            return projects
 
     # =========================================================================
     # MODO DE SELEÇÃO EM MASSA
@@ -282,7 +308,6 @@ class LaserflixMainWindow:
         self.status_bar.config(text=f"🗑️ {n} projeto(s) removido(s) do banco.")
 
     def remove_project(self, path: str) -> None:
-        """Remove individual via modal (F-02)."""
         if path in self.database:
             name = self.database[path].get("name", path)
             self.database.pop(path)
@@ -296,12 +321,6 @@ class LaserflixMainWindow:
     # =========================================================================
 
     def display_projects(self) -> None:
-        """
-        Renderiza projetos com paginação simples.
-        
-        ← HOT-13: 36 cards por página (6 linhas × 6 cols)
-        """
-        # Limpa tudo
         for w in self.scrollable_frame.winfo_children():
             w.destroy()
         
@@ -311,6 +330,10 @@ class LaserflixMainWindow:
             for p in self.get_filtered_projects()
             if p in self.database
         ]
+        
+        # ← NOVO: APLICA ORDENAÇÃO
+        all_filtered = self._apply_sorting(all_filtered)
+        
         total_count = len(all_filtered)
         
         # 2. CALCULA PAGINAÇÃO
@@ -321,7 +344,7 @@ class LaserflixMainWindow:
         end_idx = min(start_idx + self.items_per_page, total_count)
         page_items = all_filtered[start_idx:end_idx]
         
-        # 3. HEADER COM CONTADOR
+        # 3. HEADER COM CONTADOR + ORDENAÇÃO
         title_map = {
             "favorite": "⭐ Favoritos", "done": "✓ Já Feitos",
             "good":     "👍 Bons",      "bad":  "👎 Ruins",
@@ -332,59 +355,110 @@ class LaserflixMainWindow:
         if self.current_tag:                  title += f" — #{self.current_tag}"
         if self.search_query:                 title += f' — "{self.search_query}"'
         
-        # Header frame (título + contador + navegação)
         header_frame = tk.Frame(self.scrollable_frame, bg=BG_PRIMARY)
         header_frame.grid(row=0, column=0, columnspan=COLS, sticky="ew", padx=10, pady=(0, 5))
         
-        # Título (esquerda)
         tk.Label(header_frame, text=title,
                  font=("Arial", 20, "bold"), bg=BG_PRIMARY, fg=FG_PRIMARY, anchor="w"
                  ).pack(side="left")
         
-        # ← HOT-08: NAVEGAÇÃO (direita)
+        # ══════════════════════════════════════════════════════════════════
+        # NOVO: MENU DE ORDENAÇÃO (CANTO DIREITO)
+        # ══════════════════════════════════════════════════════════════════
         if total_count > 0:
-            nav_frame = tk.Frame(header_frame, bg=BG_PRIMARY)
-            nav_frame.pack(side="right", padx=10)
+            right_controls = tk.Frame(header_frame, bg=BG_PRIMARY)
+            right_controls.pack(side="right", padx=10)
             
-            # Botão Início
-            tk.Button(nav_frame, text="⏮ Início",
+            # ORDENAÇÃO (dropdown compacto)
+            sort_frame = tk.Frame(right_controls, bg=BG_PRIMARY)
+            sort_frame.pack(side="right", padx=(0, 15))
+            
+            tk.Label(sort_frame, text="📊", bg=BG_PRIMARY,
+                     fg=FG_TERTIARY, font=("Arial", 12)).pack(side="left", padx=(0, 5))
+            
+            sort_var = tk.StringVar(value=self.current_sort)
+            
+            sort_labels = {
+                "date_desc":    "📅 Recentes",
+                "date_asc":     "📅 Antigos",
+                "name_asc":     "🔤 A→Z",
+                "name_desc":    "🔥 Z→A",
+                "origin":       "🏛️ Origem",
+                "analyzed":     "🤖 Analisados",
+                "not_analyzed": "⏳ Pendentes",
+            }
+            
+            style = ttk.Style()
+            style.theme_use("clam")
+            style.configure(
+                "Sort.TCombobox",
+                fieldbackground="#222222",
+                background="#222222",
+                foreground=FG_PRIMARY,
+                arrowcolor=FG_PRIMARY,
+                borderwidth=0,
+            )
+            
+            sort_combo = ttk.Combobox(
+                sort_frame,
+                textvariable=sort_var,
+                values=list(sort_labels.keys()),
+                state="readonly",
+                width=14,
+                font=("Arial", 9),
+                style="Sort.TCombobox",
+            )
+            sort_combo.pack(side="left")
+            sort_combo.set(sort_labels[self.current_sort])
+            
+            def on_sort_change(*args):
+                raw = sort_var.get()
+                # Encontra chave pelo label
+                for key, label in sort_labels.items():
+                    if label == raw:
+                        self._on_sort(key)
+                        break
+            
+            sort_var.trace_add("write", on_sort_change)
+            
+            # NAVEGAÇÃO DE PÁGINAS
+            nav_frame = tk.Frame(right_controls, bg=BG_PRIMARY)
+            nav_frame.pack(side="right")
+            
+            tk.Button(nav_frame, text="⏮",
                       command=self.first_page,
-                      bg="#333333", fg=FG_PRIMARY, font=("Arial", 10),
-                      relief="flat", cursor="hand2", padx=8, pady=4,
+                      bg="#333333", fg=FG_PRIMARY, font=("Arial", 9),
+                      relief="flat", cursor="hand2", padx=6, pady=3,
                       state="normal" if self.current_page > 1 else "disabled"
-                      ).pack(side="left", padx=2)
+                      ).pack(side="left", padx=1)
             
-            # Botão Anterior
-            tk.Button(nav_frame, text="◀ Anterior",
+            tk.Button(nav_frame, text="◀",
                       command=self.prev_page,
-                      bg="#444444", fg=FG_PRIMARY, font=("Arial", 10),
-                      relief="flat", cursor="hand2", padx=8, pady=4,
+                      bg="#444444", fg=FG_PRIMARY, font=("Arial", 9),
+                      relief="flat", cursor="hand2", padx=6, pady=3,
                       state="normal" if self.current_page > 1 else "disabled"
-                      ).pack(side="left", padx=2)
+                      ).pack(side="left", padx=1)
             
-            # Contador central
             tk.Label(nav_frame, 
-                     text=f"Página {self.current_page:02d} de {self.total_pages:02d}",
-                     bg=BG_PRIMARY, fg=ACCENT_GOLD, font=("Arial", 12, "bold")
-                     ).pack(side="left", padx=10)
+                     text=f"Pág {self.current_page}/{self.total_pages}",
+                     bg=BG_PRIMARY, fg=ACCENT_GOLD, font=("Arial", 10, "bold")
+                     ).pack(side="left", padx=8)
             
-            # Botão Próxima
-            tk.Button(nav_frame, text="Próxima ▶",
+            tk.Button(nav_frame, text="▶",
                       command=self.next_page,
-                      bg="#444444", fg=FG_PRIMARY, font=("Arial", 10),
-                      relief="flat", cursor="hand2", padx=8, pady=4,
+                      bg="#444444", fg=FG_PRIMARY, font=("Arial", 9),
+                      relief="flat", cursor="hand2", padx=6, pady=3,
                       state="normal" if self.current_page < self.total_pages else "disabled"
-                      ).pack(side="left", padx=2)
+                      ).pack(side="left", padx=1)
             
-            # Botão Final
-            tk.Button(nav_frame, text="Final ⏭",
+            tk.Button(nav_frame, text="⏭",
                       command=self.last_page,
-                      bg="#333333", fg=FG_PRIMARY, font=("Arial", 10),
-                      relief="flat", cursor="hand2", padx=8, pady=4,
+                      bg="#333333", fg=FG_PRIMARY, font=("Arial", 9),
+                      relief="flat", cursor="hand2", padx=6, pady=3,
                       state="normal" if self.current_page < self.total_pages else "disabled"
-                      ).pack(side="left", padx=2)
+                      ).pack(side="left", padx=1)
+        # ══════════════════════════════════════════════════════════════════
         
-        # Contador de itens
         tk.Label(self.scrollable_frame, 
                  text=f"{total_count} projeto(s) | Mostrando {len(page_items)} itens",
                  font=("Arial", 11), bg=BG_PRIMARY, fg="#999999"
@@ -397,7 +471,7 @@ class LaserflixMainWindow:
                      ).grid(row=2, column=0, columnspan=COLS, pady=80)
             return
         
-        # 4. RENDERIZA CARDS DA PÁGINA ATUAL
+        # 4. RENDERIZA CARDS
         card_cb = {
             "on_open_modal":         self.open_project_modal,
             "on_toggle_favorite":    self.toggle_favorite,
@@ -416,18 +490,14 @@ class LaserflixMainWindow:
         }
         
         for i, (project_path, project_data) in enumerate(page_items):
-            row = (i // COLS) + 2  # +2 para pular header (rows 0-1)
+            row = (i // COLS) + 2
             col = i % COLS
             build_card(self.scrollable_frame, project_path, project_data, 
                       card_cb, row, col)
         
-        # Volta pro topo
         self.content_canvas.yview_moveto(0)
 
     def _get_thumbnail_async(self, project_path, callback, widget):
-        """
-        Wrapper para thumbnail preloader (thread-safe).
-        """
         def _ui_safe_callback(path, photo):
             try:
                 if widget and widget.winfo_exists():
@@ -437,7 +507,6 @@ class LaserflixMainWindow:
         
         self.thumbnail_preloader.preload_single(project_path, _ui_safe_callback)
 
-    # ← HOT-08: FUNÇÕES DE NAVEGAÇÃO
     def next_page(self) -> None:
         if self.current_page < self.total_pages:
             self.current_page += 1
@@ -465,18 +534,18 @@ class LaserflixMainWindow:
         self.current_categories = []; self.current_tag = None; self.current_origin = "all"
         self.search_var.set("")
         self.sidebar.set_active_btn(None)
-        self.current_page = 1  # ← Reseta para página 1
+        self.current_page = 1
         self.display_projects()
 
     def _on_search(self) -> None:
         self.search_query = self.search_var.get().strip().lower()
-        self.current_page = 1  # ← Reseta para página 1
+        self.current_page = 1
         self.display_projects()
 
     def _on_origin_filter(self, origin, btn=None) -> None:
         self.current_filter = "all"; self.current_origin = origin
         self.current_categories = []; self.current_tag = None
-        self.current_page = 1  # ← Reseta
+        self.current_page = 1
         self.sidebar.set_active_btn(btn); self.display_projects()
         count = sum(1 for d in self.database.values() if d.get("origin") == origin)
         self.status_bar.config(text=f"Origem: {origin} ({count} projetos)")
@@ -484,13 +553,13 @@ class LaserflixMainWindow:
     def _on_category_filter(self, cats, btn=None) -> None:
         self.current_filter = "all"; self.current_categories = cats
         self.current_tag = None; self.current_origin = "all"
-        self.current_page = 1  # ← Reseta
+        self.current_page = 1
         self.sidebar.set_active_btn(btn); self.display_projects()
 
     def _on_tag_filter(self, tag, btn=None) -> None:
         self.current_filter = "all"; self.current_tag = tag
         self.current_categories = []; self.current_origin = "all"
-        self.current_page = 1  # ← Reseta
+        self.current_page = 1
         self.sidebar.set_active_btn(btn); self.display_projects()
 
     def set_origin_filter(self, origin, btn=None):  self._on_origin_filter(origin, btn)
@@ -517,7 +586,7 @@ class LaserflixMainWindow:
         return result
 
     # =========================================================================
-    # MODAL DE PROJETO
+    # MODAIS
     # =========================================================================
 
     def open_project_modal(self, project_path: str) -> None:
@@ -562,10 +631,6 @@ class LaserflixMainWindow:
                 modal.after(0, lambda: desc_lbl.config(text="❌ Erro ao gerar", fg="#EF5350"))
                 modal.after(0, lambda: gen_btn.config(state="normal", text="🤖  Gerar com IA"))
         threading.Thread(target=_run, daemon=True).start()
-
-    # =========================================================================
-    # EDIÇÃO
-    # =========================================================================
 
     def open_edit_mode(self, project_path: str) -> None:
         EditModal(self.root, project_path, self.database.get(project_path, {}),
@@ -616,7 +681,7 @@ class LaserflixMainWindow:
             if btn: btn.config(fg="#FF0000" if nv else FG_TERTIARY)
 
     # =========================================================================
-    # IA — ANÁLISE
+    # IA
     # =========================================================================
 
     def _setup_analysis_callbacks(self) -> None:
@@ -668,10 +733,6 @@ class LaserflixMainWindow:
         if messagebox.askyesno("🔄 Reanalisar todos",
                                f"Isso vai reanalisar {len(targets)} projeto(s).\n\nConfirma?"):
             self.analysis_manager.analyze_batch(targets, self.database)
-
-    # =========================================================================
-    # IA — DESCRIÇÕES
-    # =========================================================================
 
     def _batch_generate_descriptions(self, targets) -> None:
         self.show_progress_ui()
@@ -791,6 +852,6 @@ class LaserflixMainWindow:
         self.import_manager.database = self.database
         self.db_manager.save_database()
         self.sidebar.refresh(self.database)
-        self.current_page = 1  # ← Reseta para página 1
+        self.current_page = 1
         self.display_projects()
         self.status_bar.config(text="✅ Importação concluída!")
