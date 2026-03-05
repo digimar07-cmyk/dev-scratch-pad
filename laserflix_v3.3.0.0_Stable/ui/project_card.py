@@ -32,7 +32,13 @@ def build_card(
     row: int,
     col: int,
     pad: int = CARD_PAD,
-) -> None:
+) -> tk.Frame:
+    """
+    Constrói um card de projeto.
+    
+    Returns:
+        tk.Frame: Widget do card criado (para virtual scroll)
+    """
     selection_mode  = cb.get("selection_mode", False)
     selected_paths  = cb.get("selected_paths", set())
     is_selected     = project_path in selected_paths
@@ -167,3 +173,5 @@ def build_card(
                       command=lambda: cb["on_analyze_single"](project_path),
                       bg=BG_CARD, fg=ACCENT_GREEN, relief="flat", cursor="hand2"
                       ).pack(side="left", padx=1)
+    
+    return card  # ← RETORNA o widget para virtual scroll
