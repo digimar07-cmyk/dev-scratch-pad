@@ -334,8 +334,13 @@ class ProjectModal:
             w.bind("<Leave>",    lambda e, ws=all_w: [x.config(bg=BC) for x in ws])
 
     def _build_right_panel(self, main, modal):
+        """
+        ← HOT-09b: FIX imagem modal - usa método público find_first_image()
+        """
         right_outer = tk.Frame(main, bg="#0A0A0A")
         right_outer.grid(row=0, column=2, sticky="nsew")
+        
+        # ← HOT-09b: Agora usa método público (era _find_first_image privado)
         cover_path = self._cache.find_first_image(self._path)
 
         if not cover_path:
