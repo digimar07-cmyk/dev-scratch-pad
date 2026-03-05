@@ -43,9 +43,10 @@ class VirtualScrollGrid:
         self.visible_rows = set()  # Linhas atualmente renderizadas
         self.row_widgets  = {}  # Cache: {row: [widgets]}
         
-        # Constantes de scroll suave
-        self.SCROLL_PIXELS = 80  # Pixels por clique do mouse (era 120)
-        self.BUFFER_ROWS   = 3   # Linhas extras acima/abaixo para suavizar
+        # Constantes
+        self.SCROLL_PIXELS = 60   # Pixels por clique do mouse (mais suave)
+        self.BUFFER_ROWS   = 2    # Linhas extras acima/abaixo
+        self.HEADER_HEIGHT = 100  # Altura aproximada do header (title + contador)
         
         # Bind de scroll suave
         self._setup_smooth_scroll()
@@ -60,8 +61,8 @@ class VirtualScrollGrid:
             # Dividimos por SCROLL_PIXELS para suavizar
             delta_units = int(-1 * (event.delta / self.SCROLL_PIXELS))
             self.canvas.yview_scroll(delta_units, "units")
-            # Atualiza cards visíveis após scroll
-            self.canvas.after(10, self._update_visible_cards)
+            # Atualiza cards visíveis após scroll (delay para suavidade)
+            self.canvas.after(50, self._update_visible_cards)
             return "break"  # Previne propagação
         
         # Remove bindings antigos
@@ -78,7 +79,6 @@ class VirtualScrollGrid:
         Args:
             items: Lista de tuplas (project_path, project_data)
             card_builder: Callback(container, path, data, row, col) -> widget
-                         IMPORTANTE: Callback já deve ter callbacks internos (via closure)
         """
         self.items        = items
         self.card_builder = card_builder
@@ -88,7 +88,8 @@ class VirtualScrollGrid:
         
         # Calcula altura total do grid
         total_rows = (len(items) + self.cols - 1) // self.cols  # Ceil division
-        total_height = (total_rows * (CARD_H + CARD_PAD)) + 200  # +200 para header
+        cards_height = total_rows * (CARD_H + CARD_PAD * 2)
+        total_height = self.HEADER_HEIGHT + cards_height + 100  # +100 margem final
         
         # Ajusta scrollregion do canvas
         self.canvas.configure(scrollregion=(0, 0, 1, total_height))
@@ -100,32 +101,48 @@ class VirtualScrollGrid:
         """
         Recalcula quais linhas estão visíveis e renderiza apenas essas.
         Chamado após scroll ou update_items().
+        
+        BUGFIX HOT-04: Agora considera offset do header corretamente.
         """
         if not self.items or not self.card_builder:
             return
         
         # Obtém viewport atual do canvas
         try:
-            canvas_height = self.canvas.winfo_height()
             scroll_top    = self.canvas.yview()[0]  # Fração 0.0-1.0
             scroll_bottom = self.canvas.yview()[1]
             
-            # Converte fração em pixels
+            # Obtém altura total do scrollregion
             scrollregion  = self.canvas.cget("scrollregion").split()
-            total_height  = int(scrollregion[3]) if len(scrollregion) >= 4 else canvas_height
+            if len(scrollregion) < 4:
+                return  # Canvas não está pronto
             
+            total_height = int(scrollregion[3])
+            
+            # Converte fração em pixels absolutos
             visible_top_px    = scroll_top * total_height
             visible_bottom_px = scroll_bottom * total_height
             
         except (tk.TclError, ValueError, ZeroDivisionError):
-            # Fallback se canvas ainda não está pronto
-            visible_top_px = 0
-            visible_bottom_px = 1000
+            # Fallback: renderiza primeiras linhas
+            self._render_initial_cards()
+            return
+        
+        # ← BUGFIX: Subtrai offset do header ANTES de calcular linhas
+        cards_start_px = self.HEADER_HEIGHT
+        
+        # Apenas renderiza se scroll passou do header
+        if visible_bottom_px < cards_start_px:
+            return  # Ainda no header
+        
+        # Ajusta viewport para coordenadas relativas aos cards
+        cards_top_px    = max(0, visible_top_px - cards_start_px)
+        cards_bottom_px = visible_bottom_px - cards_start_px
         
         # Calcula linhas visíveis (com buffer)
-        row_height = CARD_H + CARD_PAD
-        first_visible_row = max(0, int(visible_top_px / row_height) - self.BUFFER_ROWS)
-        last_visible_row  = int(visible_bottom_px / row_height) + self.BUFFER_ROWS
+        row_height = CARD_H + CARD_PAD * 2
+        first_visible_row = max(0, int(cards_top_px / row_height) - self.BUFFER_ROWS)
+        last_visible_row  = int(cards_bottom_px / row_height) + self.BUFFER_ROWS
         
         # Total de linhas
         total_rows = (len(self.items) + self.cols - 1) // self.cols
@@ -145,6 +162,18 @@ class VirtualScrollGrid:
             self._render_row(row)
         
         self.visible_rows = target_rows
+    
+    def _render_initial_cards(self) -> None:
+        """
+        Renderiza primeiras ~3 linhas (fallback quando canvas não está pronto).
+        """
+        total_rows = (len(self.items) + self.cols - 1) // self.cols
+        initial_rows = min(3, total_rows)
+        
+        for row in range(initial_rows):
+            self._render_row(row)
+        
+        self.visible_rows = set(range(initial_rows))
     
     def _render_row(self, row: int) -> None:
         """
@@ -166,13 +195,12 @@ class VirtualScrollGrid:
             
             project_path, project_data = self.items[idx]
             
-            # ← BUGFIX: card_builder já vem com callbacks fechados (closure)
-            # Assinatura esperada: card_builder(container, path, data, row, col)
+            # Callback build_card com callbacks fechados (closure)
             widget = self.card_builder(
                 self.container, 
                 project_path, 
                 project_data, 
-                row + 2,  # +2 para pular header
+                row + 2,  # +2 para pular header (rows 0-1)
                 col_offset
             )
             widgets.append(widget)
