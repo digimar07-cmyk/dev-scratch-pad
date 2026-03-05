@@ -37,7 +37,6 @@ from ui.sidebar import SidebarPanel
 from ui.project_card import build_card
 from ui.edit_modal import EditModal
 from ui.project_modal import ProjectModal
-from ui.virtual_scroll import VirtualScrollGrid
 
 
 class LaserflixMainWindow:
@@ -136,14 +135,12 @@ class LaserflixMainWindow:
         self.content_canvas.configure(yscrollcommand=content_sb.set)
         self.content_canvas.pack(side="left", fill="both", expand=True, padx=10, pady=10)
         content_sb.pack(side="right", fill="y")
+        
+        # Bind scroll suave + PageDown/PageUp
+        self._setup_scroll_bindings()
+        
         for i in range(COLS):
             self.scrollable_frame.columnconfigure(i, weight=1, uniform="card")
-        
-        self.virtual_grid = VirtualScrollGrid(
-            canvas=self.content_canvas,
-            container=self.scrollable_frame,
-            cols=COLS
-        )
 
         # Status bar
         sf = tk.Frame(self.root, bg="#000000", height=40)
@@ -190,6 +187,36 @@ class LaserflixMainWindow:
                   bg="#1A1A00", fg="#888888", font=("Arial", 10),
                   relief="flat", cursor="hand2", padx=10, pady=6
                   ).pack(side="right", padx=16)
+    
+    def _setup_scroll_bindings(self) -> None:
+        """
+        Configura scroll suave com:
+        - MouseWheel (rodinha)
+        - PageDown/PageUp (teclado)
+        - Drag da scrollbar (nativo)
+        """
+        # MouseWheel suave (60px por clique)
+        def _on_mousewheel(event):
+            delta = int(-1 * (event.delta / 60))  # Mais suave
+            self.content_canvas.yview_scroll(delta, "units")
+            return "break"
+        
+        self.content_canvas.bind("<Enter>", 
+            lambda e: self.content_canvas.bind("<MouseWheel>", _on_mousewheel))
+        self.content_canvas.bind("<Leave>", 
+            lambda e: self.content_canvas.unbind("<MouseWheel>"))
+        
+        # PageDown / PageUp (5 linhas de cards por vez)
+        def _on_pagedown(event):
+            self.content_canvas.yview_scroll(5, "pages")
+            return "break"
+        
+        def _on_pageup(event):
+            self.content_canvas.yview_scroll(-5, "pages")
+            return "break"
+        
+        self.root.bind("<Next>", _on_pagedown)   # PageDown
+        self.root.bind("<Prior>", _on_pageup)    # PageUp
 
     # =========================================================================
     # MODO DE SELEÇÃO EM MASSA
@@ -316,11 +343,13 @@ class LaserflixMainWindow:
             "on_toggle_select":      self.toggle_card_selection,
         }
         
-        # Virtual scroll (renderiza só visíveis)
-        def _card_builder(container, path, data, row, col):
-            return build_card(container, path, data, card_cb, row, col)
+        # ← RENDERIZA TODOS OS CARDS (sem virtual scroll)
+        for i, (project_path, project_data) in enumerate(filtered):
+            row = (i // COLS) + 2  # +2 para pular header (rows 0-1)
+            col = i % COLS
+            build_card(self.scrollable_frame, project_path, project_data, 
+                      card_cb, row, col)
         
-        self.virtual_grid.update_items(filtered, _card_builder)
         self.content_canvas.yview_moveto(0)  # Volta pro topo
 
     # =========================================================================
