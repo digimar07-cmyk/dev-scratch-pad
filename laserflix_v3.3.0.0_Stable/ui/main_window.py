@@ -10,8 +10,8 @@ HOT-08: Paginação simples (Kent Beck style):
 
 HOT-12: Scrollbar vertical (cards com categorias ficaram mais altos)
 
-FEATURE: Menu de ordenação na linha de paginação (canto direito)
-FEATURE: Análise automática pós-importação
+FEATURE: Ordenação FUNCIONAL na linha de paginação
+FEATURE: Análise SEQUENCIAL pós-importação (categorias+tags → descrições)
 """
 import os
 import threading
@@ -77,7 +77,7 @@ class LaserflixMainWindow:
         self.current_tag        = None
         self.current_origin     = "all"
         self.search_query       = ""
-        self.current_sort       = "date_desc"  # ← NOVO: Ordenação padrão
+        self.current_sort       = "date_desc"
 
         self._selection_mode    = False
         self._selected_paths    = set()
@@ -86,11 +86,10 @@ class LaserflixMainWindow:
         self.current_page   = 1
         self.total_pages    = 1
 
-        # ← NOVO: Passa analysis_manager para auto-análise
         self.import_manager = RecursiveImportManager(
             parent=self.root, database=self.database,
             project_scanner=self.scanner, text_generator=self.text_generator,
-            analysis_manager=self.analysis_manager,  # ← NOVO!
+            analysis_manager=self.analysis_manager,
             on_complete=self._on_import_complete,
         )
 
@@ -331,7 +330,7 @@ class LaserflixMainWindow:
             if p in self.database
         ]
         
-        # ← NOVO: APLICA ORDENAÇÃO
+        # APLICA ORDENAÇÃO
         all_filtered = self._apply_sorting(all_filtered)
         
         total_count = len(all_filtered)
@@ -363,21 +362,20 @@ class LaserflixMainWindow:
                  ).pack(side="left")
         
         # ══════════════════════════════════════════════════════════════════
-        # NOVO: MENU DE ORDENAÇÃO (CANTO DIREITO)
+        # MENU DE ORDENAÇÃO + NAVEGAÇÃO (CANTO DIREITO)
         # ══════════════════════════════════════════════════════════════════
         if total_count > 0:
             right_controls = tk.Frame(header_frame, bg=BG_PRIMARY)
             right_controls.pack(side="right", padx=10)
             
-            # ORDENAÇÃO (dropdown compacto)
+            # ORDENAÇÃO (dropdown)
             sort_frame = tk.Frame(right_controls, bg=BG_PRIMARY)
-            sort_frame.pack(side="right", padx=(0, 15))
+            sort_frame.pack(side="left", padx=(0, 15))
             
             tk.Label(sort_frame, text="📊", bg=BG_PRIMARY,
                      fg=FG_TERTIARY, font=("Arial", 12)).pack(side="left", padx=(0, 5))
             
-            sort_var = tk.StringVar(value=self.current_sort)
-            
+            # Mapeamento key → label
             sort_labels = {
                 "date_desc":    "📅 Recentes",
                 "date_asc":     "📅 Antigos",
@@ -387,6 +385,9 @@ class LaserflixMainWindow:
                 "analyzed":     "🤖 Analisados",
                 "not_analyzed": "⏳ Pendentes",
             }
+            
+            # Cria StringVar com KEY (não label)
+            sort_var = tk.StringVar(value=self.current_sort)
             
             style = ttk.Style()
             style.theme_use("clam")
@@ -398,32 +399,41 @@ class LaserflixMainWindow:
                 arrowcolor=FG_PRIMARY,
                 borderwidth=0,
             )
+            style.map("Sort.TCombobox",
+                fieldbackground=[("readonly", "#222222")],
+                selectbackground=[("readonly", "#222222")],
+                selectforeground=[("readonly", FG_PRIMARY)],
+            )
             
+            # Combobox recebe LABELS, mas retorna label selecionado
             sort_combo = ttk.Combobox(
                 sort_frame,
                 textvariable=sort_var,
-                values=list(sort_labels.keys()),
+                values=list(sort_labels.values()),  # ← LABELS
                 state="readonly",
                 width=14,
                 font=("Arial", 9),
                 style="Sort.TCombobox",
             )
             sort_combo.pack(side="left")
+            
+            # Define label inicial
             sort_combo.set(sort_labels[self.current_sort])
             
-            def on_sort_change(*args):
-                raw = sort_var.get()
-                # Encontra chave pelo label
+            # Callback: converte label → key
+            def on_sort_change(event):
+                selected_label = sort_combo.get()
+                # Encontra key correspondente
                 for key, label in sort_labels.items():
-                    if label == raw:
+                    if label == selected_label:
                         self._on_sort(key)
                         break
             
-            sort_var.trace_add("write", on_sort_change)
+            sort_combo.bind("<<ComboboxSelected>>", on_sort_change)
             
             # NAVEGAÇÃO DE PÁGINAS
             nav_frame = tk.Frame(right_controls, bg=BG_PRIMARY)
-            nav_frame.pack(side="right")
+            nav_frame.pack(side="left")
             
             tk.Button(nav_frame, text="⏮",
                       command=self.first_page,

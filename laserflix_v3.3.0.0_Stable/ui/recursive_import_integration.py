@@ -9,7 +9,7 @@ FLUXO (todos os modos):
   4. DuplicateResolutionDialog → usuário resolve (se houver)
   5. ImportPreviewDialog → usuário confirma
   6. Import Loop       → importa em thread separada
-  7. AUTO-ANALYSIS     → NOVO: Notificação pós-importação com análise automática
+  7. AUTO-ANALYSIS     → SEQUENCIAL: categorias/tags → descrições
 
 Modos:
   'hybrid'  — recursivo, folder.jpg + fallback
@@ -24,16 +24,19 @@ HOT-10: FIX duplicatas entre métodos
 HOT-10b: FIX dialog duplicatas
   - Adiciona normalized_name e name no formato esperado pelo dialog
 
-FEATURE: Análise automática pós-importação
+FEATURE: Análise automática SEQUENCIAL pós-importação
   - Após importação bem-sucedida, pergunta se quer analisar
-  - Se sim, executa análise completa (categorias + tags + descrições)
+  - Se sim, executa SEQUENCIALMENTE:
+    1. Categorias + Tags (analysis_manager)
+    2. Descrições (text_generator)
   - Apenas para produtos recém-importados
 
 USO:
     from ui.recursive_import_integration import RecursiveImportManager
     manager = RecursiveImportManager(
         parent, database, 
-        analysis_manager=analysis_manager,  # ← NOVO: Necessário para auto-análise
+        analysis_manager=analysis_manager,  # ← Necessário
+        text_generator=text_generator,      # ← Necessário
         on_complete=callback
     )
     manager.start_import()
@@ -58,7 +61,7 @@ class RecursiveImportManager:
     Todos os modos passam pelo mesmo pipeline de dedup + preview.
     
     HOT-10: Detecta duplicatas comparando com database existente!
-    FEATURE: Notificação pós-importação com análise automática
+    FEATURE: Análise SEQUENCIAL pós-importação (categorias+tags → descrições)
     """
 
     def __init__(
@@ -67,20 +70,20 @@ class RecursiveImportManager:
         database,
         project_scanner=None,
         text_generator=None,
-        analysis_manager=None,  # ← NOVO: Para análise automática
+        analysis_manager=None,
         on_complete: Optional[Callable] = None,
     ):
         self.parent          = parent
         self.database        = database
         self.project_scanner = project_scanner
         self.text_generator  = text_generator
-        self.analysis_manager = analysis_manager  # ← NOVO
+        self.analysis_manager = analysis_manager
         self.on_complete     = on_complete
         self.logger          = LOGGER
         self.scanner         = RecursiveScanner()
         self.duplicate_detector = DuplicateDetector()
         self.import_thread   = None
-        self.imported_paths  = []  # ← NOVO: Armazena paths recém-importados
+        self.imported_paths  = []
 
     # ================================================================
     # MÉTODO PRINCIPAL
@@ -352,7 +355,7 @@ class RecursiveImportManager:
                     "added_date":   datetime.now().isoformat(),
                 }
                 success += 1
-                self.imported_paths.append(path)  # ← NOVO: Rastreia importados
+                self.imported_paths.append(path)
                 self.logger.debug("[%d/%d] Importado: %s", i, total, product["name"])
 
             except Exception as e:
@@ -363,9 +366,9 @@ class RecursiveImportManager:
         self.logger.info("Import concluído: %d ok | %d falha", success, failed)
 
         # ══════════════════════════════════════════════════════════════════
-        # NOVO: ANÁLISE AUTOMÁTICA PÓS-IMPORTAÇÃO
+        # ANÁLISE AUTOMÁTICA SEQUENCIAL: categorias+tags → descrições
         # ══════════════════════════════════════════════════════════════════
-        if success > 0 and self.analysis_manager:
+        if success > 0 and self.analysis_manager and self.text_generator:
             self.parent.after(0, lambda: self._ask_auto_analysis(success))
         else:
             # Callback normal sem análise
@@ -380,30 +383,85 @@ class RecursiveImportManager:
 
     def _ask_auto_analysis(self, success_count: int):
         """
-        Pergunta se quer analisar automaticamente os produtos recém-importados.
-        Se sim, executa análise completa (categorias + tags + descrições).
+        Pergunta se quer analisar automaticamente.
+        Se sim, executa SEQUENCIALMENTE:
+          1. Categorias + Tags (analysis_manager)
+          2. Descrições (text_generator)
         """
         response = messagebox.askyesno(
             "🤖 Análise Automática",
-            f"✅ {success_count} produto(s) importado(s) com sucesso!\n\n"
+            f"✅ {success_count} produto(s) importado(s)!\n\n"
             f"🤔 Deseja analisar AGORA?\n\n"
-            f"• Categorias (IA)\n"
-            f"• Tags (IA)\n"
-            f"• Descrições (IA)\n\n"
-            f"Isso pode levar alguns minutos dependendo da quantidade.",
+            f"SEQUENCIAL:\n"
+            f"1️⃣ Categorias + Tags (IA)\n"
+            f"2️⃣ Descrições (IA)\n\n"
+            f"Isso pode levar alguns minutos.",
             parent=self.parent,
         )
         
         if response:
-            self.logger.info("🤖 Iniciando análise automática de %d produtos", len(self.imported_paths))
-            # Executa análise completa apenas dos recém-importados
-            self.analysis_manager.analyze_batch(self.imported_paths, self.database)
+            self.logger.info("🤖 Iniciando análise SEQUENCIAL de %d produtos", len(self.imported_paths))
+            self._run_sequential_analysis()
         else:
-            self.logger.info("⏭️ Usuário optou por NÃO analisar agora")
+            self.logger.info("⏭️ Usuário optou por NÃO analisar")
+            if self.on_complete:
+                self.on_complete()
+
+    def _run_sequential_analysis(self):
+        """
+        Executa análise SEQUENCIAL:
+        1. Categorias + Tags para todos
+        2. Aguarda conclusão
+        3. Descrições para todos
+        """
+        def _worker():
+            try:
+                # ETAPA 1: Categorias + Tags
+                self.logger.info("📊 ETAPA 1/2: Analisando categorias e tags...")
+                
+                # Aguarda análise de categorias/tags terminar
+                self._wait_for_analysis_manager()
+                
+                # ETAPA 2: Descrições
+                self.logger.info("📝 ETAPA 2/2: Gerando descrições...")
+                self._generate_descriptions_batch()
+                
+                self.logger.info("✅ Análise sequencial concluída!")
+                
+            except Exception as e:
+                self.logger.error("Erro na análise sequencial: %s", e, exc_info=True)
+            finally:
+                # Callback final
+                if self.on_complete:
+                    self.parent.after(0, self.on_complete)
         
-        # Callback de conclusão (independente da análise)
-        if self.on_complete:
-            self.on_complete()
+        threading.Thread(target=_worker, daemon=True).start()
+        
+        # Inicia análise de categorias/tags (não bloqueia)
+        self.analysis_manager.analyze_batch(self.imported_paths, self.database)
+    
+    def _wait_for_analysis_manager(self):
+        """Aguarda analysis_manager terminar."""
+        import time
+        while self.analysis_manager.is_analyzing:
+            time.sleep(0.5)
+        self.logger.info("✅ Categorias e tags finalizadas")
+    
+    def _generate_descriptions_batch(self):
+        """Gera descrições para os produtos recém-importados."""
+        done = 0
+        for path in self.imported_paths:
+            if not os.path.isdir(path):
+                continue
+            try:
+                desc = self.text_generator.generate_description(path, self.database[path])
+                self.database[path]["ai_description"] = desc
+                done += 1
+                self.logger.debug(f"📝 [{done}/{len(self.imported_paths)}] {os.path.basename(path)}")
+            except Exception as e:
+                self.logger.error(f"Erro ao gerar descrição para {path}: {e}")
+        
+        self.logger.info(f"📝 {done} descrições geradas")
 
     def _detect_origin(self, product_path: str, detection_method: str) -> str:
         """
