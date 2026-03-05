@@ -16,7 +16,6 @@ from config.ui_constants import (
     CARD_CATEGORY_MAX_LENGTH,
     SIDEBAR_MAX_CATEGORIES, SIDEBAR_MAX_TAGS,
     CARD_MAX_CATEGORIES, CARD_MAX_TAGS,
-    MODAL_MAX_GRID_IMAGES, MODAL_THUMBNAIL_SIZE, MODAL_GRID_COLUMNS,
     BG_PRIMARY, BG_SECONDARY, BG_CARD, BG_HOVER, BG_SEPARATOR,
     ACCENT_RED, ACCENT_GREEN, ACCENT_GOLD,
     FG_PRIMARY, FG_SECONDARY, FG_TERTIARY,
@@ -1004,87 +1003,53 @@ class LaserflixMainWindow:
                   state="normal" if nav_idx > 0 else "disabled",
                   **BTN_NAV).pack(side="right", padx=(0, 4))
 
+        # ── Separador central ──
         tk.Frame(main, bg=SEP_CLR, width=1).grid(row=0, column=1, sticky="ns")
 
+        # ── Painel direito: apenas capa grande responsiva ──
+        # HOT-01: removida galeria de thumbs (get_all_project_images + grid)
+        # Modal abre instantaneamente; apenas a imagem de capa é carregada.
         right_outer = tk.Frame(main, bg="#0A0A0A")
         right_outer.grid(row=0, column=2, sticky="nsew")
-        rc  = tk.Canvas(right_outer, bg="#0A0A0A", highlightthickness=0, bd=0)
-        rsb = ttk.Scrollbar(right_outer, orient="vertical", command=rc.yview)
-        rp  = tk.Frame(rc, bg="#0A0A0A")
-        rp.bind("<Configure>", lambda e: rc.configure(scrollregion=rc.bbox("all")))
-        rc_win = rc.create_window((0, 0), window=rp, anchor="nw")
-        rc.configure(yscrollcommand=rsb.set)
-        rc.pack(side="left", fill="both", expand=True)
-        rsb.pack(side="right", fill="y")
-        rc.bind("<MouseWheel>",
-                lambda ev: rc.yview_scroll(int(-1*(ev.delta/SCROLL_SPEED)), "units"))
 
-        images = self.cache.get_all_project_images(project_path)
+        cover_path = self.cache.find_first_image(project_path)
 
-        if not images:
-            tk.Label(rp, text="🖼️", font=("Arial", 64),
-                     bg="#0A0A0A", fg="#1E1E1E").pack(expand=True, pady=100)
-            tk.Label(rp, text="Sem imagens nesta pasta",
-                     font=FONT_BODY, bg="#0A0A0A", fg=FG_TER).pack()
+        if not cover_path:
+            tk.Label(right_outer, text="🖼️", font=("Arial", 64),
+                     bg="#0A0A0A", fg="#1E1E1E").place(relx=0.5, rely=0.4,
+                                                        anchor="center")
+            tk.Label(right_outer, text="Sem imagem de capa",
+                     font=FONT_BODY, bg="#0A0A0A", fg=FG_TER).place(
+                     relx=0.5, rely=0.55, anchor="center")
         else:
-            cover_lbl = tk.Label(rp, bg="#0A0A0A", cursor="hand2", bd=0)
-            cover_lbl.pack(fill="x")
-            cover_lbl.bind("<Button-1>", lambda e, p=images[0]: open_file(p))
+            cover_lbl = tk.Label(right_outer, bg="#0A0A0A", cursor="hand2", bd=0)
+            cover_lbl.place(x=0, y=0, relwidth=1, relheight=1)
+            cover_lbl.bind("<Button-1>", lambda e, p=cover_path: open_file(p))
 
-            def _redraw_cover(cw=None, _lbl=cover_lbl, _path=images[0]):
-                if cw is None:
-                    cw = rc.winfo_width() - 18
-                if cw < 10: return
+            _last_size = [0, 0]
+
+            def _redraw_cover(event=None):
+                cw = right_outer.winfo_width()
+                ch = right_outer.winfo_height()
+                if cw < 10 or ch < 10:
+                    return
+                if [cw, ch] == _last_size:
+                    return
+                _last_size[0], _last_size[1] = cw, ch
                 try:
-                    img   = Image.open(_path).convert("RGB")
-                    ratio = cw / img.width
-                    img   = img.resize(
-                        (cw, max(1, int(img.height * ratio))),
-                        Image.Resampling.LANCZOS)
+                    img   = Image.open(cover_path).convert("RGB")
+                    ratio = min(cw / img.width, ch / img.height)
+                    new_w = max(1, int(img.width  * ratio))
+                    new_h = max(1, int(img.height * ratio))
+                    img   = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
                     photo = ImageTk.PhotoImage(img)
-                    _lbl.config(image=photo)
-                    _lbl.image = photo
+                    cover_lbl.config(image=photo)
+                    cover_lbl.image = photo
                 except Exception:
                     pass
 
-            def _on_right_resize(e):
-                cw = e.width - 18
-                if cw < 10: return
-                rc.itemconfig(rc_win, width=cw)
-                _redraw_cover(cw)
-            right_outer.bind("<Configure>", _on_right_resize)
+            right_outer.bind("<Configure>", lambda e: _redraw_cover())
             modal.after(80, _redraw_cover)
-
-            rest = images[1:]
-            if rest:
-                tk.Frame(rp, bg=SEP_CLR, height=1).pack(fill="x", pady=8)
-                tk.Label(rp, text=f"MAIS IMAGENS  ({len(rest)})",
-                         font=FONT_SECTION, bg="#0A0A0A", fg=FG_TER,
-                         anchor="w").pack(fill="x", padx=12, pady=(0, 6))
-                gf = tk.Frame(rp, bg="#0A0A0A")
-                gf.pack(fill="x", padx=6)
-                col_idx = row_idx = 0
-                for img_path in rest[:MODAL_MAX_GRID_IMAGES]:
-                    try:
-                        img = Image.open(img_path)
-                        img.thumbnail(
-                            (MODAL_THUMBNAIL_SIZE, MODAL_THUMBNAIL_SIZE),
-                            Image.Resampling.LANCZOS)
-                        photo = ImageTk.PhotoImage(img)
-                        lbl = tk.Label(gf, image=photo,
-                                       bg="#0A0A0A", cursor="hand2", bd=0)
-                        lbl.image = photo
-                        lbl.grid(row=row_idx, column=col_idx,
-                                 padx=3, pady=3, sticky="nw")
-                        lbl.bind("<Button-1>",
-                                 lambda e, p=img_path: open_file(p))
-                        col_idx += 1
-                        if col_idx >= MODAL_GRID_COLUMNS:
-                            col_idx = 0
-                            row_idx += 1
-                    except Exception:
-                        pass
-            tk.Frame(rp, bg="#0A0A0A", height=24).pack()
 
     # =========================================================================
     # EDIÇÃO DE PROJETO
@@ -1382,4 +1347,4 @@ class LaserflixMainWindow:
         r, g, b = tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
         return (f"#{max(0, int(r*.8)):02x}"
                 f"{max(0, int(g*.8)):02x}"
-                f"{max(0, int(b*.8)):02x}")
+                f"#{max(0, int(b*.8)):02x}")
