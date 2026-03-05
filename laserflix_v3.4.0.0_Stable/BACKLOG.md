@@ -1,73 +1,223 @@
-# 📋 LASERFLIX v3.3.0.0\_Stable — BACKLOG MASTER OFICIAL
+# 📋 LASERFLIX v3.4.0.0 — BACKLOG MASTER OFICIAL
 
-> Lista única, canônica e definitiva de tarefas.
+> Lista única, canônica e definitiva de tarefas da v3.4.
 > Atualizada a cada item concluído.
 > Regra: **um item por vez**, confirma ✅ antes do próximo.
 
 ---
 
-## 🏆 FINALIZADO
+## 👉 PRÓXIMA TAREFA
 
-| # | Item | Descrição | Commit |
-|---|---|---|---|
-| ✅ **L-07** | `VERSION` corrigido | `3.0.0` → `3.3.0` em `config/settings.py` | `8f70e9d` |
-| ✅ **S-01** | Tela Configuração Modelos IA | Criado `ui/model_settings_dialog.py` + wiring em `main_window.py` | `0d2b5de` |
-| ✅ **HOT-01** | Modal sem galeria de imagens | Removida seção "Mais Imagens" e `get_all_project_images()` do modal. Só capa grande permanece. | `1ee97a4` |
-| ✅ **F-02** | Remoção individual de projetos | Botão `🗑️ Remover` na action_bar do `project_modal.py` + confirmação dupla. Não apaga disco. | `c5dce32` |
-| ✅ **S-04** | Refatoração `main_window.py` | 66KB quebrado em 6 módulos: `header`, `sidebar`, `project_card`, `project_modal`, `edit_modal`, `main_window` orquestrador puro. | `d426b73` |
-| ✅ **SEL-01** | Seleção em massa na tela inicial | Botão `☑️ Selecionar` no header + barra flutuante + checkbox nos cards + remoção de múltiplos com confirmação dupla. | `8b6f8bc` |
-| ✅ **HOT-02** | Altura dos cards (410px fixo) | Cards estavam compridos após SEL-01. Restaurado `height=CARD_H` no frame externo conforme v3.2. | `c7fd863` |
-| ✅ **L-02** | Unificação de `BANNED_STRINGS` | Criado `config/constants.py` com `BANNED_STRINGS` único. Removido `_BANNED` de `fallbacks.py` e `CARD_BANNED_STRINGS` duplicado de `ui_constants.py`. | `cdfabed` |
-| ✅ **L-04** | Deletar alias `generate_fallback_description()` | Removido wrapper vazio em `ai/fallbacks.py` (ninguém usava mais). | `9308e9c` |
-| ✅ **S-02** | Virtual Scroll no grid de cards | Criado `ui/virtual_scroll.py` - renderiza apenas ~30-40 cards visíveis + scroll suave (80px/clique). Performance 10x melhor. | `10bb4da`, `ba8d3e3`, `d0734e7` |
-| ✅ **HOT-08** | Paginação simples (18 cards/página) | Substituído Virtual Scroll por paginação clássica Kent Beck: 18 cards (3×6), navegação ⏮◀▶⏭, atalhos Home/End/Arrows. SIMPLES, PREVISÍVEL, FUNCIONAL. | `5c8a2f1` |
-| ✅ **HOT-09** | Categorias/Tags visíveis nos cards | Adicionada linha de categorias (3 primeiras) + tags (5 primeiras) no `project_card.py`. Clique em cat/tag aplica filtro instantâneo. | `4e7b3a9` |
-| ✅ **HOT-10** | Correção Detecção de Duplicatas | Fix no `DuplicateDetector`: híbrido detecta nome normalizado (antes detectava paths), puro detecta ambos (nome+path). | `2f9c8d1` |
-| ✅ **HOT-10b** | Dialog de duplicatas aparecia vazio | Fix no `RecursiveImportManager`: passou a incluir `normalized_name` e `name` no dict de duplicatas (dialog esperava esses campos). | `7a1b4e5` |
-| ✅ **HOT-11** | FIX CRÍTICO: Prompt IA exige 10+ categorias | Prompt estava pedindo 3-5 categorias (bugado). Corrigido para exigir MÍNIMO 10 categorias (3 obrigatórias + 7 opcionais). Fallback já retornava 12 corretamente. | `c661d2e` |
-| ✅ **HOT-12** | Scrollbar vertical na galeria | Adicionada scrollbar vertical no canvas (cards com categorias ficaram mais altos, últimos cards ficavam fora de visão). | `56107ef` |
-| ✅ **HOT-13** | 36 cards por página (ao invés de 18) | Aumentado `items_per_page` de 18→36 (6 linhas × 6 cols). Metade das páginas, navegação 50% mais rápida. | `48afa4b` |
+### 🔴 **F-06: Ordenação Configurável**
+
+**Prioridade:** 🔴 ALTA  
+**Esforço:** 🟢 Baixo  
+**Impacto:** 🟠 Organização  
+
+**Objetivo:**
+Menu de ordenação no header (ao lado da busca) com 7 opções:
+
+- 📅 **Recentes** → Data de importação (DESC)
+- 📅 **Antigos** → Data de importação (ASC)
+- 🔤 **A→Z** → Nome alfabético (ASC)
+- 🔥 **Z→A** → Nome alfabético (DESC)
+- 🏛️ **Origem** → Agrupa por origem + nome
+- 🤖 **Analisados** → Projetos analisados primeiro
+- ⏳ **Pendentes** → Projetos não analisados primeiro
+
+**Implementação:**
+
+1. Adicionar `ttk.Combobox` no header (após busca)
+2. Criar `self.current_sort = "date_desc"` (padrão)
+3. Criar método `_sort_projects(projects)` que retorna lista ordenada
+4. Integrar em `display_projects()` ANTES da paginação
+5. Bind `<<ComboboxSelected>>` para atualizar view
+
+**Arquivos afetados:**
+- `ui/main_window.py` (linhas ~100-150 + novo método)
+
+**Critérios de aceitação:**
+- ✅ Dropdown visível e responsivo
+- ✅ Ordenação ANTES da paginação (não dentro da página)
+- ✅ Estado persiste ao mudar de página
+- ✅ Compatível com filtros ativos
+- ✅ Performance: ordenação instantânea até 500 projetos
+
+**Código de exemplo:**
+```python
+def _on_sort_change(self, event=None):
+    label_to_key = {
+        "📅 Recentes": "date_desc",
+        "📅 Antigos": "date_asc",
+        # ...
+    }
+    selected_label = self.sort_menu.get()
+    self.current_sort = label_to_key.get(selected_label, "date_desc")
+    self.current_page = 1
+    self.display_projects()
+
+def _sort_projects(self, projects):
+    if self.current_sort == "date_desc":
+        return sorted(projects, key=lambda p: p[1].get("added_date", ""), reverse=True)
+    elif self.current_sort == "name_asc":
+        return sorted(projects, key=lambda p: p[1].get("name", "").lower())
+    # ...
+    return projects
+
+def display_projects(self):
+    all_filtered = [(p, self.database[p]) for p in self.get_filtered_projects()]
+    all_filtered = self._sort_projects(all_filtered)  # ← AQUI!
+    # ... paginação ...
+```
 
 ---
 
-## 🔴 BLOCO L — LIMPEZA CIRÚRGICA (✅ FINALIZADO)
+## 🟡 FILA DE ESPERA
 
-| # | O que fazer | Status | Motivo |
-|---|---|---|---|
-| ❌ **L-01** | ~~Deletar `_clean_name()`~~ | **CANCELADO** | Funções diferentes (display vs matching) |
-| ✅ **L-02** | Unificação de `BANNED_STRINGS` | **FEITO** | `config/constants.py` criado com fonte única |
-| ❌ **L-03** | ~~Substituir `_match()` por `_match_all()` em `_build_tags()`~~ | **CANCELADO** | `_match()` tem propósito específico (1 tag/categoria = diversidade). Mudar quebraria lógica criativa. |
-| ✅ **L-04** | Deletar alias `generate_fallback_description()` | **FEITO** | Alias morto removido de `ai/fallbacks.py` |
-| ❌ **L-05** | ~~Remover parâmetro `structure` de `fallback_description()`~~ | **CANCELADO** | Risco de quebrar chamadas externas que passam esse argumento. |
-| ❌ **L-06** | ~~Remover `database` do `__init__` do `DuplicateDetector`~~ | **CANCELADO** | Toca zona protegida (Importação). Benefício teórico não justifica risco de quebrar fluxo crítico. Sistema funciona perfeitamente sem essa mudança. |
+### **S-03: Thumbnail Carregamento Assíncrono**
 
-> ✅ **BLOCO L CONCLUÍDO**: 2 tarefas feitas, 4 canceladas por análise de risco/impacto.
+**Prioridade:** 🔴 ALTA  
+**Esforço:** 🟡 Médio  
+**Impacto:** 🔴 Performance + UX  
+
+**Problema:**
+Thumbnails carregam sincronamente na thread principal, travando a UI.
+
+**Solução:**
+- Criar `core/thumbnail_preloader.py`
+- `queue.Queue` + 4 threads workers
+- Cache interno (`path → PhotoImage`)
+- Callback assíncrono para atualizar card
+
+**Arquivos afetados:**
+- `core/thumbnail_preloader.py` (NOVO)
+- `ui/project_card.py` (usar `preload_single()`)
+- `ui/main_window.py` (instanciar `ThumbnailPreloader`)
+
+**Critérios de aceitação:**
+- ✅ UI não trava durante carregamento
+- ✅ Cards renderizam com placeholder → atualizam quando thumbnail carrega
+- ✅ Cache persiste durante sessão
+- ✅ Performance: 100 cards em < 2s
 
 ---
 
-## 🟠 BLOCO S — ESTABILIDADE CRÍTICA
+### **F-01: Modal de Projeto Completo**
 
-> Sem isso o app não sobrevive com 500+ projetos.
+**Prioridade:** 🔴 ALTA  
+**Esforço:** 🔴 Alto  
+**Impacto:** 🔴 Core do app  
 
-| # | O que fazer | Impacto | Esforço | Status |
-|---|---|---|---|---|
-| ✅ **S-02** | Virtual Scroll no grid de cards | 🔴 Performance | 🟡 Médio | **FEITO** (depois substituído por paginação HOT-08) |
-| ☐ **S-03** | Thumbnail carregamento assíncrono via `queue.Queue` | 🔴 UX/Performance | 🟡 Médio | Próximo |
-| ☐ **S-05** | Thread watchdog para análise IA | 🟠 Confiabilidade | 🟡 Médio | Pendente |
+**Objetivo:**
+Expandir modal com:
+- Galeria de imagens (thumbs clicáveis)
+- Nome PT-BR editável (campo de texto)
+- Descrição editável (textarea grande)
+- Notas do usuário (campo livre)
+- Botão "Salvar alterações"
+
+**Arquivos afetados:**
+- `ui/project_modal.py` (expandir layout)
 
 ---
 
-## 🟡 BLOCO F — FUNCIONALIDADES CORE
+### **F-03: Limpeza de Órfãos**
 
-| # | O que fazer | Impacto | Esforço | Prioridade |
-|---|---|---|---|---|
-| ☐ **F-01** | Modal de Projeto completo (galeria, nome PT-BR, desc editável, notas) | 🔴 Core do app | 🔴 Alto | Semana 2 |
-| ✅ **F-02** | Remoção de projetos do banco (botão remover + confirmação) | ✅ FEITO | ✅ FEITO | ✅ FEITO |
-| ☐ **F-03** | Limpeza de órfãos (entradas cujo `path` não existe mais em disco) | 🟠 Integridade dados | 🟢 Baixo | Semana 2 |
-| ☐ **F-04** | Busca em tempo real com debounce 300ms | 🟠 UX | 🟢 Baixo | Semana 2 |
-| ☐ **F-05** | Badge de status de análise no card (🤖 IA / ⚡ Fallback / ⏳ Na Fila) | 🟠 UX/Info | 🟢 Baixo | Semana 2 |
-| ⭐ **F-06** | Ordenação configurável (data, A-Z, recente, origem, status) | 🟠 Organização | 🟢 Baixo | **EM ANDAMENTO** |
-| ☐ **F-07** | Filtro multi-critério simultâneo (chips empilháveis AND) | 🟠 Organização | 🟡 Médio | Semana 2 |
+**Prioridade:** 🟠 MÉDIA  
+**Esforço:** 🟢 Baixo  
+**Impacto:** 🟠 Integridade dados  
+
+**Objetivo:**
+Botão "Limpar órfãos" que remove entradas do banco cujo `path` não existe mais em disco.
+
+**Implementação:**
+```python
+def clean_orphans(self):
+    orphans = [p for p in self.database if not os.path.isdir(p)]
+    if not orphans:
+        messagebox.showinfo("✅ Banco limpo", "Nenhum órfão encontrado!")
+        return
+    if messagebox.askyesno("🗑️ Limpar órfãos", f"Encontrados {len(orphans)} projeto(s).\n\nRemover?"):
+        for p in orphans:
+            self.database.pop(p)
+        self.db_manager.save_database()
+        self.display_projects()
+```
+
+**Arquivos afetados:**
+- `ui/main_window.py` (método `clean_orphans()`)
+- `ui/header.py` (botão no menu "Dashboard")
+
+---
+
+### **F-04: Busca em Tempo Real com Debounce**
+
+**Prioridade:** 🟠 MÉDIA  
+**Esforço:** 🟢 Baixo  
+**Impacto:** 🟠 UX  
+
+**Objetivo:**
+Busca atualiza automaticamente após 300ms de inatividade (sem precisar apertar Enter).
+
+**Implementação:**
+```python
+from threading import Timer
+
+class LaserflixMainWindow:
+    def __init__(self):
+        self.search_timer = None
+    
+    def _on_search_keypress(self, event=None):
+        if self.search_timer:
+            self.search_timer.cancel()
+        self.search_timer = Timer(0.3, self._execute_search)
+        self.search_timer.start()
+    
+    def _execute_search(self):
+        self.search_query = self.search_var.get().strip().lower()
+        self.current_page = 1
+        self.display_projects()
+```
+
+**Arquivos afetados:**
+- `ui/main_window.py` (adicionar debounce)
+
+---
+
+### **F-05: Badge de Status de Análise**
+
+**Prioridade:** 🟡 BAIXA  
+**Esforço:** 🟢 Baixo  
+**Impacto:** 🟠 UX/Info  
+
+**Objetivo:**
+Badge visual no card indicando:
+- 🤖 **IA** → Analisado com Ollama
+- ⚡ **Fallback** → Análise sem IA
+- ⏳ **Pendente** → Não analisado
+
+**Arquivos afetados:**
+- `ui/project_card.py` (adicionar badge)
+
+---
+
+### **F-07: Filtro Multi-Critério Simultâneo**
+
+**Prioridade:** 🟠 MÉDIA  
+**Esforço:** 🟡 Médio  
+**Impacto:** 🟠 Organização  
+
+**Objetivo:**
+Permitir múltiplos filtros ativos ao mesmo tempo (chips empilháveis com AND lógico).
+
+Exemplo:
+```
+[Creative Fabrica ×] + [Natal ×] + [decorativo ×] = 15 projetos
+```
+
+**Arquivos afetados:**
+- `ui/main_window.py` (lógica de filtros)
+- `ui/header.py` (UI de chips)
 
 ---
 
@@ -78,22 +228,18 @@
 | ☐ **O-01** | Sistema de Coleções/Playlists | 🔴 Game Changer | 🟡 Médio | Semana 3 |
 | ☐ **O-02** | Export CSV/Excel | 🟠 Utilidade | 🟢 Baixo | Semana 3 |
 | ☐ **O-03** | Atalhos de teclado (`Ctrl+F`, `Ctrl+A`, `F5`, `Espaço`, `Del`) | 🟠 UX/Power User | 🟢 Baixo | Semana 3 |
-| ☐ **O-04** | Fila de análise com prioridade (reordenar antes do lote) | 🟡 Workflow | 🟡 Médio | Semana 3 |
-| ☐ **O-05** | Sincronização via Dropbox/OneDrive (apontar `DB_FILE` para pasta cloud) | 🟠 Utilidade | 🟢 Baixo | Semana 4 |
-| ☐ **O-06** | Histórico de análises por projeto (versões anteriores de cats/tags) | 🟡 Rastreabilidade | 🟡 Médio | Semana 4 |
+| ☐ **O-04** | Fila de análise com prioridade | 🟡 Workflow | 🟡 Médio | Semana 3 |
 
 ---
 
-## 🎨 BLOCO V — EXPERIÊNCIA VISUAL E UX
+## 🎨 BLOCO V — EXPERIÊNCIA VISUAL
 
 | # | O que fazer | Impacto | Esforço | Prioridade |
 |---|---|---|---|---|
-| ☐ **V-01** | Toast Notifications (não-bloqueantes, canto inferior direito) | 🟠 UX | 🟢 Baixo | Semana 3 |
-| ☐ **V-02** | Animação hover nos cards (escala 1.0→1.03 + brilho) | 🟠 Visual | 🟢 Baixo | Semana 3 |
-| ☐ **V-03** | Modo Lista vs Modo Galeria (toggle 🎨/📋 na toolbar) | 🟠 UX | 🟡 Médio | Semana 3 |
-| ☐ **V-04** | Score de qualidade no card (badge ★★★★☆ por completude) | 🟡 Gamificação | 🟢 Baixo | Semana 4 |
-| ☐ **V-05** | Tema Claro/Escuro (toggle no header, CTk nativo) | 🟡 Visual | 🟡 Médio | Semana 4 |
-| ☐ **V-06** | Detecção inteligente de capa via Moondream | 🟡 Visual/IA | 🟡 Médio | Semana 4 |
+| ☐ **V-01** | Toast Notifications (não-bloqueantes) | 🟠 UX | 🟢 Baixo | Semana 3 |
+| ☐ **V-02** | Animação hover nos cards | 🟠 Visual | 🟢 Baixo | Semana 3 |
+| ☐ **V-03** | Modo Lista vs Modo Galeria | 🟠 UX | 🟡 Médio | Semana 3 |
+| ☐ **V-04** | Score de qualidade no card | 🟡 Gamificação | 🟢 Baixo | Semana 4 |
 
 ---
 
@@ -101,11 +247,9 @@
 
 | # | O que fazer | Impacto | Esforço | Versão alvo |
 |---|---|---|---|---|
-| ☐ **N-01** | Dashboard de Estatísticas | 🟠 Valor percebido | 🟡 Médio | v3.4 |
-| ☐ **N-02** | Modo Etsy — Gerador de Listing (título + desc EN + 13 tags) | 🔴 Negócio | 🟡 Médio | v3.4 |
-| ☐ **N-03** | Gerador de Ficha Técnica PDF | 🟠 Utilidade | 🟡 Médio | v3.4 |
-| ☐ **N-04** | Campo de especificação técnica (máquina, potência, velocidade, material) | 🟠 Utilidade técnica | 🟡 Médio | v3.4 |
-| ☐ **N-05** | Modo "Sessão de Trabalho" (foco em categoria, esconde o resto) | 🟡 Produtividade | 🟢 Baixo | v3.4 |
+| ☐ **N-01** | Dashboard de Estatísticas | 🟠 Valor percebido | 🟡 Médio | v3.5 |
+| ☐ **N-02** | Modo Etsy — Gerador de Listing | 🔴 Negócio | 🟡 Médio | v3.5 |
+| ☐ **N-03** | Gerador de Ficha Técnica PDF | 🟠 Utilidade | 🟡 Médio | v3.5 |
 
 ---
 
@@ -113,32 +257,65 @@
 
 | # | O que fazer | Impacto | Esforço | Versão alvo |
 |---|---|---|---|---|
-| ☐ **BM-01** | Recomendações "Para Você" via embeddings | 🔴 Diferencial IA | 🔴 Alto | v3.5 |
-| ☐ **BM-02** | Modo Vitrine/Slideshow (fullscreen para apresentar portfólio) | 🟠 Valor comercial | 🟢 Baixo | v3.4 |
-| ☐ **BM-03** | Linha do Tempo (calendário anual estilo GitHub contributions) | 🟡 Visual/Motivação | 🟡 Médio | v3.5 |
-| ☐ **BM-04** | Radar de Tendências (categorias que mais cresceram 30/60/90 dias) | 🟠 Negócio/IA | 🔴 Alto | v3.5 |
-| ☐ **BM-05** | Tagging por Voz (microfone + Whisper local) | 🟡 WOW Factor | 🔴 Alto | v3.5 |
+| ☐ **BM-01** | Recomendações "Para Você" via embeddings | 🔴 Diferencial IA | 🔴 Alto | v3.6 |
+| ☐ **BM-02** | Modo Vitrine/Slideshow | 🟠 Valor comercial | 🟢 Baixo | v3.5 |
+| ☐ **BM-03** | Linha do Tempo (calendário anual) | 🟡 Visual/Motivação | 🟡 Médio | v3.6 |
 
 ---
 
-## 🔒 Zonas Protegidas
+## 🏆 FINALIZADO NA v3.4
+
+| # | Item | Descrição | Commit |
+|---|---|---|---|
+| ✅ **DOC** | Documentação inicial | Criado `VERSION_HISTORY.md`, `MIGRATION_v3.3_to_v3.4.md`, atualizado `README.md` e `BACKLOG.md` | (pendente) |
+
+---
+
+## 🏆 HERDADO DA v3.3 (JÁ COMPLETO)
+
+### BLOCO HOT (Correções Críticas):
+- ✅ HOT-01 a HOT-13 (modal, duplicatas, paginação, categorias, scrollbar, etc)
+
+### BLOCO L (Limpeza):
+- ✅ L-02, L-04, L-07 (BANNED_STRINGS, aliases, VERSION)
+
+### BLOCO S (Estabilidade):
+- ✅ S-01 (Configuração Modelos IA)
+- ✅ S-02 (Virtual Scroll → depois substituído por paginação)
+- ✅ S-04 (Refatoração main_window)
+
+### BLOCO F (Funcionalidades):
+- ✅ F-02 (Remoção individual)
+- ✅ SEL-01 (Seleção em massa)
+
+### FEATURES:
+- ✅ Análise IA Sequencial (categorias+tags → descrições)
+- ✅ Importação Recursiva (3 modos + dedup + preview)
+
+---
+
+## 🔒 ZONAS PROTEGIDAS
 
 | Zona | Arquivos |
 |---|---|
 | 🔒 **IA** | `ai/ollama_client.py` · `ai/analysis_manager.py` · `ai/text_generator.py` · `ai/image_analyzer.py` · `ai/fallbacks.py` · `ai/keyword_maps.py` |
 | 🔒 **Importação** | `ui/import_mode_dialog.py` · `ui/recursive_import_integration.py` · `ui/import_preview_dialog.py` · `ui/duplicate_resolution_dialog.py` · `utils/recursive_scanner.py` · `utils/duplicate_detector.py` |
 
-> **Regra inviolável:** Qualquer toque em zona protegida requer alerta + autorização expressa sua antes de qualquer escrita.
+> **Regra inviolável:** Qualquer toque em zona protegida requer alerta + autorização expressa antes de escrever.
 
 ---
 
-## 🎯 Regras do Jogo
+## 🎯 REGRAS DO JOGO
 
-- Esta lista é **a única lista**. Qualquer nova sessão começa aqui.
-- **Um item por vez** — confirma ✅ antes do próximo.
-- Prefixo de versão nos commits: `Laserflix_v3.3.0.0_L-01`, `_S-01` etc.
-- **Leitura antes de escrever** — sempre lemos o arquivo atual antes de gerar código.
-- Nenhum item é pulado sem instrução expressa sua.
-- **ANÁLISE DE IMPACTO OBRIGATÓRIA** para zonas protegidas: Verificar se mudança afeta lógica criativa de geração.
-- **RISCO vs BENEFÍCIO**: Tarefas teóricas em zonas críticas são canceladas se sistema funciona perfeitamente sem elas.
-- **ATUALIZAR BACKLOG**: Toda task concluída com sucesso é registrada na seção 🏆 FINALIZADO.
+1. Esta lista é **a única lista**. Qualquer nova sessão começa aqui.
+2. **Um item por vez** — confirma ✅ antes do próximo.
+3. Prefixo de versão nos commits: `Laserflix_v3.4.0.0_F-06`, `_S-03` etc.
+4. **Leitura antes de escrever** — sempre lemos o arquivo atual antes de gerar código.
+5. Nenhum item é pulado sem instrução expressa.
+6. **ANÁLISE DE IMPACTO OBRIGATÓRIA** para zonas protegidas.
+7. **RISCO vs BENEFÍCIO**: Tarefas teóricas em zonas críticas são canceladas se sistema funciona perfeitamente.
+8. **ATUALIZAR BACKLOG**: Toda task concluída com sucesso é registrada na seção 🏆 FINALIZADO.
+
+---
+
+**Última atualização:** 05/03/2026 19:06 BRT
