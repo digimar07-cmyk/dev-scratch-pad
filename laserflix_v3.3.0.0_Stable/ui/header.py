@@ -1,6 +1,13 @@
 """
-ui/header.py — Barra superior completa do Laserflix.
-Teto: 150 linhas.
+ui/header.py — Barra superior REFATORADA (Opção 1: Header Limpo).
+Teto: 180 linhas.
+
+UI/UX 2026 Best Practices:
+- Hierarquia visual clara: Logo → Nav → Busca → Ação Primária → Menu
+- Busca centralizada (mais acessível)
+- Menu organizado por categorias lógicas
+- Ação primária destacada (Importar)
+- Redução de elementos visuais (8 vs 9)
 """
 import tkinter as tk
 from tkinter import ttk
@@ -46,102 +53,174 @@ class HeaderBar:
         hdr.pack(fill="x", side="top")
         hdr.pack_propagate(False)
 
+        # ══════════════════════════════════════════════════════════════════
+        # ESQUERDA: Logo + Navegação
+        # ══════════════════════════════════════════════════════════════════
+        left_frame = tk.Frame(hdr, bg="#000000")
+        left_frame.pack(side="left", padx=20, pady=10)
+        
         # Logo
-        tk.Label(hdr, text="LASERFLIX", font=("Arial", 28, "bold"),
-                 bg="#000000", fg=ACCENT_RED).pack(side="left", padx=20, pady=10)
-        tk.Label(hdr, text=f"v{VERSION}", font=("Arial", 10),
-                 bg="#000000", fg=FG_TERTIARY).pack(side="left", padx=5)
-
-        # Navegação
-        nav = tk.Frame(hdr, bg="#000000")
-        nav.pack(side="left", padx=30)
+        tk.Label(left_frame, text="LASERFLIX", font=("Arial", 28, "bold"),
+                 bg="#000000", fg=ACCENT_RED).pack(side="left")
+        tk.Label(left_frame, text=f"v{VERSION}", font=("Arial", 9),
+                 bg="#000000", fg=FG_TERTIARY).pack(side="left", padx=(8, 20))
+        
+        # Navegação (filtros rápidos)
         for label, ftype in [
-            ("\U0001f3e0 Home", "all"),
-            ("⭐ Favoritos",    "favorite"),
-            ("✓ Já Feitos",    "done"),
-            ("👍 Bons",         "good"),
-            ("👎 Ruins",        "bad"),
+            ("🏠",    "all"),
+            ("⭐",       "favorite"),
+            ("✓",       "done"),
+            ("👍",      "good"),
+            ("👎",      "bad"),
         ]:
             btn = tk.Button(
-                nav, text=label,
+                left_frame, text=label,
                 command=lambda f=ftype: self._cb["on_filter"](f),
-                bg="#000000", fg=FG_PRIMARY, font=("Arial", 12),
-                relief="flat", cursor="hand2", padx=10,
+                bg="#000000", fg=FG_PRIMARY, font=("Arial", 16),
+                relief="flat", cursor="hand2", padx=8,
             )
-            btn.pack(side="left", padx=5)
+            btn.pack(side="left", padx=3)
             btn.bind("<Enter>", lambda e, w=btn: w.config(fg=ACCENT_RED))
             btn.bind("<Leave>", lambda e, w=btn: w.config(fg=FG_PRIMARY))
 
-        # Busca PRIMEIRO (fica mais à direita)
-        search_frm = tk.Frame(hdr, bg="#000000")
-        search_frm.pack(side="right", padx=20)
-        tk.Label(search_frm, text="🔍", bg="#000000",
-                 fg=FG_PRIMARY, font=("Arial", 16)).pack(side="left", padx=5)
+        # ══════════════════════════════════════════════════════════════════
+        # CENTRO: Busca (mais acessível)
+        # ══════════════════════════════════════════════════════════════════
+        search_frame = tk.Frame(hdr, bg="#000000")
+        search_frame.pack(side="left", expand=True, padx=20)
+        
+        tk.Label(search_frame, text="🔍", bg="#000000",
+                 fg=FG_PRIMARY, font=("Arial", 14)).pack(side="left", padx=5)
+        
         self.search_var.trace_add("write", lambda *_: self._cb["on_search"]())
         tk.Entry(
-            search_frm, textvariable=self.search_var,
-            bg="#333333", fg=FG_PRIMARY, font=("Arial", 12),
-            width=30, relief="flat", insertbackground=FG_PRIMARY,
-        ).pack(side="left", padx=5, ipady=5)
+            search_frame, textvariable=self.search_var,
+            bg="#222222", fg=FG_PRIMARY, font=("Arial", 12),
+            width=35, relief="flat", insertbackground=FG_PRIMARY,
+            highlightthickness=1, highlightbackground="#444444", highlightcolor=ACCENT_RED,
+        ).pack(side="left", ipady=6)
 
-        # Extras (botões) DEPOIS (ficam à esquerda da busca)
-        extras = tk.Frame(hdr, bg="#000000")
-        extras.pack(side="right", padx=10)
-        self._build_select_btn(extras)
-        self._build_desc_btn(extras)
-        self._build_ai_btn(extras)
-        self._build_import_btn(extras)
-        self._build_menu_btn(extras)
+        # ══════════════════════════════════════════════════════════════════
+        # DIREITA: Ação Primária + Menu Organizado
+        # ══════════════════════════════════════════════════════════════════
+        right_frame = tk.Frame(hdr, bg="#000000")
+        right_frame.pack(side="right", padx=20, pady=10)
+        
+        # AÇÃO PRIMÁRIA: Importar (destacado)
+        tk.Button(
+            right_frame, text="📁 Importar Pastas",
+            command=self._cb["on_import"],
+            bg=ACCENT_RED, fg=FG_PRIMARY, font=("Arial", 12, "bold"),
+            relief="flat", cursor="hand2", padx=18, pady=10,
+        ).pack(side="left", padx=(0, 10))
+        
+        # MENU ORGANIZADO (ações secundárias agrupadas)
+        self._build_organized_menu(right_frame)
 
-    def _build_menu_btn(self, parent) -> None:
-        mb = tk.Menubutton(parent, text="⚙️ Menu", bg="#444444",
-                           fg=FG_PRIMARY, font=("Arial", 11, "bold"),
-                           relief="flat", cursor="hand2", padx=15, pady=8)
-        mb.pack(side="right", padx=5)
-        m = tk.Menu(mb, tearoff=0, bg=BG_CARD, fg=FG_PRIMARY)
-        mb["menu"] = m
-        m.add_command(label="📦 Preparar Pastas",       command=self._cb["on_prepare_folders"])
-        m.add_separator()
-        m.add_command(label="📥 Importar Banco",        command=self._cb["on_import_db"])
-        m.add_command(label="💾 Exportar Banco",        command=self._cb["on_export_db"])
-        m.add_command(label="🔄 Backup Manual",         command=self._cb["on_backup"])
-        m.add_separator()
-        m.add_command(label="🤖 Configurar Modelos IA", command=self._cb["on_model_settings"])
-
-    def _build_import_btn(self, parent) -> None:
-        tk.Button(parent, text="📁 Importar Pastas",
-                  command=self._cb["on_import"],
-                  bg=ACCENT_RED, fg=FG_PRIMARY, font=("Arial", 11, "bold"),
-                  relief="flat", cursor="hand2", padx=15, pady=8,
-                  ).pack(side="right", padx=5)
-
-    def _build_ai_btn(self, parent) -> None:
-        ab = tk.Menubutton(parent, text="🤖 Análise", bg=ACCENT_GREEN,
-                           fg=FG_PRIMARY, font=("Arial", 11, "bold"),
-                           relief="flat", cursor="hand2", padx=15, pady=8)
-        ab.pack(side="right", padx=5)
-        am = tk.Menu(ab, tearoff=0, bg=BG_CARD, fg=FG_PRIMARY,
-                     activebackground=ACCENT_RED, activeforeground=FG_PRIMARY)
-        ab["menu"] = am
-        am.add_command(label="🆕 Analisar apenas novos", command=self._cb["on_analyze_new"])
-        am.add_command(label="🔄 Reanalisar todos",      command=self._cb["on_analyze_all"])
-
-    def _build_desc_btn(self, parent) -> None:
-        db = tk.Menubutton(parent, text="📝 Descrições", bg="#3A7BD5",
-                           fg=FG_PRIMARY, font=("Arial", 11, "bold"),
-                           relief="flat", cursor="hand2", padx=15, pady=8)
-        db.pack(side="right", padx=5)
-        dm = tk.Menu(db, tearoff=0, bg=BG_CARD, fg=FG_PRIMARY,
-                     activebackground=ACCENT_RED, activeforeground=FG_PRIMARY)
-        db["menu"] = dm
-        dm.add_command(label="📝 Gerar para novos", command=self._cb["on_desc_new"])
-        dm.add_command(label="📝 Gerar para todos", command=self._cb["on_desc_all"])
-
-    def _build_select_btn(self, parent) -> None:
-        self._select_btn = tk.Button(
-            parent, text="☑️ Selecionar",
-            command=self._cb["on_toggle_select"],
+    def _build_organized_menu(self, parent) -> None:
+        """
+        Menu organizado por categorias lógicas (UI/UX best practice).
+        """
+        menu_btn = tk.Menubutton(
+            parent, text="⚙️ Ferramentas",
             bg="#444444", fg=FG_PRIMARY, font=("Arial", 11, "bold"),
-            relief="flat", cursor="hand2", padx=15, pady=8,
+            relief="flat", cursor="hand2", padx=15, pady=10,
         )
-        self._select_btn.pack(side="right", padx=5)
+        menu_btn.pack(side="left")
+        
+        m = tk.Menu(menu_btn, tearoff=0, bg=BG_CARD, fg=FG_PRIMARY, font=("Arial", 10))
+        menu_btn["menu"] = m
+        
+        # ════════════════════════════════════
+        # CATEGORIA 1: ANÁLISE IA
+        # ════════════════════════════════════
+        m.add_command(
+            label="🤖 ANÁLISE IA",
+            state="disabled",
+            background="#1A1A1A",
+            foreground="#888888",
+        )
+        m.add_command(
+            label="   🆕 Analisar apenas novos",
+            command=self._cb["on_analyze_new"],
+        )
+        m.add_command(
+            label="   🔄 Reanalisar todos",
+            command=self._cb["on_analyze_all"],
+        )
+        
+        # ════════════════════════════════════
+        # CATEGORIA 2: DESCRIÇÕES
+        # ════════════════════════════════════
+        m.add_separator()
+        m.add_command(
+            label="📝 DESCRIÇÕES",
+            state="disabled",
+            background="#1A1A1A",
+            foreground="#888888",
+        )
+        m.add_command(
+            label="   📝 Gerar para novos",
+            command=self._cb["on_desc_new"],
+        )
+        m.add_command(
+            label="   📝 Gerar para todos",
+            command=self._cb["on_desc_all"],
+        )
+        
+        # ════════════════════════════════════
+        # CATEGORIA 3: SELEÇÃO
+        # ════════════════════════════════════
+        m.add_separator()
+        m.add_command(
+            label="☑️ SELEÇÃO",
+            state="disabled",
+            background="#1A1A1A",
+            foreground="#888888",
+        )
+        m.add_command(
+            label="   ☑️ Modo seleção em massa",
+            command=self._cb["on_toggle_select"],
+        )
+        
+        # ════════════════════════════════════
+        # CATEGORIA 4: BANCO DE DADOS
+        # ════════════════════════════════════
+        m.add_separator()
+        m.add_command(
+            label="📦 BANCO DE DADOS",
+            state="disabled",
+            background="#1A1A1A",
+            foreground="#888888",
+        )
+        m.add_command(
+            label="   📥 Importar banco",
+            command=self._cb["on_import_db"],
+        )
+        m.add_command(
+            label="   💾 Exportar banco",
+            command=self._cb["on_export_db"],
+        )
+        m.add_command(
+            label="   🔄 Backup manual",
+            command=self._cb["on_backup"],
+        )
+        
+        # ════════════════════════════════════
+        # CATEGORIA 5: CONFIGURAÇÕES
+        # ════════════════════════════════════
+        m.add_separator()
+        m.add_command(
+            label="🛠️ CONFIGURAÇÕES",
+            state="disabled",
+            background="#1A1A1A",
+            foreground="#888888",
+        )
+        m.add_command(
+            label="   📦 Preparar pastas",
+            command=self._cb["on_prepare_folders"],
+        )
+        m.add_command(
+            label="   🤖 Configurar modelos IA",
+            command=self._cb["on_model_settings"],
+        )
