@@ -86,6 +86,7 @@ class VirtualScrollManager:
         # Estado de scroll
         self.visible_range: Tuple[int, int] = (0, 0)
         self.last_scroll_pos: float = 0.0
+        self._scroll_update_pending = False  # ← HOT-07e: Previne loop
         
         self.logger = LOGGER
         
@@ -94,7 +95,7 @@ class VirtualScrollManager:
         
         # Bind scroll event
         self.canvas.bind("<Configure>", self._on_canvas_resize)
-        self._setup_scroll_callback()
+        # ← HOT-07e: REMOVIDO _setup_scroll_callback (causava loop infinito)
 
     def _calculate_viewport(self) -> None:
         """
@@ -135,29 +136,6 @@ class VirtualScrollManager:
             self.buffer_size = 12
             self.max_pool_size = 30
 
-    def _setup_scroll_callback(self) -> None:
-        """
-        Configura callback de scroll (event-driven).
-        
-        OTIMIZAÇÃO: Throttle para evitar excesso de re-renders.
-        """
-        def _on_scroll(*args):
-            # Pega posição atual do scroll (0.0 a 1.0)
-            scroll_pos = self.canvas.yview()[0]
-            
-            # Throttle: só atualiza se mudou significativamente
-            if abs(scroll_pos - self.last_scroll_pos) < 0.01:
-                return
-            
-            self.last_scroll_pos = scroll_pos
-            self.update_visible_items()
-        
-        # Bind ao scrollbar
-        self.canvas.configure(yscrollcommand=lambda *args: (
-            self.canvas.yview_moveto(args[0]),
-            _on_scroll()
-        ))
-
     def _on_canvas_resize(self, event=None) -> None:
         """
         Recalcula viewport quando janela redimensiona.
@@ -176,44 +154,54 @@ class VirtualScrollManager:
         
         PERFORMANCE: O(30) vs O(2585) - redução de 98.8%
         """
+        # ← HOT-07e: Previne calls recursivos
+        if self._scroll_update_pending:
+            return
+        
         if not self.data:
             return
         
-        # 1. CALCULA RANGE VISÍVEL
-        scroll_pos = self.canvas.yview()[0]  # 0.0 a 1.0
-        total_items = len(self.data)
-        total_rows = (total_items + self.cols - 1) // self.cols
+        self._scroll_update_pending = True
         
-        row_height = self.card_height + (self.card_pad * 2)
-        total_height = total_rows * row_height
+        try:
+            # 1. CALCULA RANGE VISÍVEL
+            scroll_pos = self.canvas.yview()[0]  # 0.0 a 1.0
+            total_items = len(self.data)
+            total_rows = (total_items + self.cols - 1) // self.cols
+            
+            row_height = self.card_height + (self.card_pad * 2)
+            total_height = total_rows * row_height
+            
+            # Posição absoluta do scroll (pixels)
+            scroll_pixels = scroll_pos * total_height
+            
+            # Primeira linha visível
+            first_visible_row = max(0, int(scroll_pixels / row_height) - 1)  # -1 buffer acima
+            
+            # Última linha visível (com buffer abaixo)
+            visible_rows = (self.viewport_size // self.cols) + 2  # +2 buffer
+            last_visible_row = min(total_rows, first_visible_row + visible_rows)
+            
+            # Converte para índices de items
+            start_idx = first_visible_row * self.cols
+            end_idx = min(total_items, last_visible_row * self.cols)
+            
+            new_range = (start_idx, end_idx)
+            
+            # Se range não mudou, skip
+            if new_range == self.visible_range:
+                return
+            
+            self.visible_range = new_range
+            
+            # 2. WIDGET POOLING: Recicla widgets fora do viewport
+            self._recycle_widgets(start_idx, end_idx)
+            
+            # 3. RENDERIZA APENAS NOVOS ITEMS
+            self._render_visible_items(start_idx, end_idx)
         
-        # Posição absoluta do scroll (pixels)
-        scroll_pixels = scroll_pos * total_height
-        
-        # Primeira linha visível
-        first_visible_row = max(0, int(scroll_pixels / row_height) - 1)  # -1 buffer acima
-        
-        # Última linha visível (com buffer abaixo)
-        visible_rows = (self.viewport_size // self.cols) + 2  # +2 buffer
-        last_visible_row = min(total_rows, first_visible_row + visible_rows)
-        
-        # Converte para índices de items
-        start_idx = first_visible_row * self.cols
-        end_idx = min(total_items, last_visible_row * self.cols)
-        
-        new_range = (start_idx, end_idx)
-        
-        # Se range não mudou, skip
-        if new_range == self.visible_range:
-            return
-        
-        self.visible_range = new_range
-        
-        # 2. WIDGET POOLING: Recicla widgets fora do viewport
-        self._recycle_widgets(start_idx, end_idx)
-        
-        # 3. RENDERIZA APENAS NOVOS ITEMS
-        self._render_visible_items(start_idx, end_idx)
+        finally:
+            self._scroll_update_pending = False
 
     def _recycle_widgets(self, start_idx: int, end_idx: int) -> None:
         """
