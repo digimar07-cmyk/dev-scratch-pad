@@ -202,7 +202,7 @@ class ThumbnailPreloader:
         """
         try:
             # 1. ENCONTRA PRIMEIRA IMAGEM
-            img_path = self._find_first_image(project_path)
+            img_path = self.find_first_image(project_path)  # ← HOT-09a: agora público
             if not img_path:
                 return None
             
@@ -219,8 +219,10 @@ class ThumbnailPreloader:
             self.logger.debug(f"Erro ao carregar thumb de {project_path}: {e}")
             return None
 
-    def _find_first_image(self, project_path: str) -> Optional[str]:
+    def find_first_image(self, project_path: str) -> Optional[str]:
         """
+        ← HOT-09a: TORNADO PÚBLICO para uso no modal
+        
         Encontra primeira imagem válida no projeto.
         
         OTIMIZAÇÃO: Busca superficial (não recursiva)
@@ -258,7 +260,7 @@ class ThumbnailPreloader:
         """
         with self.cache_lock:
             # Busca primeira imagem
-            img_path = self._find_first_image(project_path)
+            img_path = self.find_first_image(project_path)
             if not img_path:
                 return None
             
@@ -285,7 +287,7 @@ class ThumbnailPreloader:
             project_path: Caminho do projeto
             photo: PhotoImage carregada
         """
-        img_path = self._find_first_image(project_path)
+        img_path = self.find_first_image(project_path)
         if not img_path:
             return
         
