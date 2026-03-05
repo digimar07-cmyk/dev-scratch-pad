@@ -20,6 +20,9 @@ HOT-10: FIX duplicatas entre métodos
   - Evita duplicatas ao usar métodos diferentes na mesma pasta
   - Hybrid → Pure → Simple na mesma pasta = SEM duplicatas!
 
+HOT-10b: FIX dialog duplicatas
+  - Adiciona normalized_name e name no formato esperado pelo dialog
+
 USO:
     from ui.recursive_import_integration import RecursiveImportManager
     manager = RecursiveImportManager(parent, database, on_complete=callback)
@@ -130,6 +133,8 @@ class RecursiveImportManager:
                     if existing_in_group:
                         for new_path in new_in_group:
                             duplicates.append({
+                                "normalized_name": norm_name,  # ← HOT-10b: Adicionado
+                                "name": os.path.basename(new_path),  # ← HOT-10b: Adicionado
                                 "existing": {
                                     "path": existing_in_group[0],
                                     "name": os.path.basename(existing_in_group[0]),
@@ -144,6 +149,8 @@ class RecursiveImportManager:
                         first_new = new_in_group[0]
                         for other_new in new_in_group[1:]:
                             duplicates.append({
+                                "normalized_name": norm_name,  # ← HOT-10b: Adicionado
+                                "name": os.path.basename(first_new),  # ← HOT-10b: Adicionado
                                 "existing": {
                                     "path": first_new,
                                     "name": os.path.basename(first_new),
@@ -165,16 +172,20 @@ class RecursiveImportManager:
                 self.logger.info("Importação cancelada (resolução duplicatas)")
                 return
             
-            # Filtra produtos baseado nas escolhas
+            # HOT-10b: Processa escolhas por normalized_name
             skip_paths = set()
-            for i, choice in enumerate(choices):
+            for dup in duplicates:
+                norm_name = dup["normalized_name"]
+                choice = choices.get(norm_name, "skip")
+                
                 if choice == "skip":  # Pula novo
-                    skip_paths.add(duplicates[i]["new"]["path"])
+                    skip_paths.add(dup["new"]["path"])
                 elif choice == "replace":  # Remove existente + importa novo
-                    existing_path = duplicates[i]["existing"]["path"]
+                    existing_path = dup["existing"]["path"]
                     if existing_path in self.database:
                         self.logger.info(f"🔄 Substituindo: {os.path.basename(existing_path)}")
                         self.database.pop(existing_path)
+                # merge: importa ambos (não adiciona a skip_paths)
             
             products_to_import = [
                 p for p in all_products
