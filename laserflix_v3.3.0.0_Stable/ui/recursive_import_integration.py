@@ -55,7 +55,7 @@ class RecursiveImportManager:
         self.on_complete     = on_complete
         self.logger          = LOGGER
         self.scanner         = RecursiveScanner()
-        self.duplicate_detector = DuplicateDetector(database)
+        self.duplicate_detector = DuplicateDetector()  # ← HOT-09d: SEM database no __init__
         self.import_thread   = None
 
     # ================================================================
@@ -86,8 +86,30 @@ class RecursiveImportManager:
         self.logger.info("Encontrados: %d produtos", len(all_products))
 
         # 3 ─ Duplicatas (nome normalizado)
-        self.duplicate_detector.database = self.database   # garante dados frescos
-        duplicates = self.duplicate_detector.find_duplicates(all_products)
+        # ← HOT-09d: Passa database como parâmetro do método (não __init__)
+        # Primeiro cria dict temporário dos produtos escaneados
+        scanned_db = {p["path"]: {"name": p["name"]} for p in all_products}
+        duplicates_result = self.duplicate_detector.find_duplicates(scanned_db)
+        
+        # Converte para formato esperado pelo dialog (se houver duplicatas)
+        duplicates = []
+        if duplicates_result:
+            for norm_name, paths in duplicates_result.items():
+                if len(paths) >= 2:
+                    # Pega primeiro como "existente" e demais como "novos"
+                    existing_path = paths[0]
+                    for new_path in paths[1:]:
+                        duplicates.append({
+                            "existing": {
+                                "path": existing_path,
+                                "name": os.path.basename(existing_path),
+                            },
+                            "new": {
+                                "path": new_path,
+                                "name": os.path.basename(new_path),
+                            },
+                        })
+        
         products_to_import = all_products
 
         if duplicates:
@@ -96,16 +118,20 @@ class RecursiveImportManager:
             if choices is None:
                 self.logger.info("Importação cancelada (resolução duplicatas)")
                 return
-            to_import, _ = self.duplicate_detector.resolve_duplicates(
-                duplicates, user_choices=choices
-            )
-            dup_paths       = {d["new"]["path"] for d in duplicates}
-            to_import_paths = {p["path"] for p in to_import}
+            
+            # Filtra produtos baseado nas escolhas
+            skip_paths = set()
+            for i, choice in enumerate(choices):
+                if choice == "skip":  # Pula novo
+                    skip_paths.add(duplicates[i]["new"]["path"])
+                elif choice == "replace":  # Pula existente
+                    skip_paths.add(duplicates[i]["existing"]["path"])
+            
             products_to_import = [
                 p for p in all_products
-                if p["path"] not in dup_paths or p["path"] in to_import_paths
+                if p["path"] not in skip_paths
             ]
-            self.logger.info("Após resolução: %d produtos", len(products_to_import))
+            self.logger.info("Ã¢pos resolução: %d produtos", len(products_to_import))
 
         if not products_to_import:
             messagebox.showinfo("ℹ️ Importação",
