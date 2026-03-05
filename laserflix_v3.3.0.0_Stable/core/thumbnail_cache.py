@@ -6,6 +6,10 @@ NOVO EM S-03:
   - Thread worker que não trava UI
   - Callback para atualizar card quando imagem carregar
   - get_cover_image_async() retorna placeholder instantâneo
+
+HOT-06a:
+  - Callback agora é thread-safe (valida se widget existe)
+  - Não causa erro "main thread is not in main loop"
 """
 import os
 import queue
@@ -34,7 +38,18 @@ class ThumbnailCache:
         self.load_queue = queue.Queue()
         self.stop_worker = False
         self.worker_thread = None
+        self.root_widget = None  # ← HOT-06a: Referência para Tk root
         self._start_worker()
+
+    def set_root(self, root):
+        """
+        Define widget root do Tkinter para callbacks thread-safe.
+        Deve ser chamado no __init__ do MainWindow.
+        
+        Args:
+            root: tk.Tk instance
+        """
+        self.root_widget = root
 
     def _start_worker(self):
         """
@@ -50,15 +65,22 @@ class ThumbnailCache:
                     if task is None:  # Sinal de parada
                         break
                     
-                    project_path, callback = task
+                    project_path, callback, widget = task
                     
                     # Carrega thumbnail de forma síncrona (mas em thread separada)
                     img_path = self.find_first_image(project_path)
                     if img_path:
                         photo = self.load_thumbnail(img_path)
                         if photo and callback:
-                            # Chama callback na thread principal (Tkinter-safe)
-                            callback(project_path, photo)
+                            # ← HOT-06a: Valida se widget ainda existe antes de callback
+                            if widget and self.root_widget:
+                                try:
+                                    # Executa callback na thread principal (Tkinter-safe)
+                                    self.root_widget.after(0, lambda: self._safe_callback(
+                                        callback, widget, project_path, photo))
+                                except Exception as e:
+                                    self.logger.warning(
+                                        "Erro ao agendar callback para %s: %s", project_path, e)
                     
                     self.load_queue.task_done()
                     
@@ -69,6 +91,25 @@ class ThumbnailCache:
         
         self.worker_thread = threading.Thread(target=_worker, daemon=True, name="ThumbnailWorker")
         self.worker_thread.start()
+
+    def _safe_callback(self, callback, widget, project_path, photo):
+        """
+        Executa callback de forma segura, validando se widget ainda existe.
+        Previne erro "main thread is not in main loop".
+        
+        Args:
+            callback: Função a ser chamada
+            widget: Widget Tkinter associado
+            project_path: Caminho do projeto
+            photo: PhotoImage carregada
+        """
+        try:
+            # Valida se widget ainda existe
+            if widget and widget.winfo_exists():
+                callback(project_path, photo)
+        except Exception as e:
+            # Widget foi destruído entre o carregamento e o callback
+            self.logger.debug("Widget destruído antes de callback: %s", e)
 
     def stop(self):
         """
@@ -154,13 +195,14 @@ class ThumbnailCache:
             return None
         return self.load_thumbnail(img_path)
 
-    def get_cover_image_async(self, project_path, callback):
+    def get_cover_image_async(self, project_path, callback, widget=None):
         """
         Agenda carregamento assíncrono de thumbnail.
         
         Args:
             project_path: Caminho do projeto
             callback: Função(project_path, photo) chamada quando carregar
+            widget: Widget Tkinter associado (para validar se ainda existe)
         
         Returns:
             None (imagem será entregue via callback)
@@ -170,7 +212,7 @@ class ThumbnailCache:
                 label.config(image=photo)
                 label.image = photo  # Prevent GC
             
-            cache.get_cover_image_async(project_path, on_thumb_loaded)
+            cache.get_cover_image_async(project_path, on_thumb_loaded, label)
         """
         # Verifica se já está em cache
         img_path = self.find_first_image(project_path)
@@ -178,12 +220,15 @@ class ThumbnailCache:
             cached = self.get(img_path)
             if cached:
                 # Já em cache - retorna imediatamente
-                if callback:
-                    callback(project_path, cached)
+                if callback and widget and widget.winfo_exists():
+                    try:
+                        callback(project_path, cached)
+                    except Exception as e:
+                        self.logger.debug("Callback falhou para cached image: %s", e)
                 return
         
         # Não está em cache - agenda para carregar
-        self.load_queue.put((project_path, callback))
+        self.load_queue.put((project_path, callback, widget))
 
     def get_all_project_images(self, project_path, max_images=40):
         """
