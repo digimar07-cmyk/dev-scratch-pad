@@ -1,7 +1,15 @@
 """
-Cache LRU de thumbnails
+Cache LRU de thumbnails com carregamento assíncrono.
+
+NOVO EM S-03:
+  - queue.Queue para carregar imagens em background
+  - Thread worker que não trava UI
+  - Callback para atualizar card quando imagem carregar
+  - get_cover_image_async() retorna placeholder instantâneo
 """
 import os
+import queue
+import threading
 from collections import OrderedDict
 from PIL import Image, ImageTk
 from config.settings import THUMBNAIL_CACHE_LIMIT, THUMBNAIL_SIZE
@@ -13,12 +21,64 @@ class ThumbnailCache:
     """
     Cache LRU (Least Recently Used) para thumbnails.
     Limite padrão: 300 imagens.
+    
+    NOVO: Carregamento assíncrono via queue.Queue.
     """
 
     def __init__(self, limit=THUMBNAIL_CACHE_LIMIT):
         self.cache = OrderedDict()
         self.limit = limit
         self.logger = LOGGER
+        
+        # ← NOVO: Fila assíncrona
+        self.load_queue = queue.Queue()
+        self.stop_worker = False
+        self.worker_thread = None
+        self._start_worker()
+
+    def _start_worker(self):
+        """
+        Inicia thread worker que processa fila de thumbnails.
+        Roda em background sem travar UI.
+        """
+        def _worker():
+            self.logger.info("📷 Thumbnail worker iniciado")
+            while not self.stop_worker:
+                try:
+                    # Timeout de 0.5s para verificar stop_worker periodicamente
+                    task = self.load_queue.get(timeout=0.5)
+                    if task is None:  # Sinal de parada
+                        break
+                    
+                    project_path, callback = task
+                    
+                    # Carrega thumbnail de forma síncrona (mas em thread separada)
+                    img_path = self.find_first_image(project_path)
+                    if img_path:
+                        photo = self.load_thumbnail(img_path)
+                        if photo and callback:
+                            # Chama callback na thread principal (Tkinter-safe)
+                            callback(project_path, photo)
+                    
+                    self.load_queue.task_done()
+                    
+                except queue.Empty:
+                    continue
+                except Exception as e:
+                    self.logger.error("🚨 Erro no thumbnail worker: %s", e)
+        
+        self.worker_thread = threading.Thread(target=_worker, daemon=True, name="ThumbnailWorker")
+        self.worker_thread.start()
+
+    def stop(self):
+        """
+        Para o worker thread de forma limpa.
+        """
+        self.stop_worker = True
+        self.load_queue.put(None)  # Sinal de parada
+        if self.worker_thread and self.worker_thread.is_alive():
+            self.worker_thread.join(timeout=2)
+        self.logger.info("📷 Thumbnail worker parado")
 
     def get(self, image_path):
         if not image_path or not os.path.exists(image_path):
@@ -51,6 +111,10 @@ class ThumbnailCache:
             self.logger.warning("Erro ao adicionar ao cache: %s", e)
 
     def load_thumbnail(self, image_path):
+        """
+        Carrega thumbnail de forma síncrona.
+        NOTA: Chamado pela thread worker, não pela UI.
+        """
         cached = self.get(image_path)
         if cached:
             return cached
@@ -81,11 +145,45 @@ class ThumbnailCache:
     def get_cover_image(self, project_path):
         """
         Retorna PhotoImage da capa do projeto (primeira imagem encontrada).
+        
+        DEPRECATED: Use get_cover_image_async() para não travar UI.
+        Esta função síncrona ainda existe para compatibilidade.
         """
         img_path = self.find_first_image(project_path)
         if not img_path:
             return None
         return self.load_thumbnail(img_path)
+
+    def get_cover_image_async(self, project_path, callback):
+        """
+        Agenda carregamento assíncrono de thumbnail.
+        
+        Args:
+            project_path: Caminho do projeto
+            callback: Função(project_path, photo) chamada quando carregar
+        
+        Returns:
+            None (imagem será entregue via callback)
+        
+        Exemplo:
+            def on_thumb_loaded(path, photo):
+                label.config(image=photo)
+                label.image = photo  # Prevent GC
+            
+            cache.get_cover_image_async(project_path, on_thumb_loaded)
+        """
+        # Verifica se já está em cache
+        img_path = self.find_first_image(project_path)
+        if img_path:
+            cached = self.get(img_path)
+            if cached:
+                # Já em cache - retorna imediatamente
+                if callback:
+                    callback(project_path, cached)
+                return
+        
+        # Não está em cache - agenda para carregar
+        self.load_queue.put((project_path, callback))
 
     def get_all_project_images(self, project_path, max_images=40):
         """
@@ -116,4 +214,5 @@ class ThumbnailCache:
             "size": len(self.cache),
             "limit": self.limit,
             "usage_pct": (len(self.cache) / self.limit * 100) if self.limit > 0 else 0,
+            "queue_size": self.load_queue.qsize(),  # ← NOVO
         }
