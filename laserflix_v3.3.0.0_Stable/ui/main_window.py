@@ -3,7 +3,7 @@ ui/main_window.py — Orquestrador puro do Laserflix.
 Teto: 300 linhas. Nunca constrói widgets diretamente.
 
 HOT-08: Paginação simples (Kent Beck style):
-  - 18 cards por página (3 linhas × 6 cols)
+  - HOT-13: 36 cards por página (6 linhas × 6 cols)
   - Navegação: Início/Anterior/Próxima/Final
   - Atalhos: Home/End/Arrows
   - SIMPLES, PREVISÍVEL, FUNCIONAL
@@ -81,8 +81,10 @@ class LaserflixMainWindow:
         self._selection_mode    = False
         self._selected_paths    = set()
         
-        # ← HOT-08: PAGINAÇÃO SIMPLES
-        self.items_per_page = 18  # 3 linhas × 6 colunas
+        # ══════════════════════════════════════════════════════════════════
+        # HOT-13: 36 CARDS POR PÁGINA (6 linhas × 6 colunas)
+        # ══════════════════════════════════════════════════════════════════
+        self.items_per_page = 36  # HOT-13: Aumentado de 18 para 36
         self.current_page   = 1
         self.total_pages    = 1
 
@@ -97,7 +99,7 @@ class LaserflixMainWindow:
         self.root.configure(bg=BG_PRIMARY)
         self._build_ui()
         self.display_projects()
-        self.logger.info("✨ Laserflix v%s iniciado (Paginação simples)", VERSION)
+        self.logger.info("✨ Laserflix v%s iniciado (36 cards/página)", VERSION)
 
     def __del__(self):
         # Para workers ao fechar
@@ -290,14 +292,14 @@ class LaserflixMainWindow:
             self.status_bar.config(text=f"🗑️ '{name}' removido do banco.")
 
     # =========================================================================
-    # PAGINAÇÃO SIMPLES (HOT-08)
+    # PAGINAÇÃO SIMPLES (HOT-08 / HOT-13)
     # =========================================================================
 
     def display_projects(self) -> None:
         """
         Renderiza projetos com paginação simples.
         
-        ← HOT-08: 18 cards por página (3 linhas × 6 cols)
+        ← HOT-13: 36 cards por página (6 linhas × 6 cols)
         """
         # Limpa tudo
         for w in self.scrollable_frame.winfo_children():
