@@ -1,6 +1,11 @@
 """
 ui/project_card.py — Factory de card de projeto.
 Função pura. Teto: 150 linhas.
+
+HOT-06c: Callback assíncrono thread-safe:
+  - Passa widget (placeholder) para get_cover_image_async
+  - Valida se widget existe antes de atualizar
+  - Previne "main thread is not in main loop"
 """
 import tkinter as tk
 
@@ -82,22 +87,19 @@ def build_card(
     
     # Callback para quando thumbnail carregar
     def _on_thumb_loaded(path, photo):
-        if not placeholder.winfo_exists():
-            return  # Card foi destruído antes da thumb carregar
+        # Validação dupla: widget existe E ainda é válido
         try:
-            placeholder.config(image=photo, text="")  # Remove emoji, mostra imagem
-            placeholder.image = photo  # Prevent garbage collection
+            if placeholder.winfo_exists():
+                placeholder.config(image=photo, text="")  # Remove emoji, mostra imagem
+                placeholder.image = photo  # Prevent garbage collection
         except tk.TclError:
             pass  # Widget já foi destruído
     
     # Agenda carregamento assíncrono
     get_cover_async = cb.get("get_cover_image_async")
     if get_cover_async:
-        # Wrapper para chamar callback na thread principal (Tkinter-safe)
-        def _safe_callback(path, photo):
-            if placeholder.winfo_exists():
-                parent.after(0, lambda: _on_thumb_loaded(path, photo))
-        get_cover_async(project_path, _safe_callback)
+        # ← HOT-06c: Passa placeholder como widget para validação
+        get_cover_async(project_path, _on_thumb_loaded, placeholder)
 
     # Info
     info = tk.Frame(inner, bg=BG_CARD)
