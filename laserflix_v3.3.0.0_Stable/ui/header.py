@@ -1,6 +1,8 @@
 """
 ui/header.py — Barra superior completa do Laserflix.
 Teto: 150 linhas.
+
+F-06: Dropdown de ordenação (Nome A-Z/Z-A, Data, Origem, Status)
 """
 import tkinter as tk
 from tkinter import ttk
@@ -18,6 +20,7 @@ class HeaderBar:
     Callbacks em `cb`:
         on_filter(filter_type)
         on_search()
+        on_sort(sort_type)  ← F-06: NOVO
         on_import()
         on_analyze_new()  /  on_analyze_all()
         on_desc_new()     /  on_desc_all()
@@ -30,6 +33,7 @@ class HeaderBar:
         self._cb = cb
         self._select_btn = None
         self.search_var = tk.StringVar()
+        self.sort_var = tk.StringVar(value="date_desc")  # ← F-06: Padrão = mais recentes
         self._build(parent)
 
     def set_select_btn_active(self, active: bool) -> None:
@@ -83,6 +87,74 @@ class HeaderBar:
             bg="#333333", fg=FG_PRIMARY, font=("Arial", 12),
             width=30, relief="flat", insertbackground=FG_PRIMARY,
         ).pack(side="left", padx=5, ipady=5)
+
+        # ══════════════════════════════════════════════════════════════════
+        # F-06: DROPDOWN DE ORDENAÇÃO (entre busca e extras)
+        # ══════════════════════════════════════════════════════════════════
+        sort_frame = tk.Frame(hdr, bg="#000000")
+        sort_frame.pack(side="right", padx=10)
+        tk.Label(sort_frame, text="📊 Ordenar:", bg="#000000",
+                 fg=FG_TERTIARY, font=("Arial", 10)).pack(side="left", padx=5)
+        
+        # Combobox estilizado
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure(
+            "Sort.TCombobox",
+            fieldbackground="#333333",
+            background="#333333",
+            foreground=FG_PRIMARY,
+            arrowcolor=FG_PRIMARY,
+            borderwidth=0,
+            relief="flat",
+        )
+        style.map(
+            "Sort.TCombobox",
+            fieldbackground=[("readonly", "#333333")],
+            selectbackground=[("readonly", "#333333")],
+            selectforeground=[("readonly", FG_PRIMARY)],
+        )
+        
+        sort_combo = ttk.Combobox(
+            sort_frame,
+            textvariable=self.sort_var,
+            values=[
+                "date_desc",    # Mais recentes primeiro
+                "date_asc",     # Mais antigos primeiro
+                "name_asc",     # Nome A-Z
+                "name_desc",    # Nome Z-A
+                "origin",       # Agrupado por origem
+                "analyzed",     # Analisados primeiro
+                "not_analyzed", # Não analisados primeiro
+            ],
+            state="readonly",
+            width=18,
+            font=("Arial", 10),
+            style="Sort.TCombobox",
+        )
+        sort_combo.pack(side="left", padx=5)
+        
+        # Labels amigáveis no dropdown
+        sort_labels = {
+            "date_desc":    "📅 Mais Recentes",
+            "date_asc":     "📅 Mais Antigos",
+            "name_asc":     "🔤 Nome A→Z",
+            "name_desc":    "🔥 Nome Z→A",
+            "origin":       "🏛️ Por Origem",
+            "analyzed":     "🤖 Analisados",
+            "not_analyzed": "⏳ Não Analisados",
+        }
+        
+        # Atualiza display do combobox para mostrar label amigável
+        def update_display(*args):
+            current = self.sort_var.get()
+            sort_combo.set(sort_labels.get(current, current))
+            if "on_sort" in self._cb:
+                self._cb["on_sort"](current)
+        
+        self.sort_var.trace_add("write", update_display)
+        update_display()  # Init display
+        # ══════════════════════════════════════════════════════════════════
 
         # Extras (botões) DEPOIS (ficam à esquerda da busca)
         extras = tk.Frame(hdr, bg="#000000")
