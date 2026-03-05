@@ -15,7 +15,8 @@
 | ✅ **HOT-01** | Modal sem galeria de imagens | Removida seção "Mais Imagens" e `get_all_project_images()` do modal. Só capa grande permanece. | `1ee97a4` |
 | ✅ **F-02** | Remoção individual de projetos | Botão `🗑️ Remover` na action_bar do `project_modal.py` + confirmação dupla. Não apaga disco. | `c5dce32` |
 | ✅ **S-04** | Refatoração `main_window.py` | 66KB quebrado em 6 módulos: `header`, `sidebar`, `project_card`, `project_modal`, `edit_modal`, `main_window` orquestrador puro. | `d426b73` |
-| ✅ **SEL-01** | Seleção em massa na tela inicial | Botão `☑️ Selecionar` no header + barra flutuante + checkbox nos cards + remoção de múltiplos com confirmação dupla. | `c5dce32` |
+| ✅ **SEL-01** | Seleção em massa na tela inicial | Botão `☑️ Selecionar` no header + barra flutuante + checkbox nos cards + remoção de múltiplos com confirmação dupla. | `8b6f8bc` |
+| ✅ **HOT-02** | Altura dos cards (410px fixo) | Cards estavam compridos após SEL-01. Restaurado `height=CARD_H` no frame externo conforme v3.2. | `c7fd863` |
 
 ---
 
