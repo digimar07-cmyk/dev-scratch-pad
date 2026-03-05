@@ -93,12 +93,6 @@ class FallbackGenerator:
         self.logger  = LOGGER
 
     # ------------------------------------------------------------------
-    # Alias público para compatibilidade com main_window
-    # ------------------------------------------------------------------
-    def generate_fallback_description(self, project_path, project_data, structure):
-        return self.fallback_description(project_path, project_data, structure)
-
-    # ------------------------------------------------------------------
     # ANÁLISE PRINCIPAL
     # ------------------------------------------------------------------
     def fallback_analysis(self, project_path):
