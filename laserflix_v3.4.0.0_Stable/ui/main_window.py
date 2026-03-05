@@ -12,6 +12,7 @@ HOT-12: Scrollbar vertical (cards com categorias ficaram mais altos)
 
 FEATURE: Ordenação FUNCIONAL na linha de paginação
 FEATURE: Análise SEQUENCIAL pós-importação (categorias+tags → descrições)
+F-01.1: Nome PT-BR editável (projeto completo)
 """
 import os
 import threading
@@ -614,6 +615,7 @@ class LaserflixMainWindow:
                 "on_reanalize":     self.analyze_single_project,
                 "on_set_tag":       self.set_tag_filter,
                 "on_remove":        self.remove_project,
+                "on_save_name":     self._save_project_name,  # ← F-01.1: NOVO CALLBACK
             },
             cache=self.thumbnail_preloader,
             scanner=self.scanner,
@@ -641,6 +643,23 @@ class LaserflixMainWindow:
                 modal.after(0, lambda: desc_lbl.config(text="❌ Erro ao gerar", fg="#EF5350"))
                 modal.after(0, lambda: gen_btn.config(state="normal", text="🤖  Gerar com IA"))
         threading.Thread(target=_run, daemon=True).start()
+
+    # =========================================================================
+    # F-01.1: SALVAR NOME PT-BR
+    # =========================================================================
+
+    def _save_project_name(self, path: str, new_name: str) -> None:
+        """
+        Salva nome PT-BR no banco.
+        Kent Beck: Simple. Update dict. Save JSON. Done.
+        """
+        if path in self.database:
+            self.database[path]["name_ptbr"] = new_name
+            self.db_manager.save_database()
+            self.display_projects()
+            self.logger.info("F-01.1: Nome PT-BR salvo: %s = '%s'", path, new_name)
+
+    # =========================================================================
 
     def open_edit_mode(self, project_path: str) -> None:
         EditModal(self.root, project_path, self.database.get(project_path, {}),
