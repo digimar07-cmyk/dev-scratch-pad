@@ -298,6 +298,8 @@ class ProjectModal:
         """
         Nome PT-BR editável.
         Kent Beck: Entry + botão toggle. Simples e funcional.
+        
+        F-01.2e: FIX campo branco + usar name_ptbr traduzido.
         """
         P  = self._PAD
         BG = self._BG; BC = self._BG_CARD
@@ -319,15 +321,21 @@ class ProjectModal:
         input_frame = tk.Frame(name_frame, bg=BG)
         input_frame.pack(fill="x")
         
-        # Entry (readonly inicial)
-        name_var = tk.StringVar(value=data.get("name_ptbr", ""))
+        # ════════════════════════════════════════════════════════
+        # F-01.2e: USA NAME_PTBR TRADUZIDO (fallback para name original)
+        # ════════════════════════════════════════════════════════
+        name_var = tk.StringVar(
+            value=data.get("name_ptbr") or data.get("name", "Sem nome")
+        )
+        # ════════════════════════════════════════════════════════
         
+        # Entry (readonly inicial)
         name_entry = tk.Entry(
             input_frame,
             textvariable=name_var,
             font=self._F_BODY,
             bg="#222222",
-            fg=FP,
+            fg=FP,  # ← F-01.2e: FIX CAMPO BRANCO (ANTES FALTAVA ISSO!)
             insertbackground=FP,
             relief="flat",
             state="readonly",
