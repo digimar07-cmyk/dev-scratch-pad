@@ -17,6 +17,7 @@
 | ✅ **S-04** | Refatoração `main_window.py` | 66KB quebrado em 6 módulos: `header`, `sidebar`, `project_card`, `project_modal`, `edit_modal`, `main_window` orquestrador puro. | `d426b73` |
 | ✅ **SEL-01** | Seleção em massa na tela inicial | Botão `☑️ Selecionar` no header + barra flutuante + checkbox nos cards + remoção de múltiplos com confirmação dupla. | `8b6f8bc` |
 | ✅ **HOT-02** | Altura dos cards (410px fixo) | Cards estavam compridos após SEL-01. Restaurado `height=CARD_H` no frame externo conforme v3.2. | `c7fd863` |
+| ✅ **L-02** | Unificação de `BANNED_STRINGS` | Criado `config/constants.py` com `BANNED_STRINGS` único. Removido `_BANNED` de `fallbacks.py` e `CARD_BANNED_STRINGS` duplicado de `ui_constants.py`. | `cdfabed` |
 
 ---
 
@@ -27,8 +28,7 @@
 
 | # | O que fazer | Impacto | Esforço | Zona Prot.? |
 |---|---|---|---|---|
-| ◻ **L-01** | Deletar `_clean_name()` de `fallbacks.py`, usar `normalize_project_name()` de `text_utils.py` | 🔴 Bug latente | 🟢 Baixo | ⚠️ Sim |
-| ◻ **L-02** | Unificar `_BANNED` (`fallbacks.py`) com `CARD_BANNED_STRINGS` (`ui_constants.py`) → mover para `config/constants.py` | 🔴 Inconsistência | 🟢 Baixo | ⚠️ Sim |
+| ❌ **L-01** | ~~Deletar `_clean_name()`~~ | **CANCELADO**: Funções diferentes (display vs matching) | — | — |
 | ◻ **L-03** | Substituir os 2 usos de `_match()` em `_build_tags()` por `_match_all()` e deletar `_match()` | 🟠 Código morto | 🟢 Baixo | ⚠️ Sim |
 | ◻ **L-04** | Deletar alias `generate_fallback_description()` em `fallbacks.py` | 🟡 Confusão | 🟢 Baixo | ⚠️ Sim |
 | ◻ **L-05** | Remover parâmetro `structure` de `fallback_description()` e de todas as chamadas | 🟡 Ruído | 🟢 Baixo | ⚠️ Sim |
