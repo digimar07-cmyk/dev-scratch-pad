@@ -11,9 +11,11 @@
 | # | Item | Descrição | Commit |
 |---|---|---|---|
 | ✅ **L-07** | `VERSION` corrigido | `3.0.0` → `3.3.0` em `config/settings.py` | `8f70e9d` |
-| ✅ **S-01** | Tela Configuração Modelos IA | Criado `ui/model_settings_dialog.py` + wiring em `main_window_FIXED.py` | `0d2b5de` + `da055ed` |
+| ✅ **S-01** | Tela Configuração Modelos IA | Criado `ui/model_settings_dialog.py` + wiring em `main_window.py` | `0d2b5de` |
 | ✅ **HOT-01** | Modal sem galeria de imagens | Removida seção "Mais Imagens" e `get_all_project_images()` do modal. Só capa grande permanece. | `1ee97a4` |
-| ✅ **F-02** | Remoção de projetos do banco | Botão `🗑️ Remover` na action_bar do modal + método `remove_project()` + confirmação dupla. Não apaga disco. | `834d3fd` |
+| ✅ **F-02** | Remoção individual de projetos | Botão `🗑️ Remover` na action_bar do `project_modal.py` + confirmação dupla. Não apaga disco. | `c5dce32` |
+| ✅ **S-04** | Refatoração `main_window.py` | 66KB quebrado em 6 módulos: `header`, `sidebar`, `project_card`, `project_modal`, `edit_modal`, `main_window` orquestrador puro. | `d426b73` |
+| ✅ **SEL-01** | Seleção em massa na tela inicial | Botão `☑️ Selecionar` no header + barra flutuante + checkbox nos cards + remoção de múltiplos com confirmação dupla. | `c5dce32` |
 
 ---
 
@@ -40,8 +42,7 @@
 | # | O que fazer | Impacto | Esforço | Prioridade |
 |---|---|---|---|---|
 | ◻ **S-02** | Virtual Scroll no grid de cards | 🔴 Performance | 🟡 Médio | Semana 1 |
-| ◻ **S-03** | Thumbnail carregamento assimíncrono via `queue.Queue` | 🔴 UX/Performance | 🟡 Médio | Semana 1 |
-| ◻ **S-04** | Quebrar `main_window_FIXED.py` (66KB → 5 arquivos) | 🔴 Manutenção | 🔴 Alto | Semana 1 |
+| ◻ **S-03** | Thumbnail carregamento assíncrono via `queue.Queue` | 🔴 UX/Performance | 🟡 Médio | Semana 1 |
 | ◻ **S-05** | Thread watchdog para análise IA | 🟠 Confiabilidade | 🟡 Médio | Semana 1 |
 
 ---
@@ -117,7 +118,7 @@
 | 🔒 **IA** | `ai/ollama_client.py` · `ai/analysis_manager.py` · `ai/text_generator.py` · `ai/image_analyzer.py` · `ai/fallbacks.py` · `ai/keyword_maps.py` |
 | 🔒 **Importação** | `ui/import_mode_dialog.py` · `ui/recursive_import_integration.py` · `ui/import_preview_dialog.py` · `ui/duplicate_resolution_dialog.py` · `utils/recursive_scanner.py` · `utils/duplicate_detector.py` |
 
-> **Regra inviolable:** Qualquer toque em zona protegida requer alerta + autorização expressa sua antes de qualquer escrita.
+> **Regra inviolável:** Qualquer toque em zona protegida requer alerta + autorização expressa sua antes de qualquer escrita.
 
 ---
 
