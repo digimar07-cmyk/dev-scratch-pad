@@ -12,6 +12,7 @@ UI/UX 2026 Best Practices:
 F-04: Busca com debounce 300ms (performance + UX)
 F-03: Botão Limpar Órfãos no menu BANCO DE DADOS
 F-08: Botão Gerenciar Coleções no menu CONFIGURAÇÕES
+PERF-FIX-2: Indicadores visuais para filtros ativos (🏠⭐✓👍👎)
 """
 import tkinter as tk
 from tkinter import ttk
@@ -45,6 +46,8 @@ class HeaderBar:
         self._select_btn = None
         self.search_var = tk.StringVar()
         self._search_timer = None  # F-04: Timer de debounce
+        # PERF-FIX-2: Armazena referências dos botões de filtro
+        self.filter_btns = {}  # {ftype: btn}
         self._build(parent)
 
     def set_select_btn_active(self, active: bool) -> None:
@@ -55,6 +58,26 @@ class HeaderBar:
                 fg=FG_PRIMARY,
                 text="✕ Seleção" if active else "☑️ Selecionar",
             )
+
+    def set_active_filter(self, ftype: str) -> None:
+        """
+        PERF-FIX-2: Marca botão de filtro ativo visualmente.
+        - Botão ativo: fundo vermelho (#8B0000) + texto branco
+        - Botões inativos: fundo preto (#000000) + texto cinza
+        """
+        for f, btn in self.filter_btns.items():
+            if f == ftype:
+                # Ativo: vermelho escuro + texto branco
+                btn.config(bg="#8B0000", fg="#FFFFFF")
+                # Remove hover temporário (reaplica estado ativo)
+                btn.unbind("<Leave>")
+                btn.bind("<Leave>", lambda e, b=btn: b.config(bg="#8B0000", fg="#FFFFFF"))
+            else:
+                # Inativo: preto + texto cinza
+                btn.config(bg="#000000", fg=FG_PRIMARY)
+                # Restaura hover normal
+                btn.unbind("<Leave>")
+                btn.bind("<Leave>", lambda e, b=btn: b.config(bg="#000000", fg=FG_PRIMARY))
 
     def _debounced_search(self) -> None:
         """
@@ -84,7 +107,7 @@ class HeaderBar:
         tk.Label(left_frame, text=f"v{VERSION}", font=("Arial", 9),
                  bg="#000000", fg=FG_TERTIARY).pack(side="left", padx=(8, 20))
         
-        # Navegação (filtros rápidos)
+        # Navegação (filtros rápidos) - PERF-FIX-2: Guarda referências
         for label, ftype in [
             ("🏠",    "all"),
             ("⭐",       "favorite"),
@@ -99,8 +122,17 @@ class HeaderBar:
                 relief="flat", cursor="hand2", padx=8,
             )
             btn.pack(side="left", padx=3)
+            
+            # PERF-FIX-2: Armazena referência
+            self.filter_btns[ftype] = btn
+            
+            # Hover: vermelho
             btn.bind("<Enter>", lambda e, w=btn: w.config(fg=ACCENT_RED))
-            btn.bind("<Leave>", lambda e, w=btn: w.config(fg=FG_PRIMARY))
+            # Leave: restaura cor original (gerenciado por set_active_filter)
+            btn.bind("<Leave>", lambda e, w=btn: w.config(bg="#000000", fg=FG_PRIMARY))
+        
+        # Define "all" (Home) como ativo por padrão
+        self.set_active_filter("all")
 
         # ══════════════════════════════════════════════════════════════════
         # CENTRO: Busca (mais acessível) + F-04 DEBOUNCE
