@@ -11,6 +11,7 @@ UI/UX 2026 Best Practices:
 
 F-04: Busca com debounce 300ms (performance + UX)
 F-03: Botão Limpar Órfãos no menu BANCO DE DADOS
+F-08: Botão Gerenciar Coleções no menu CONFIGURAÇÕES
 """
 import tkinter as tk
 from tkinter import ttk
@@ -36,6 +37,7 @@ class HeaderBar:
         on_backup()       /  on_model_settings()
         on_toggle_select()   — ativa/desativa modo de seleção em massa
         on_clean_orphans()   — F-03: Remove projetos cujo path não existe mais
+        on_collections()     — F-08: Abre dialog de gerenciamento de coleções
     """
 
     def __init__(self, parent: tk.Widget, cb: dict):
@@ -259,6 +261,12 @@ class HeaderBar:
         m.add_command(
             label="   📦 Preparar pastas",
             command=self._cb["on_prepare_folders"],
+            foreground="#FF9944",  # Laranja
+        )
+        # ⭐ F-08: Gerenciar coleções
+        m.add_command(
+            label="   📁 Gerenciar coleções",
+            command=self._cb["on_collections"],
             foreground="#FF9944",  # Laranja
         )
         m.add_command(
