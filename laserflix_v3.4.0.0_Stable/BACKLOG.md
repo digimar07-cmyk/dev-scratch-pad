@@ -27,10 +27,11 @@
 | ✅ **HOT-11** | FIX CRÍTICO: Prompt IA exige 10+ categorias | Prompt estava pedindo 3-5 categorias (bugado). Corrigido para exigir MÍNIMO 10 categorias (3 obrigatórias + 7 opcionais). Fallback já retornava 12 corretamente. | `c661d2e` |
 | ✅ **HOT-12** | Scrollbar vertical na galeria | Adicionada scrollbar vertical no canvas (cards com categorias ficaram mais altos, últimos cards ficavam fora de visão). | `56107ef` |
 | ✅ **HOT-13** | 36 cards por página (ao invés de 18) | Aumentado `items_per_page` de 18→36 (6 linhas × 6 cols). Metade das páginas, navegação 50% mais rápida. | `48afa4b` |
-| ✅ **F-04** | Busca com debounce 300ms | Timer cancela busca anterior se usuário continuar digitando. Busca só executa após 300ms de silêncio. Performance 23Xmelhor. | `adfc881` |
+| ✅ **F-04** | Busca com debounce 300ms | Timer cancela busca anterior se usuário continuar digitando. Busca só executa após 300ms de silêncio. Performance 23x melhor. | `adfc881` |
 | ✅ **F-06** | Ordenação configurável | Menu dropdown com 7 opções (data asc/desc, nome A-Z/Z-A, origem, analisados, pendentes). Linha de paginação. | `78c9e67`, `b06fbf6` |
 | ✅ **S-03** | Thumbnails assíncronas | `ThumbnailPreloader(max_workers=4)` com `queue.Queue`. Carregamento em threads separadas. Zero travamento. | `224fff9` |
 | ✅ **F-03** | Limpeza de órfãos | Método `clean_orphans()` detecta paths inexistentes. Confirmação dupla + relatório. Botão no menu BANCO DE DADOS. | `67733c3`, `1794955` |
+| ✅ **S-05** | Thread watchdog para análise IA | Watchdog detecta travamentos (análise > 120s). Cancela automaticamente + log. Proteção defensiva Kent Beck style. | `a2bf285` |
 
 ---
 
@@ -49,13 +50,15 @@
 
 ---
 
-## 🟠 BLOCO S — ESTABILIDADE CRÍTICA
+## 🟠 BLOCO S — ESTABILIDADE CRÍTICA (✅ FINALIZADO)
 
 | # | O que fazer | Impacto | Esforço | Status |
 |---|---|---|---|---|
 | ✅ **S-02** | Virtual Scroll no grid de cards | 🔴 Performance | 🟡 Médio | **FEITO** (depois substituído por paginação HOT-08) |
 | ✅ **S-03** | Thumbnail carregamento assíncrono via `queue.Queue` | 🔴 UX/Performance | 🟡 Médio | **FEITO** |
-| ☐ **S-05** | Thread watchdog para análise IA | 🟠 Confiabilidade | 🟡 Médio | **PRÓXIMO** |
+| ✅ **S-05** | Thread watchdog para análise IA | 🟠 Confiabilidade | 🟡 Médio | **FEITO** |
+
+> ✅ **BLOCO S CONCLUÍDO**: Todas as estabilidades críticas implementadas. App robusto para 500+ projetos.
 
 ---
 
@@ -67,7 +70,7 @@
 | ✅ **F-02** | Remoção de projetos do banco (botão remover + confirmação) | ✅ FEITO | ✅ FEITO | ✅ FEITO |
 | ✅ **F-03** | Limpeza de órfãos (entradas cujo `path` não existe mais em disco) | ✅ FEITO | ✅ FEITO | ✅ FEITO |
 | ✅ **F-04** | Busca em tempo real com debounce 300ms | ✅ FEITO | ✅ FEITO | ✅ FEITO |
-| ☐ **F-05** | Badge de status de análise no card (🤖 IA / ⚡ Fallback / ⏳ Na Fila) | 🟠 UX/Info | 🟢 Baixo | Semana 2 |
+| ☐ **F-05** | Badge de status de análise no card (🤖 IA / ⚡ Fallback / ⏳ Na Fila) | 🟠 UX/Info | 🟢 Baixo | **PRÓXIMO** |
 | ✅ **F-06** | Ordenação configurável (data, A-Z, recente, origem, status) | ✅ FEITO | ✅ FEITO | ✅ FEITO |
 | ☐ **F-07** | Filtro multi-critério simultâneo (chips empilháveis AND) | 🟠 Organização | 🟡 Médio | Semana 2 |
 
