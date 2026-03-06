@@ -16,7 +16,7 @@ F-07: Filtros empilháveis (chips AND) — CORRIGIDO!
 FEATURE: Ordenação FUNCIONAL na linha de paginação
 FEATURE: Análise SEQUENCIAL pós-importação (categorias+tags → descrições)
 F-03: Limpeza de órfãos (entradas sem path válido)
-F-08: Sistema de coleções/playlists (gerenciamento + filtros + menu contextual)
+F-08: Sistema de coleções/playlists (gerenciamento + filtros + menu contextual + badges)
 """
 import os
 import threading
@@ -525,6 +525,8 @@ class LaserflixMainWindow:
         name = self.database.get(project_path, {}).get("name", os.path.basename(project_path))
         self.status_bar.config(text=f"✅ '{name}' adicionado à coleção '{collection_name}'")
         self.sidebar.refresh(self.database, self.collections_manager)
+        # F-08: Atualiza display para mostrar badge no card
+        self.display_projects()
 
     def _on_remove_from_collection(self, project_path: str, collection_name: str) -> None:
         """F-08: Remove projeto de uma coleção via menu contextual do card."""
@@ -534,6 +536,9 @@ class LaserflixMainWindow:
         self.sidebar.refresh(self.database, self.collections_manager)
         # Se estava filtrando por esta coleção, atualiza display
         if any(f["type"] == "collection" and f["value"] == collection_name for f in self.active_filters):
+            self.display_projects()
+        else:
+            # Atualiza display para remover badge do card
             self.display_projects()
 
     def _on_new_collection_with(self, project_path: str) -> None:
@@ -565,6 +570,8 @@ class LaserflixMainWindow:
         project_name = self.database.get(project_path, {}).get("name", os.path.basename(project_path))
         self.status_bar.config(text=f"📁 Coleção '{name}' criada com '{project_name}'")
         self.sidebar.refresh(self.database, self.collections_manager)
+        # F-08: Atualiza display para mostrar badge no card
+        self.display_projects()
 
     # =========================================================================
     # PAGINAÇÃO SIMPLES (HOT-08 / HOT-13)
@@ -744,6 +751,7 @@ class LaserflixMainWindow:
             "on_set_category":       lambda c: self._add_filter_chip("category", c),
             "on_set_tag":            lambda t: self._add_filter_chip("tag", t),
             "on_set_origin":         lambda o: self._add_filter_chip("origin", o),
+            "on_set_collection":     lambda c: self._add_filter_chip("collection", c),  # F-08: Click em badge de coleção
             "get_cover_image_async": self._get_thumbnail_async,
             "selection_mode":        self._selection_mode,
             "selected_paths":        self._selected_paths,
