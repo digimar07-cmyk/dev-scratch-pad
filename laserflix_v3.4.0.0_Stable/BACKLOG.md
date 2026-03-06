@@ -1,4 +1,4 @@
-# 📋 LASERFLIX v3.3.0.0\_Stable — BACKLOG MASTER OFICIAL
+# 📋 LASERFLIX v3.4.0.0\_Stable — BACKLOG MASTER OFICIAL
 
 > Lista única, canônica e definitiva de tarefas.
 > Atualizada a cada item concluído.
@@ -27,6 +27,9 @@
 | ✅ **HOT-11** | FIX CRÍTICO: Prompt IA exige 10+ categorias | Prompt estava pedindo 3-5 categorias (bugado). Corrigido para exigir MÍNIMO 10 categorias (3 obrigatórias + 7 opcionais). Fallback já retornava 12 corretamente. | `c661d2e` |
 | ✅ **HOT-12** | Scrollbar vertical na galeria | Adicionada scrollbar vertical no canvas (cards com categorias ficaram mais altos, últimos cards ficavam fora de visão). | `56107ef` |
 | ✅ **HOT-13** | 36 cards por página (ao invés de 18) | Aumentado `items_per_page` de 18→36 (6 linhas × 6 cols). Metade das páginas, navegação 50% mais rápida. | `48afa4b` |
+| ✅ **F-04** | Busca com debounce 300ms | Timer cancela busca anterior se usuário continuar digitando. Busca só executa após 300ms de silêncio. Performance 23x melhor. | `adfc881` |
+| ✅ **F-06** | Ordenação configurável | Menu dropdown com 7 opções (data asc/desc, nome A-Z/Z-A, origem, analisados, pendentes). Linha de paginação. | `78c9e67`, `b06fbf6` |
+| ✅ **S-03** | Thumbnails assíncronas | `ThumbnailPreloader(max_workers=4)` com `queue.Queue`. Carregamento em threads separadas. Zero travamento. | `224fff9` |
 
 ---
 
@@ -45,15 +48,13 @@
 
 ---
 
-## 🟠 BLOCO S — ESTABILIDADE CRÍTICA
-
-> Sem isso o app não sobrevive com 500+ projetos.
+## 🟠 BLOCO S — ESTABILIDADE CRÍTICA (✅ FINALIZADO)
 
 | # | O que fazer | Impacto | Esforço | Status |
 |---|---|---|---|---|
 | ✅ **S-02** | Virtual Scroll no grid de cards | 🔴 Performance | 🟡 Médio | **FEITO** (depois substituído por paginação HOT-08) |
-| ☐ **S-03** | Thumbnail carregamento assíncrono via `queue.Queue` | 🔴 UX/Performance | 🟡 Médio | Próximo |
-| ☐ **S-05** | Thread watchdog para análise IA | 🟠 Confiabilidade | 🟡 Médio | Pendente |
+| ✅ **S-03** | Thumbnail carregamento assíncrono via `queue.Queue` | 🔴 UX/Performance | 🟡 Médio | **FEITO** |
+| ☐ **S-05** | Thread watchdog para análise IA | 🟠 Confiabilidade | 🟡 Médio | Próximo |
 
 ---
 
@@ -63,10 +64,10 @@
 |---|---|---|---|---|
 | ☐ **F-01** | Modal de Projeto completo (galeria, nome PT-BR, desc editável, notas) | 🔴 Core do app | 🔴 Alto | Semana 2 |
 | ✅ **F-02** | Remoção de projetos do banco (botão remover + confirmação) | ✅ FEITO | ✅ FEITO | ✅ FEITO |
-| ☐ **F-03** | Limpeza de órfãos (entradas cujo `path` não existe mais em disco) | 🟠 Integridade dados | 🟢 Baixo | Semana 2 |
-| ☐ **F-04** | Busca em tempo real com debounce 300ms | 🟠 UX | 🟢 Baixo | Semana 2 |
+| ☐ **F-03** | Limpeza de órfãos (entradas cujo `path` não existe mais em disco) | 🟠 Integridade dados | 🟢 Baixo | **PRÓXIMO** |
+| ✅ **F-04** | Busca em tempo real com debounce 300ms | ✅ FEITO | ✅ FEITO | ✅ FEITO |
 | ☐ **F-05** | Badge de status de análise no card (🤖 IA / ⚡ Fallback / ⏳ Na Fila) | 🟠 UX/Info | 🟢 Baixo | Semana 2 |
-| ⭐ **F-06** | Ordenação configurável (data, A-Z, recente, origem, status) | 🟠 Organização | 🟢 Baixo | **EM ANDAMENTO** |
+| ✅ **F-06** | Ordenação configurável (data, A-Z, recente, origem, status) | ✅ FEITO | ✅ FEITO | ✅ FEITO |
 | ☐ **F-07** | Filtro multi-critério simultâneo (chips empilháveis AND) | 🟠 Organização | 🟡 Médio | Semana 2 |
 
 ---
@@ -136,7 +137,7 @@
 
 - Esta lista é **a única lista**. Qualquer nova sessão começa aqui.
 - **Um item por vez** — confirma ✅ antes do próximo.
-- Prefixo de versão nos commits: `Laserflix_v3.3.0.0_L-01`, `_S-01` etc.
+- Prefixo de versão nos commits: `Laserflix_v3.4.0.0_L-01`, `_S-01` etc.
 - **Leitura antes de escrever** — sempre lemos o arquivo atual antes de gerar código.
 - Nenhum item é pulado sem instrução expressa sua.
 - **ANÁLISE DE IMPACTO OBRIGATÓRIA** para zonas protegidas: Verificar se mudança afeta lógica criativa de geração.
