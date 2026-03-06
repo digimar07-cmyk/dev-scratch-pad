@@ -8,9 +8,12 @@ UI/UX 2026 Best Practices:
 - Menu COLORIDO organizado por categorias lógicas
 - Ação primária destacada (Importar)
 - Redução de elementos visuais (8 vs 9)
+
+F-04: Busca com debounce 300ms (performance + UX)
 """
 import tkinter as tk
 from tkinter import ttk
+import threading
 
 from config.settings import VERSION
 from config.ui_constants import (
@@ -37,6 +40,7 @@ class HeaderBar:
         self._cb = cb
         self._select_btn = None
         self.search_var = tk.StringVar()
+        self._search_timer = None  # F-04: Timer de debounce
         self._build(parent)
 
     def set_select_btn_active(self, active: bool) -> None:
@@ -47,6 +51,17 @@ class HeaderBar:
                 fg=FG_PRIMARY,
                 text="✕ Seleção" if active else "☑️ Selecionar",
             )
+
+    def _debounced_search(self) -> None:
+        """
+        F-04: Debounce 300ms — só busca após usuário parar de digitar.
+        Cancela timer anterior se continuar digitando.
+        """
+        if self._search_timer:
+            self._search_timer.cancel()
+        
+        self._search_timer = threading.Timer(0.3, self._cb["on_search"])
+        self._search_timer.start()
 
     def _build(self, parent: tk.Widget) -> None:
         hdr = tk.Frame(parent, bg="#000000", height=70)
@@ -84,7 +99,7 @@ class HeaderBar:
             btn.bind("<Leave>", lambda e, w=btn: w.config(fg=FG_PRIMARY))
 
         # ══════════════════════════════════════════════════════════════════
-        # CENTRO: Busca (mais acessível)
+        # CENTRO: Busca (mais acessível) + F-04 DEBOUNCE
         # ══════════════════════════════════════════════════════════════════
         search_frame = tk.Frame(hdr, bg="#000000")
         search_frame.pack(side="left", expand=True, padx=20)
@@ -92,7 +107,7 @@ class HeaderBar:
         tk.Label(search_frame, text="🔍", bg="#000000",
                  fg=FG_PRIMARY, font=("Arial", 14)).pack(side="left", padx=5)
         
-        self.search_var.trace_add("write", lambda *_: self._cb["on_search"]())
+        self.search_var.trace_add("write", lambda *_: self._debounced_search())
         tk.Entry(
             search_frame, textvariable=self.search_var,
             bg="#222222", fg=FG_PRIMARY, font=("Arial", 12),
