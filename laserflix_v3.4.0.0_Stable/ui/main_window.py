@@ -12,13 +12,6 @@ HOT-12: Scrollbar vertical (cards com categorias ficaram mais altos)
 
 FEATURE: Ordenação FUNCIONAL na linha de paginação
 FEATURE: Análise SEQUENCIAL pós-importação (categorias+tags → descrições)
-
-F-03: Feedback visual para órfãos + limpeza em massa:
-  - _get_thumbnail_async() passa is_orphan para preloader
-  - clean_orphans() remove projetos com pastas inexistentes
-  - Dupla confirmação antes de remover
-
-HOTFIX: Corrige assinatura _get_thumbnail_async (4 parâmetros)
 """
 import os
 import threading
@@ -130,7 +123,6 @@ class LaserflixMainWindow:
             "on_backup":          self.manual_backup,
             "on_model_settings":  self.open_model_settings,
             "on_toggle_select":   self.toggle_selection_mode,
-            "on_clean_orphans":   self.clean_orphans,  # ← F-03 C2
         })
         self.search_var = self.header.search_var
 
@@ -324,58 +316,6 @@ class LaserflixMainWindow:
             self.status_bar.config(text=f"🗑️ '{name}' removido do banco.")
 
     # =========================================================================
-    # F-03: LIMPEZA DE ÓRFÃOS
-    # =========================================================================
-
-    def clean_orphans(self) -> None:
-        """
-        Remove todos os projetos cujas pastas não existem mais.
-        Dupla confirmação antes de remover.
-        """
-        orphans = [path for path in self.database.keys() if not os.path.isdir(path)]
-        
-        if not orphans:
-            messagebox.showinfo(
-                "✅ Banco limpo",
-                "Não há projetos órfãos (todas as pastas existem)."
-            )
-            return
-        
-        # Primeira confirmação
-        if not messagebox.askyesno(
-            "🧹 Limpar órfãos",
-            f"Encontrei {len(orphans)} projeto(s) com pastas inexistentes.\n\n"
-            f"Remover do banco?\n\n"
-            f"(Os arquivos no disco NÃO serão apagados)",
-            icon="warning"
-        ):
-            return
-        
-        # Segunda confirmação
-        if not messagebox.askyesno(
-            "⚠️ Confirmar limpeza",
-            f"Segunda confirmação.\n\n"
-            f"Isso removerá {len(orphans)} projeto(s) permanentemente do banco.\n\n"
-            f"Tem certeza?",
-            icon="warning"
-        ):
-            return
-        
-        # Remove órfãos
-        for path in orphans:
-            self.database.pop(path, None)
-        
-        self.db_manager.save_database()
-        self.sidebar.refresh(self.database)
-        self.display_projects()
-        self.status_bar.config(text=f"🧹 {len(orphans)} órfão(s) removido(s) do banco.")
-        
-        messagebox.showinfo(
-            "✅ Limpeza concluída",
-            f"{len(orphans)} projeto(s) órfão(s) removido(s) com sucesso!"
-        )
-
-    # =========================================================================
     # PAGINAÇÃO SIMPLES (HOT-08 / HOT-13)
     # =========================================================================
 
@@ -567,13 +507,7 @@ class LaserflixMainWindow:
         
         self.content_canvas.yview_moveto(0)
 
-    def _get_thumbnail_async(self, project_path, callback, widget, is_orphan=False):
-        """
-        Wrapper thread-safe para carregamento assíncrono de thumbnails.
-        
-        F-03: Aceita parâmetro is_orphan (4º argumento) para aplicar grayscale.
-        HOTFIX: Corrigido TypeError - agora aceita os 4 parâmetros esperados.
-        """
+    def _get_thumbnail_async(self, project_path, callback, widget):
         def _ui_safe_callback(path, photo):
             try:
                 if widget and widget.winfo_exists():
@@ -581,7 +515,7 @@ class LaserflixMainWindow:
             except Exception as e:
                 self.logger.debug(f"Widget destruído antes do callback: {e}")
         
-        self.thumbnail_preloader.preload_single(project_path, _ui_safe_callback, is_orphan)
+        self.thumbnail_preloader.preload_single(project_path, _ui_safe_callback)
 
     def next_page(self) -> None:
         if self.current_page < self.total_pages:
