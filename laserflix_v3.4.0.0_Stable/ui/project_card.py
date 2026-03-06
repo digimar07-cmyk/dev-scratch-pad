@@ -1,246 +1,391 @@
 """
-ui/project_card.py — Renderiza um card de projeto.
-Responsabilidade única: construir 1 card (frame + thumb + nome + badges).
-Teto: 250 linhas.
+ui/project_card.py — Factory de card de projeto.
+Função pura. Teto: 200 linhas.
 
-F-08: Badges de coleções visíveis + clique para aplicar filtro
+HOT-06c: Callback assíncrono thread-safe:
+  - Passa widget (placeholder) para get_cover_image_async
+  - Valida se widget existe antes de atualizar
+  - Previne "main thread is not in main loop"
+
+F-05: Badge de status de análise (🤖 IA / ⚡ Fallback / ⏳ Pendente)
+F-08: Menu contextual de coleções (botão direito) + Badges de coleções visíveis (SEM 📁)
 """
-import os
 import tkinter as tk
 from tkinter import Menu
 
 from config.card_layout import CARD_W, CARD_H, COVER_H, CARD_PAD
 from config.ui_constants import (
-    BG_CARD, BG_CARD_HOVER, BG_SEL,
-    FG_PRIMARY, FG_SECONDARY, FG_TERTIARY,
-    ACCENT_GREEN, ACCENT_GOLD, ORIGIN_COLORS,
+    CARD_NAME_MAX_LENGTH, CARD_NAME_TRUNCATE_AT,
+    CARD_TAG_MAX_LENGTH, CARD_TAG_TRUNCATE_AT,
+    CARD_CATEGORY_MAX_LENGTH,
+    CARD_MAX_CATEGORIES, CARD_MAX_TAGS,
+    BG_CARD, BG_SECONDARY,
+    ACCENT_RED, ACCENT_GREEN, ACCENT_GOLD,
+    FG_PRIMARY, FG_TERTIARY,
+    ORIGIN_COLORS, CATEGORY_COLORS,
+    CARD_BANNED_STRINGS,
 )
 
+# F-08: Constantes de coleções
+CARD_MAX_COLLECTIONS = 3  # Máximo de badges de coleções visíveis
+COLLECTION_COLOR = "#7B68EE"  # Roxo (MediumSlateBlue)
 
-def build_card(parent: tk.Widget, path: str, data: dict, cb: dict,
-               row: int, col: int) -> None:
+
+def _darken(hex_color: str) -> str:
+    h = hex_color.lstrip("#")
+    r, g, b = (int(h[i:i+2], 16) for i in (0, 2, 4))
+    return f"#{max(0,int(r*.8)):02x}{max(0,int(g*.8)):02x}{max(0,int(b*.8)):02x}"
+
+
+def _create_analysis_badge(parent: tk.Frame, data: dict) -> None:
     """
-    Constrói um card completo de projeto.
+    F-05: Cria badge de status de análise no canto superior direito.
     
-    Args:
-        parent:  Container (ex: scrollable_frame)
-        path:    Caminho absoluto do projeto
-        data:    Dict com dados do projeto
-        cb:      Dict de callbacks (on_open_modal, on_toggle_*, on_open_folder, etc.)
-        row/col: Posição na grid
+    - 🤖 IA (verde): analisado por modelo
+    - ⚡ Fallback (amarelo): análise de emergência
+    - ⏳ Pendente (cinza): não analisado
+    """
+    analyzed = data.get("analyzed", False)
+    model = data.get("analyzed_model", "fallback")
+    
+    if not analyzed:
+        # Pendente
+        badge_text = "⏳"
+        badge_bg = "#4A4A4A"
+        tooltip = "Pendente de análise"
+    elif model == "fallback":
+        # Fallback
+        badge_text = "⚡"
+        badge_bg = "#FFA500"
+        tooltip = "Análise de emergência (Fallback)"
+    else:
+        # IA
+        badge_text = "🤖"
+        badge_bg = "#00AA00"
+        tooltip = f"Analisado por IA: {model}"
+    
+    badge = tk.Label(
+        parent,
+        text=badge_text,
+        font=("Arial", 14),
+        bg=badge_bg,
+        fg="#FFFFFF",
+        padx=6,
+        pady=2,
+        relief="flat",
+    )
+    badge.place(relx=1.0, x=-4, y=4, anchor="ne")
+    
+    # Tooltip simples (hover)
+    def _show_tooltip(e):
+        # Simple tooltip via widget config (no external lib)
+        pass  # Tooltip complexo seria overengineering
+    
+    badge.bind("<Enter>", _show_tooltip)
+
+
+def _create_context_menu(widget: tk.Widget, project_path: str, cb: dict) -> None:
+    """
+    F-08: Cria menu contextual (botão direito) para gerenciar coleções.
     
     Callbacks esperados:
-        on_open_modal(path)
-        on_toggle_favorite(path, btn), on_toggle_done(path, btn),
-        on_toggle_good(path, btn), on_toggle_bad(path, btn)
-        on_analyze_single(path)
-        on_open_folder(path)
-        on_set_category(cat_name)
-        on_set_tag(tag_name)
-        on_set_origin(origin_name)
-        on_set_collection(collection_name)       # F-08: Click em badge de coleção
-        get_cover_image_async(path, callback, widget)
-        selection_mode (bool)
-        selected_paths (set)
-        on_toggle_select(path)
-        
-        # F-08: Callbacks de menu contextual de coleções
         on_add_to_collection(path, collection_name)
         on_remove_from_collection(path, collection_name)
         on_new_collection_with(path)
         get_collections() -> list[str]
         get_project_collections(path) -> list[str]
     """
-    is_selected = (cb.get("selection_mode") and path in cb.get("selected_paths", set()))
-    card_bg = BG_SEL if is_selected else BG_CARD
+    def _show_menu(event):
+        menu = Menu(widget, tearoff=0, bg="#2E2E4E", fg="#FFFFFF",
+                    activebackground="#4A4A6E", activeforeground="#FFFFFF",
+                    font=("Arial", 10))
+        
+        # Obtém coleções disponíveis
+        all_collections = cb.get("get_collections", lambda: [])() or []
+        project_collections = cb.get("get_project_collections", lambda p: [])(project_path) or []
+        
+        # Submenu "Adicionar à coleção"
+        if all_collections:
+            add_menu = Menu(menu, tearoff=0, bg="#2E2E4E", fg="#FFFFFF",
+                            activebackground="#4A4A6E", activeforeground="#FFFFFF",
+                            font=("Arial", 9))
+            
+            for col_name in sorted(all_collections):
+                # Marca se já está na coleção
+                is_in = col_name in project_collections
+                label = f"✓ {col_name}" if is_in else f"  {col_name}"
+                
+                # Se já está na coleção, desabilita
+                state = "disabled" if is_in else "normal"
+                
+                add_menu.add_command(
+                    label=label,
+                    command=lambda c=col_name: cb["on_add_to_collection"](project_path, c),
+                    state=state
+                )
+            
+            menu.add_cascade(label="➕ Adicionar à coleção", menu=add_menu)
+        else:
+            menu.add_command(label="📁 Nenhuma coleção disponível", state="disabled")
+        
+        # Opção "Remover de coleção" (só se pertence a alguma)
+        if project_collections:
+            remove_menu = Menu(menu, tearoff=0, bg="#2E2E4E", fg="#FFFFFF",
+                               activebackground="#4A4A6E", activeforeground="#FFFFFF",
+                               font=("Arial", 9))
+            
+            for col_name in sorted(project_collections):
+                remove_menu.add_command(
+                    label=col_name,
+                    command=lambda c=col_name: cb["on_remove_from_collection"](project_path, c)
+                )
+            
+            menu.add_cascade(label="➖ Remover de coleção", menu=remove_menu)
+        
+        menu.add_separator()
+        
+        # Opção "Nova coleção com este projeto"
+        menu.add_command(
+            label="🆕 Nova coleção com este projeto",
+            command=lambda: cb["on_new_collection_with"](project_path)
+        )
+        
+        # Mostra menu na posição do mouse
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
     
-    card_frame = tk.Frame(parent, bg=card_bg, width=CARD_W, height=CARD_H, relief="flat", bd=0)
-    card_frame.grid(row=row, column=col, padx=CARD_PAD, pady=CARD_PAD, sticky="n")
-    card_frame.grid_propagate(False)
-    card_frame.pack_propagate(False)
+    widget.bind("<Button-3>", _show_menu)  # Botão direito
 
-    # Thumbnail
-    thumb_frame = tk.Frame(card_frame, bg="#0A0A0A", width=CARD_W, height=COVER_H)
-    thumb_frame.pack(fill="x")
-    thumb_frame.pack_propagate(False)
-    thumb_lbl = tk.Label(thumb_frame, text="🖼️", font=("Arial", 40),
-                         bg="#0A0A0A", fg="#1E1E1E", bd=0)
-    thumb_lbl.place(relx=0.5, rely=0.5, anchor="center")
 
-    # Se modo seleção, exibe checkbox sobreposto
-    if cb.get("selection_mode"):
-        chk_lbl = tk.Label(thumb_frame, text="☑️" if is_selected else "☐",
-                           font=("Arial", 32), bg="#0A0A0A", fg=ACCENT_GREEN if is_selected else "#444444",
-                           bd=0, cursor="hand2")
-        chk_lbl.place(x=8, y=8)
-        chk_lbl.bind("<Button-1>", lambda e: cb["on_toggle_select"](path))
+def build_card(
+    parent: tk.Widget,
+    project_path: str,
+    data: dict,
+    cb: dict,
+    row: int,
+    col: int,
+    pad: int = CARD_PAD,
+) -> tk.Frame:
+    """
+    Constrói um card de projeto.
+    
+    Callbacks esperados (F-08):
+        on_add_to_collection(path, collection_name)
+        on_remove_from_collection(path, collection_name)
+        on_new_collection_with(path)
+        get_collections() -> list[str]
+        get_project_collections(path) -> list[str]
+        on_set_collection(collection_name) -> filtrar por coleção
+    
+    Returns:
+        tk.Frame: Widget do card criado (para virtual scroll)
+    """
+    selection_mode  = cb.get("selection_mode", False)
+    selected_paths  = cb.get("selected_paths", set())
+    is_selected     = project_path in selected_paths
 
-    # Carrega thumb assíncrona
-    def _set_thumb(p, photo):
-        if p == path and thumb_lbl.winfo_exists():
-            thumb_lbl.config(image=photo, text="")
-            thumb_lbl.image = photo
-    cb["get_cover_image_async"](path, _set_thumb, thumb_lbl)
+    # Card externo — altura fixa 410px (igual v3.2)
+    border_color = "#FFFF00" if is_selected else BG_CARD
+    card = tk.Frame(parent, bg=border_color, width=CARD_W, height=CARD_H,
+                    highlightbackground=border_color, highlightthickness=2 if is_selected else 0)
+    card.grid(row=row, column=col, padx=pad, pady=pad, sticky="n")
+    card.grid_propagate(False)
 
-    # Content
-    content = tk.Frame(card_frame, bg=card_bg)
-    content.pack(fill="both", expand=True, padx=12, pady=(10, 8))
+    # Inner — conteúdo do card
+    inner = tk.Frame(card, bg=BG_CARD)
+    inner.pack(fill="both", expand=True, padx=2 if is_selected else 0, pady=2 if is_selected else 0)
 
-    # Nome
-    name_lbl = tk.Label(
-        content, text=data.get("name", "Sem nome"),
-        font=("Arial", 11, "bold"), bg=card_bg, fg=FG_PRIMARY,
-        anchor="w", justify="left", wraplength=CARD_W - 30
-    )
-    name_lbl.pack(fill="x", pady=(0, 6))
+    # F-08: Menu contextual (botão direito) para coleções
+    _create_context_menu(inner, project_path, cb)
 
-    # Categorias (badges)
-    cats_row = tk.Frame(content, bg=card_bg)
-    cats_row.pack(fill="x", pady=(0, 4))
-    cats = data.get("categories", []) or []
+    # Checkbox de seleção (canto sup. esq. — só no modo seleção)
+    if selection_mode:
+        chk_var = tk.BooleanVar(value=is_selected)
+        chk = tk.Checkbutton(
+            inner, variable=chk_var, bg=BG_CARD,
+            activebackground=BG_CARD, cursor="hand2",
+            command=lambda: cb["on_toggle_select"](project_path),
+        )
+        chk.place(x=4, y=4)
+
+    # Capa
+    def _open_or_select(e=None):
+        cb["on_open_modal"](project_path)
+
+    cover_frm = tk.Frame(inner, bg=BG_SECONDARY, width=CARD_W, height=COVER_H)
+    cover_frm.pack(fill="x")
+    cover_frm.pack_propagate(False)
+    cover_frm.bind("<Button-1>", _open_or_select)
+    
+    # F-08: Menu contextual na capa também
+    _create_context_menu(cover_frm, project_path, cb)
+
+    # ← NOVO: Carregamento assíncrono de thumbnail
+    # Placeholder instantâneo
+    placeholder = tk.Label(cover_frm, text="📁", font=("Arial", 52),
+                           bg=BG_SECONDARY, fg=FG_TERTIARY, cursor="hand2")
+    placeholder.pack(expand=True)
+    placeholder.bind("<Button-1>", _open_or_select)
+    
+    # F-08: Menu contextual no placeholder também
+    _create_context_menu(placeholder, project_path, cb)
+    
+    # F-05: Badge de status de análise (sobre a capa)
+    _create_analysis_badge(cover_frm, data)
+    
+    # Callback para quando thumbnail carregar
+    def _on_thumb_loaded(path, photo):
+        # Validação dupla: widget existe E ainda é válido
+        try:
+            if placeholder.winfo_exists():
+                placeholder.config(image=photo, text="")  # Remove emoji, mostra imagem
+                placeholder.image = photo  # Prevent garbage collection
+        except tk.TclError:
+            pass  # Widget já foi destruído
+    
+    # Agenda carregamento assíncrono
+    get_cover_async = cb.get("get_cover_image_async")
+    if get_cover_async:
+        # ← HOT-06c: Passa placeholder como widget para validação
+        get_cover_async(project_path, _on_thumb_loaded, placeholder)
+
+    # Info
+    info = tk.Frame(inner, bg=BG_CARD)
+    info.pack(fill="both", expand=True, padx=8, pady=6)
+    
+    # F-08: Menu contextual na área de info também
+    _create_context_menu(info, project_path, cb)
+
+    name = data.get("name", "Sem nome")
+    nm = (name[:CARD_NAME_TRUNCATE_AT] + "...") if len(name) > CARD_NAME_MAX_LENGTH else name
+    nl = tk.Label(info, text=nm, font=("Arial", 10, "bold"),
+                  bg=BG_CARD, fg=FG_PRIMARY,
+                  wraplength=CARD_W - 20, justify="left", cursor="hand2")
+    nl.pack(anchor="w")
+    nl.bind("<Button-1>", _open_or_select)
+    _create_context_menu(nl, project_path, cb)  # F-08: Menu no nome
+
+    # Categorias
+    raw_cats = data.get("categories", []) or []
+    cats = [c for c in raw_cats if c and c.strip() and c.strip().lower() not in CARD_BANNED_STRINGS]
     if cats:
-        for i, cat in enumerate(cats[:2]):
-            tk.Label(cats_row, text=cat, font=("Arial", 8),
-                     bg="#1E3A2F", fg=ACCENT_GREEN, padx=6, pady=3,
-                     cursor="hand2").pack(side="left", padx=(0, 4))
-        if len(cats) > 2:
-            tk.Label(cats_row, text=f"+{len(cats)-2}", font=("Arial", 8),
-                     bg="#2A2A2A", fg=FG_SECONDARY, padx=6, pady=3).pack(side="left")
+        cf = tk.Frame(info, bg=BG_CARD)
+        cf.pack(anchor="w", pady=(4, 0), fill="x")
+        for i, cat in enumerate(cats[:CARD_MAX_CATEGORIES]):
+            clr = CATEGORY_COLORS[i]
+            b = tk.Button(cf, text=cat[:CARD_CATEGORY_MAX_LENGTH],
+                          command=lambda cc=cat: cb["on_set_category"]([cc]),
+                          bg=clr, fg="#000000", font=("Arial", 7, "bold"),
+                          relief="flat", cursor="hand2", padx=4, pady=2)
+            b.pack(side="left", padx=2, pady=1)
+            b.bind("<Enter>", lambda e, bt=b, cl=clr: bt.config(bg=_darken(cl)))
+            b.bind("<Leave>", lambda e, bt=b, cl=clr: bt.config(bg=cl))
 
-    # Tags (badges)
-    tags_row = tk.Frame(content, bg=card_bg)
-    tags_row.pack(fill="x", pady=(0, 4))
-    tags = data.get("tags", []) or []
+    # Tags
+    tags = data.get("tags", [])
     if tags:
-        for i, tag in enumerate(tags[:2]):
-            t = tk.Label(tags_row, text=tag, font=("Arial", 8),
-                         bg="#2A2A2A", fg=FG_SECONDARY, padx=6, pady=3, cursor="hand2")
-            t.pack(side="left", padx=(0, 4))
-            t.bind("<Button-1>", lambda e, tg=tag: cb["on_set_tag"](tg))
-        if len(tags) > 2:
-            tk.Label(tags_row, text=f"+{len(tags)-2}", font=("Arial", 8),
-                     bg="#2A2A2A", fg=FG_TERTIARY, padx=6, pady=3).pack(side="left")
+        tf = tk.Frame(info, bg=BG_CARD)
+        tf.pack(anchor="w", pady=(3, 0), fill="x")
+        for tag in tags[:CARD_MAX_TAGS]:
+            disp = (tag[:CARD_TAG_TRUNCATE_AT] + "...") if len(tag) > CARD_TAG_MAX_LENGTH else tag
+            b = tk.Button(tf, text=disp, command=lambda t=tag: cb["on_set_tag"](t),
+                          bg="#3A3A3A", fg=FG_PRIMARY, font=("Arial", 7),
+                          relief="flat", cursor="hand2", padx=4, pady=1)
+            b.pack(side="left", padx=2, pady=1)
+            b.bind("<Enter>", lambda e, w=b: w.config(bg=ACCENT_RED))
+            b.bind("<Leave>", lambda e, w=b: w.config(bg="#3A3A3A"))
 
     # Origem
     origin = data.get("origin", "Desconhecido")
-    origin_color = ORIGIN_COLORS.get(origin, ORIGIN_COLORS["default"])
-    o_badge = tk.Label(content, text=f"📂 {origin}", font=("Arial", 8),
-                       bg=card_bg, fg=origin_color, anchor="w", cursor="hand2")
-    o_badge.pack(fill="x", pady=(0, 4))
-    o_badge.bind("<Button-1>", lambda e: cb["on_set_origin"](origin))
+    origin_clr = ORIGIN_COLORS.get(origin, ORIGIN_COLORS["default"])
+    tk.Button(info, text=origin, font=("Arial", 7),
+              bg=origin_clr, fg=FG_PRIMARY, padx=4, pady=2,
+              relief="flat", cursor="hand2",
+              command=lambda o=origin: cb["on_set_origin"](o)
+              ).pack(anchor="w", pady=(4, 0))
 
-    # F-08: Coleções (badges clicáveis)
-    project_collections = cb.get("get_project_collections", lambda p: [])(path)
-    if project_collections:
-        colls_row = tk.Frame(content, bg=card_bg)
-        colls_row.pack(fill="x", pady=(0, 4))
-        for i, coll_name in enumerate(project_collections[:2]):
-            c = tk.Label(
-                colls_row, text=coll_name,  # F-08: Remove 📁 de cada badge
-                font=("Arial", 8),
-                bg="#1A2A3A", fg="#88CCFF", padx=6, pady=3, cursor="hand2"
-            )
-            c.pack(side="left", padx=(0, 4))
-            c.bind("<Button-1>", lambda e, cn=coll_name: cb["on_set_collection"](cn))
-        if len(project_collections) > 2:
-            tk.Label(colls_row, text=f"+{len(project_collections)-2}",
-                     font=("Arial", 8), bg="#2A2A2A", fg=FG_TERTIARY,
-                     padx=6, pady=3).pack(side="left")
-
-    # Ícones de ação (embaixo)
-    icons_row = tk.Frame(content, bg=card_bg)
-    icons_row.pack(fill="x", pady=(4, 0))
-
-    # Favorito
-    is_fav = data.get("favorite", False)
-    fav_btn = tk.Button(
-        icons_row, text="⭐" if is_fav else "☆",
-        bg=card_bg, fg=ACCENT_GOLD if is_fav else FG_TERTIARY,
-        font=("Arial", 14), relief="flat", cursor="hand2", bd=0, padx=2, pady=0
-    )
-    fav_btn.config(command=lambda: cb["on_toggle_favorite"](path, fav_btn))
-    fav_btn.pack(side="left", padx=(0, 2))
-
-    # Feito
-    is_done = data.get("done", False)
-    done_btn = tk.Button(
-        icons_row, text="✓" if is_done else "○",
-        bg=card_bg, fg="#00FF00" if is_done else FG_TERTIARY,
-        font=("Arial", 12), relief="flat", cursor="hand2", bd=0, padx=2, pady=0
-    )
-    done_btn.config(command=lambda: cb["on_toggle_done"](path, done_btn))
-    done_btn.pack(side="left", padx=(0, 2))
-
-    # Bom
-    is_good = data.get("good", False)
-    good_btn = tk.Button(
-        icons_row, text="👍",
-        bg=card_bg, fg="#00FF00" if is_good else FG_TERTIARY,
-        font=("Arial", 12), relief="flat", cursor="hand2", bd=0, padx=2, pady=0
-    )
-    good_btn.config(command=lambda: cb["on_toggle_good"](path, good_btn))
-    good_btn.pack(side="left", padx=(0, 2))
-
-    # Ruim
-    is_bad = data.get("bad", False)
-    bad_btn = tk.Button(
-        icons_row, text="👎",
-        bg=card_bg, fg="#FF0000" if is_bad else FG_TERTIARY,
-        font=("Arial", 12), relief="flat", cursor="hand2", bd=0, padx=2, pady=0
-    )
-    bad_btn.config(command=lambda: cb["on_toggle_bad"](path, bad_btn))
-    bad_btn.pack(side="left", padx=(0, 2))
-
-    # Menu contextual (gear)
-    gear_btn = tk.Button(
-        icons_row, text="⚙️", bg=card_bg, fg=FG_TERTIARY,
-        font=("Arial", 12), relief="flat", cursor="hand2", bd=0, padx=2, pady=0
-    )
-    gear_btn.pack(side="right")
-
-    def _show_context_menu(event):
-        menu = Menu(card_frame, tearoff=0,
-                    bg="#1A1A1A", fg=FG_PRIMARY, activebackground="#2A2A2A")
-        menu.add_command(label="🔍 Ver Detalhes", command=lambda: cb["on_open_modal"](path))
-        menu.add_command(label="📂 Abrir Pasta", command=lambda: cb["on_open_folder"](path))
-        menu.add_command(label="🤖 Reanalisar", command=lambda: cb["on_analyze_single"](path))
-        
-        # F-08: Submenu de coleções
-        if "get_collections" in cb:
-            collections = cb["get_collections"]()
-            if collections:
-                menu.add_separator()
-                colls_menu = Menu(menu, tearoff=0,
-                                  bg="#1A1A1A", fg=FG_PRIMARY, activebackground="#2A2A2A")
-                for coll in collections:
-                    if path in cb.get("get_project_collections", lambda p: [])(path) and coll in cb.get("get_project_collections", lambda p: [])(path):
-                        colls_menu.add_command(
-                            label=f"✔️ {coll}",
-                            command=lambda c=coll: cb["on_remove_from_collection"](path, c)
-                        )
-                    else:
-                        colls_menu.add_command(
-                            label=f"   {coll}",
-                            command=lambda c=coll: cb["on_add_to_collection"](path, c)
-                        )
-                colls_menu.add_separator()
-                colls_menu.add_command(
-                    label="➕ Nova Coleção...",
-                    command=lambda: cb["on_new_collection_with"](path)
+    # F-08: Coleções (ABAIXO da origem) - SEM 📁 nos badges
+    get_project_collections = cb.get("get_project_collections")
+    if get_project_collections:
+        project_collections = get_project_collections(project_path)
+        if project_collections:
+            collections_frame = tk.Frame(info, bg=BG_CARD)
+            collections_frame.pack(anchor="w", pady=(3, 0), fill="x")
+            
+            visible_cols = project_collections[:CARD_MAX_COLLECTIONS]
+            for col_name in visible_cols:
+                # Trunca nome da coleção se muito longo
+                display_name = (col_name[:12] + "...") if len(col_name) > 15 else col_name
+                
+                b = tk.Button(
+                    collections_frame,
+                    text=display_name,  # F-08: Removido 📁 do badge
+                    command=lambda c=col_name: cb.get("on_set_collection", lambda x: None)(c),
+                    bg=COLLECTION_COLOR,
+                    fg="#FFFFFF",
+                    font=("Arial", 7, "bold"),
+                    relief="flat",
+                    cursor="hand2",
+                    padx=4,
+                    pady=2
                 )
-                menu.add_cascade(label="📁 Coleções", menu=colls_menu)
-        
-        menu.post(event.x_root, event.y_root)
+                b.pack(side="left", padx=2, pady=1)
+                
+                # Hover: escurece
+                dark_col = _darken(COLLECTION_COLOR)
+                b.bind("<Enter>", lambda e, bt=b, dc=dark_col: bt.config(bg=dc))
+                b.bind("<Leave>", lambda e, bt=b: bt.config(bg=COLLECTION_COLOR))
+            
+            # Se tem mais coleções, mostra "..."
+            if len(project_collections) > CARD_MAX_COLLECTIONS:
+                remaining = len(project_collections) - CARD_MAX_COLLECTIONS
+                tk.Label(
+                    collections_frame,
+                    text=f"+{remaining}",
+                    bg=BG_CARD,
+                    fg="#888888",
+                    font=("Arial", 7),
+                    padx=4
+                ).pack(side="left")
 
-    gear_btn.bind("<Button-1>", _show_context_menu)
-
-    # Hover / Click
-    for w in [card_frame, content, name_lbl, thumb_frame, thumb_lbl,
-              cats_row, tags_row, o_badge, icons_row]:
-        if w != icons_row and w != thumb_frame:
-            w.bind("<Enter>", lambda e: card_frame.config(bg=BG_CARD_HOVER) or content.config(bg=BG_CARD_HOVER))
-            w.bind("<Leave>", lambda e: card_frame.config(bg=card_bg) or content.config(bg=card_bg))
-        if not cb.get("selection_mode"):
-            w.bind("<Button-1>", lambda e: cb["on_open_modal"](path))
-        else:
-            w.bind("<Button-1>", lambda e: cb["on_toggle_select"](path))
+    # Ações (ocultas no modo seleção para não poluir)
+    if not selection_mode:
+        af = tk.Frame(info, bg=BG_CARD)
+        af.pack(fill="x", pady=(6, 0))
+        tk.Button(af, text="📂", font=("Arial", 12),
+                  command=lambda: cb["on_open_folder"](project_path),
+                  bg=BG_CARD, fg=ACCENT_GOLD, relief="flat", cursor="hand2"
+                  ).pack(side="left", padx=1)
+        btn_fav = tk.Button(af, font=("Arial", 12), bg=BG_CARD, relief="flat", cursor="hand2")
+        btn_fav.config(
+            text="⭐" if data.get("favorite") else "☆",
+            fg=ACCENT_GOLD if data.get("favorite") else FG_TERTIARY,
+            command=lambda b=btn_fav: cb["on_toggle_favorite"](project_path, b))
+        btn_fav.pack(side="left", padx=1)
+        btn_done = tk.Button(af, font=("Arial", 12), bg=BG_CARD, relief="flat", cursor="hand2")
+        btn_done.config(
+            text="✓" if data.get("done") else "○",
+            fg="#00FF00" if data.get("done") else FG_TERTIARY,
+            command=lambda b=btn_done: cb["on_toggle_done"](project_path, b))
+        btn_done.pack(side="left", padx=1)
+        btn_good = tk.Button(af, font=("Arial", 12), bg=BG_CARD, relief="flat", cursor="hand2")
+        btn_good.config(
+            text="👍",
+            fg="#00FF00" if data.get("good") else FG_TERTIARY,
+            command=lambda b=btn_good: cb["on_toggle_good"](project_path, b))
+        btn_good.pack(side="left", padx=1)
+        btn_bad = tk.Button(af, font=("Arial", 12), bg=BG_CARD, relief="flat", cursor="hand2")
+        btn_bad.config(
+            text="👎",
+            fg="#FF0000" if data.get("bad") else FG_TERTIARY,
+            command=lambda b=btn_bad: cb["on_toggle_bad"](project_path, b))
+        btn_bad.pack(side="left", padx=1)
+        if not data.get("analyzed"):
+            tk.Button(af, text="🤖", font=("Arial", 12),
+                      command=lambda: cb["on_analyze_single"](project_path),
+                      bg=BG_CARD, fg=ACCENT_GREEN, relief="flat", cursor="hand2"
+                      ).pack(side="left", padx=1)
+    
+    return card  # ← RETORNA o widget para virtual scroll
