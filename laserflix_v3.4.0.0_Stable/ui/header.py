@@ -8,6 +8,8 @@ UI/UX 2026 Best Practices:
 - Menu COLORIDO organizado por categorias lógicas
 - Ação primária destacada (Importar)
 - Redução de elementos visuais (8 vs 9)
+
+F-03: Adiciona botão de limpeza de órfãos no menu Dashboard
 """
 import tkinter as tk
 from tkinter import ttk
@@ -31,6 +33,7 @@ class HeaderBar:
         on_prepare_folders() / on_import_db() / on_export_db()
         on_backup()       /  on_model_settings()
         on_toggle_select()   — ativa/desativa modo de seleção em massa
+        on_clean_orphans()   — F-03: limpa projetos órfãos
     """
 
     def __init__(self, parent: tk.Widget, cb: dict):
@@ -121,6 +124,8 @@ class HeaderBar:
         """
         Menu COLORIDO organizado por categorias (UI/UX 2026).
         Cada categoria tem cor própria para fácil identificação visual.
+        
+        F-03: Adiciona botão de limpeza de órfãos.
         """
         menu_btn = tk.Menubutton(
             parent, text="⚙️ Ferramentas",
@@ -140,9 +145,9 @@ class HeaderBar:
         )
         menu_btn["menu"] = m
         
-        # ════════════════════════════════════
+        # ╔════════════════════════════════════
         # CATEGORIA 1: ANÁLISE IA (VERDE)
-        # ════════════════════════════════════
+        # ╚════════════════════════════════════
         m.add_command(
             label="🤖 ANÁLISE IA",
             state="disabled",
@@ -160,9 +165,9 @@ class HeaderBar:
             foreground="#66DD66",
         )
         
-        # ════════════════════════════════════
+        # ╔════════════════════════════════════
         # CATEGORIA 2: DESCRIÇÕES (AZUL)
-        # ════════════════════════════════════
+        # ╚════════════════════════════════════
         m.add_separator()
         m.add_command(
             label="📝 DESCRIÇÕES",
@@ -181,9 +186,9 @@ class HeaderBar:
             foreground="#66AAFF",
         )
         
-        # ════════════════════════════════════
+        # ╔════════════════════════════════════
         # CATEGORIA 3: SELEÇÃO (AMARELO)
-        # ════════════════════════════════════
+        # ╚════════════════════════════════════
         m.add_separator()
         m.add_command(
             label="☑️ SELEÇÃO",
@@ -197,9 +202,9 @@ class HeaderBar:
             foreground="#FFEE66",  # Amarelo
         )
         
-        # ════════════════════════════════════
+        # ╔════════════════════════════════════
         # CATEGORIA 4: BANCO DE DADOS (ROXO)
-        # ════════════════════════════════════
+        # ╚════════════════════════════════════
         m.add_separator()
         m.add_command(
             label="📦 BANCO DE DADOS",
@@ -222,10 +227,16 @@ class HeaderBar:
             command=self._cb["on_backup"],
             foreground="#BB77FF",
         )
+        # ← F-03 C2: Botão de limpeza de órfãos
+        m.add_command(
+            label="   🧹 Limpar órfãos",
+            command=self._cb["on_clean_orphans"],
+            foreground="#BB77FF",
+        )
         
-        # ════════════════════════════════════
+        # ╔════════════════════════════════════
         # CATEGORIA 5: CONFIGURAÇÕES (LARANJA)
-        # ════════════════════════════════════
+        # ╚════════════════════════════════════
         m.add_separator()
         m.add_command(
             label="🛠️ CONFIGURAÇÕES",
