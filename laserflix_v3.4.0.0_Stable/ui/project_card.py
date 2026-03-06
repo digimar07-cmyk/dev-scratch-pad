@@ -9,7 +9,7 @@ import os
 import tkinter as tk
 from tkinter import Menu
 
-from config.card_layout import CARD_W, CARD_H, THUMB_H, CARD_PAD
+from config.card_layout import CARD_W, CARD_H, COVER_H, CARD_PAD
 from config.ui_constants import (
     BG_CARD, BG_CARD_HOVER, BG_SEL,
     FG_PRIMARY, FG_SECONDARY, FG_TERTIARY,
@@ -60,7 +60,7 @@ def build_card(parent: tk.Widget, path: str, data: dict, cb: dict,
     card_frame.pack_propagate(False)
 
     # Thumbnail
-    thumb_frame = tk.Frame(card_frame, bg="#0A0A0A", width=CARD_W, height=THUMB_H)
+    thumb_frame = tk.Frame(card_frame, bg="#0A0A0A", width=CARD_W, height=COVER_H)
     thumb_frame.pack(fill="x")
     thumb_frame.pack_propagate(False)
     thumb_lbl = tk.Label(thumb_frame, text="🖼️", font=("Arial", 40),
