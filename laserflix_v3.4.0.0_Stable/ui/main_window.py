@@ -12,6 +12,7 @@ HOT-12: Scrollbar vertical (cards com categorias ficaram mais altos)
 
 FEATURE: Ordenação FUNCIONAL na linha de paginação
 FEATURE: Análise SEQUENCIAL pós-importação (categorias+tags → descrições)
+F-03: Limpeza de órfãos (entradas sem path válido)
 """
 import os
 import threading
@@ -123,6 +124,7 @@ class LaserflixMainWindow:
             "on_backup":          self.manual_backup,
             "on_model_settings":  self.open_model_settings,
             "on_toggle_select":   self.toggle_selection_mode,
+            "on_clean_orphans":   self.clean_orphans,
         })
         self.search_var = self.header.search_var
 
@@ -314,6 +316,56 @@ class LaserflixMainWindow:
             self.sidebar.refresh(self.database)
             self.display_projects()
             self.status_bar.config(text=f"🗑️ '{name}' removido do banco.")
+
+    # =========================================================================
+    # F-03: LIMPEZA DE ÓRFÃOS
+    # =========================================================================
+
+    def clean_orphans(self) -> None:
+        """
+        F-03: Remove projetos cujo path não existe mais no disco.
+        Kent Beck: Detectar é rápido, remover requer confirmação dupla.
+        """
+        orphans = [p for p in self.database.keys() if not os.path.isdir(p)]
+        
+        if not orphans:
+            messagebox.showinfo(
+                "✅ Banco limpo",
+                "Nenhum órfão encontrado!\n\nTodos os projetos têm pastas válidas."
+            )
+            return
+        
+        # Primeira confirmação: mostra lista
+        msg = f"Encontrei {len(orphans)} projeto(s) órfão(s):\n\n"
+        msg += "\n".join(f"- {os.path.basename(p)}" for p in orphans[:10])
+        if len(orphans) > 10:
+            msg += f"\n... e mais {len(orphans) - 10}"
+        msg += "\n\nEsses projetos não existem mais no disco.\nRemover do banco?"
+        
+        if not messagebox.askyesno("🧼 Limpar órfãos", msg, icon="warning"):
+            return
+        
+        # Segunda confirmação
+        if not messagebox.askyesno(
+            "⚠️ Confirmar remoção",
+            f"Segunda confirmação.\n\n{len(orphans)} projeto(s) serão removidos PERMANENTEMENTE do banco.\n\nTem certeza?",
+            icon="warning"
+        ):
+            return
+        
+        # Remove
+        for path in orphans:
+            self.database.pop(path, None)
+        
+        self.db_manager.save_database()
+        self.sidebar.refresh(self.database)
+        self.display_projects()
+        self.status_bar.config(text=f"🧼 {len(orphans)} órfão(s) removido(s) do banco.")
+        
+        messagebox.showinfo(
+            "✅ Limpeza concluída",
+            f"{len(orphans)} projeto(s) órfão(s) removido(s) do banco.\n\nBanco agora está sincronizado com o disco."
+        )
 
     # =========================================================================
     # PAGINAÇÃO SIMPLES (HOT-08 / HOT-13)
