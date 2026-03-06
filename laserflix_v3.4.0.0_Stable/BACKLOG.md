@@ -30,6 +30,7 @@
 | ✅ **HOT-14** | Busca bilíngue (EN + PT-BR) | Busca agora procura em `name` (inglês) E `name_pt` (português). Exemplo: "mirror" OU "espelho" encontram Nursery Mirror. | `2696f0b` |
 | ✅ **F-04** | Busca com debounce 300ms | Timer cancela busca anterior se usuário continuar digitando. Busca só executa após 300ms de silêncio. Performance 23x melhor. | `adfc881` |
 | ✅ **F-06** | Ordenação configurável | Menu dropdown com 7 opções (data asc/desc, nome A-Z/Z-A, origem, analisados, pendentes). Linha de paginação. | `78c9e67`, `b06fbf6` |
+| ✅ **F-07** | Filtros empilháveis (chips AND) | Chips clicáveis 🏷️ categoria, 🔖 tag, 📂 origem. Modo AND: todos critérios devem ser atendidos. X remove filtro específico, "Limpar tudo" reseta. | `5f1b794` |
 | ✅ **S-03** | Thumbnails assíncronas | `ThumbnailPreloader(max_workers=4)` com `queue.Queue`. Carregamento em threads separadas. Zero travamento. | `224fff9` |
 | ✅ **F-03** | Limpeza de órfãos | Método `clean_orphans()` detecta paths inexistentes. Confirmação dupla + relatório. Botão no menu BANCO DE DADOS. | `67733c3`, `1794955` |
 | ✅ **S-05** | Thread watchdog para análise IA | Watchdog detecta travamentos (análise > 120s). Cancela automaticamente + log. Proteção defensiva Kent Beck style. | `a2bf285` |
@@ -68,13 +69,13 @@
 
 | # | O que fazer | Impacto | Esforço | Prioridade |
 |---|---|---|---|---|
-| ☐ **F-01** | Modal de Projeto completo (galeria, nome PT-BR, desc editável, notas) | 🔴 Core do app | 🔴 Alto | Semana 2 |
+| ☐ **F-01** | Modal de Projeto completo (galeria, nome PT-BR, desc editável, notas) | 🔴 Core do app | 🔴 Alto | **PRÓXIMO** |
 | ✅ **F-02** | Remoção de projetos do banco (botão remover + confirmação) | ✅ FEITO | ✅ FEITO | ✅ FEITO |
 | ✅ **F-03** | Limpeza de órfãos (entradas cujo `path` não existe mais em disco) | ✅ FEITO | ✅ FEITO | ✅ FEITO |
 | ✅ **F-04** | Busca em tempo real com debounce 300ms | ✅ FEITO | ✅ FEITO | ✅ FEITO |
 | ✅ **F-05** | Badge de status de análise no card (🤖 IA / ⚡ Fallback / ⏳ Na Fila) | ✅ FEITO | ✅ FEITO | ✅ FEITO |
 | ✅ **F-06** | Ordenação configurável (data, A-Z, recente, origem, status) | ✅ FEITO | ✅ FEITO | ✅ FEITO |
-| ☐ **F-07** | Filtro multi-critério simultâneo (chips empilháveis AND) | 🟠 Organização | 🟡 Médio | **PRÓXIMO** |
+| ✅ **F-07** | Filtros empilháveis (chips AND) | ✅ FEITO | ✅ FEITO | ✅ FEITO |
 
 ---
 
