@@ -27,74 +27,132 @@
 
 ## 👉 PRÓXIMA TAREFA
 
-### 🔴 **F-01: Modal de Projeto Completo**
+### 🔴 **F-01.1: Modal - Galeria de Imagens**
 
 **Prioridade:** 🔴 ALTA  
-**Esforço:** 🔴 Alto  
+**Esforço:** 🔴 Médio  
 **Impacto:** 🔴 Core do app  
-**Estilo Kent Beck:** ✅ Um campo por vez, testar entre cada  
+**Estilo Kent Beck:** ✅ Implementar galeria primeiro, depois adicionar recursos  
 
 **Objetivo:**
-Expandir modal com recursos avançados:
+Implementar galeria de imagens no modal de projeto:
 
-1. **Galeria de imagens** (thumbs clicáveis)
-   - Grid de thumbs na parte inferior
-   - Click = abre imagem grande
+1. **Grid de thumbnails**
+   - 5 colunas x N linhas
+   - Thumbnails 80x80px
+   - Click = abre image viewer
+
+2. **Image Viewer**
+   - Janela modal sobreposta
+   - Imagem em tamanho grande (fit to window)
    - Navegação ◀ / ▶
+   - ESC = fechar
+   - Background escurecido
 
-2. **Nome PT-BR editável**
-   - Campo de texto acima da capa
-   - Botão "✏️ Editar" → "Salvar"
-   - Atualiza banco ao salvar
-
-3. **Descrição editável**
-   - Textarea grande (500px altura)
-   - Scrollable
-   - Salvar = atualiza `ai_description`
-
-4. **Notas do usuário**
-   - Campo livre "Minhas Notas"
-   - Salva em `notes` (novo campo)
-   - Textarea 300px altura
-
-**Implementação Kent Beck:**
+**Implementação Kent Beck (baby steps):**
 
 ```python
-# PASSO 1: Adicionar galeria (commit 1)
+# COMMIT 1: Grid de thumbs
 class ProjectModal:
-    def _build_gallery(self):
-        # Grid de thumbs (5 colunas)
-        # Click = self._open_image_viewer(img_path)
+    def _build_gallery(self, parent_frame):
+        # Lista todas imagens do projeto
+        images = self._get_all_images()
+        
+        # Grid 5 colunas
+        for i, img_path in enumerate(images):
+            row = i // 5
+            col = i % 5
+            # Thumbnail 80x80
+            thumb_btn = self._create_thumbnail(img_path)
+            thumb_btn.grid(row=row, column=col)
 
-# PASSO 2: Nome editável (commit 2)
-def _add_editable_name(self):
-    # Entry + botão Editar/Salvar
-    # Salvar = self.database[path]["name_ptbr"] = new_name
-
-# PASSO 3: Descrição editável (commit 3)
-def _add_editable_description(self):
-    # Text widget + scrollbar
-    # Salvar = self.database[path]["ai_description"] = new_desc
-
-# PASSO 4: Notas usuário (commit 4)
-def _add_user_notes(self):
-    # Text widget
-    # Salvar = self.database[path]["notes"] = notes
+# COMMIT 2: Image viewer
+    def _open_image_viewer(self, img_path):
+        # Toplevel escurecido
+        viewer = tk.Toplevel(bg="#000000")
+        viewer.attributes("-alpha", 0.95)
+        
+        # Imagem grande
+        img = Image.open(img_path)
+        img.thumbnail((800, 600))  # fit to window
+        photo = ImageTk.PhotoImage(img)
+        
+        # Label + navegação
+        tk.Label(viewer, image=photo).pack()
+        
+        # Botões ◀ / ▶
+        # ESC = viewer.destroy()
 ```
 
 **Arquivos afetados:**
-- `ui/project_modal.py` (expandir layout)
+- `ui/project_modal.py` (adicionar galeria + viewer)
 
 **Critérios de aceitação:**
-- ✅ Galeria mostra todas as imagens do projeto
-- ✅ Nome PT-BR editável e salva
-- ✅ Descrição editável e salva
-- ✅ Notas do usuário persistem
-- ✅ Layout não quebra com conteúdo longo
+- ✅ Grid mostra todas as imagens do projeto
+- ✅ Thumbnails carregam rápido (cache)
+- ✅ Click abre image viewer
+- ✅ Navegação funciona
+- ✅ ESC fecha viewer
+- ✅ Layout não quebra com 50+ imagens
 
 ---
 
-## 🟡 FILA DE ESPERA
+## 🟡 FILA DE ESPERA (alta prioridade)
+
+### **F-01.3: Modal - Descrição Editável**
+
+**Prioridade:** 🔴 ALTA  
+**Esforço:** 🟢 Baixo  
+**Impacto:** 🟠 UX  
+
+**Kent Beck style:**
+```python
+class ProjectModal:
+    def _build_editable_description(self, parent_frame):
+        # Textarea grande (500px altura)
+        desc_text = tk.Text(parent_frame, height=20, width=60)
+        desc_text.insert("1.0", self.database[path].get("ai_description", ""))
+        
+        # Botão Salvar
+        def save():
+            new_desc = desc_text.get("1.0", "end-1c")
+            self.database[path]["ai_description"] = new_desc
+            self.db_manager.save_database()
+            messagebox.showinfo("✅", "Descrição salva!")
+        
+        tk.Button(parent_frame, text="💾 Salvar", command=save).pack()
+```
+
+**Arquivos afetados:**
+- `ui/project_modal.py` (adicionar textarea editável)
+
+---
+
+### **F-01.4: Modal - Notas do Usuário**
+
+**Prioridade:** 🟠 MÉDIA  
+**Esforço:** 🟢 Baixo  
+**Impacto:** 🟠 Workflow  
+
+**Kent Beck:**
+```python
+def _add_user_notes(self, parent_frame):
+    # Campo livre "Minhas Notas"
+    notes_text = tk.Text(parent_frame, height=10, width=60)
+    notes_text.insert("1.0", self.database[path].get("notes", ""))
+    
+    # Salvar
+    def save_notes():
+        self.database[path]["notes"] = notes_text.get("1.0", "end-1c")
+        self.db_manager.save_database()
+    
+    tk.Button(parent_frame, text="💾 Salvar Notas", command=save_notes).pack()
+```
+
+**Arquivos afetados:**
+- `ui/project_modal.py` (adicionar notas)
+
+---
 
 ### **F-03: Limpeza de Órfãos**
 
@@ -233,6 +291,47 @@ Exemplo:
 
 ---
 
+## 📌 BLOCO PENDURICALHOS (baixa prioridade)
+
+### **F-01.2: Modal - Nome PT-BR Editável**
+
+**Prioridade:** 🟢 MUITO BAIXA (📌 PENDURICALHO)  
+**Esforço:** 🟡 Médio  
+**Impacto:** 🟡 Nice-to-have  
+
+**STATUS:** ⚠️ **Implementação anterior FALHOU**
+- Tentativa de implementar tradução automática (EN → PT-BR)
+- Problema: ImportError (módulos `Translator` não funcionaram)
+- **REVERTIDO** para v3.4.0.0 estável
+- **Decisão:** Adiar para depois de todas features principais
+
+**Objetivo (para refazer no futuro):**
+Campo editável para nome traduzido em PT-BR:
+
+```python
+class ProjectModal:
+    def _build_editable_name(self, parent_frame):
+        # Entry + botão Editar/Salvar
+        name_entry = tk.Entry(parent_frame, width=50)
+        name_entry.insert(0, self.database[path].get("name_ptbr", ""))
+        
+        def save_name():
+            new_name = name_entry.get().strip()
+            self.database[path]["name_ptbr"] = new_name
+            self.db_manager.save_database()
+        
+        tk.Button(parent_frame, text="💾 Salvar", command=save_name).pack()
+```
+
+**Decisão Kent Beck:**
+> "Não é prioridade. Modal funciona bem sem isso. Deixa pro final quando tudo mais estiver pronto."
+
+**Arquivos afetados (quando refazer):**
+- `ui/project_modal.py` (adicionar campo editável)
+- `ai/text_generator.py` (SE decidir adicionar tradução automática via Ollama)
+
+---
+
 ## 🏆 FINALIZADO NA v3.4
 
 | # | Item | Descrição | Commit |
@@ -286,7 +385,7 @@ Exemplo:
 
 ### 📝 Formato de commit:
 ```bash
-Laserflix_v3.4.0.0_F-01: Modal completo - Galeria de imagens
+Laserflix_v3.4.0.0_F-01.1: Modal completo - Galeria de imagens
 
 - Adicionado grid de thumbs (5 colunas)
 - Click = abre image viewer
@@ -335,4 +434,4 @@ Laserflix_v3.4.0.0_F-01: Modal completo - Galeria de imagens
 
 **Persona ativa:** Kent Beck (Extreme Programming)  
 **Mantra:** "Simplicidade radical. Baby steps. Refatoração contínua."  
-**Última atualização:** 05/03/2026 19:52 BRT
+**Última atualização:** 05/03/2026 21:23 BRT
