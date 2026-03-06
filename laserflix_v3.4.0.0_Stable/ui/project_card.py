@@ -8,7 +8,7 @@ HOT-06c: Callback assíncrono thread-safe:
   - Previne "main thread is not in main loop"
 
 F-05: Badge de status de análise (🤖 IA / ⚡ Fallback / ⏳ Pendente)
-F-08: Menu contextual de coleções (botão direito) + Badges de coleções visíveis (SEM 📁)
+F-08: Menu contextual de coleções (botão direito) + Badges de coleções visíveis
 """
 import tkinter as tk
 from tkinter import Menu
@@ -306,7 +306,7 @@ def build_card(
               command=lambda o=origin: cb["on_set_origin"](o)
               ).pack(anchor="w", pady=(4, 0))
 
-    # F-08: Coleções (ABAIXO da origem) - SEM 📁 nos badges
+    # F-08: Coleções (ABAIXO da origem)
     get_project_collections = cb.get("get_project_collections")
     if get_project_collections:
         project_collections = get_project_collections(project_path)
@@ -321,7 +321,7 @@ def build_card(
                 
                 b = tk.Button(
                     collections_frame,
-                    text=display_name,  # F-08: Removido 📁 do badge
+                    text=f"📁 {display_name}",
                     command=lambda c=col_name: cb.get("on_set_collection", lambda x: None)(c),
                     bg=COLLECTION_COLOR,
                     fg="#FFFFFF",

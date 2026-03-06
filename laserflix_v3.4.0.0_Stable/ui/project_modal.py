@@ -1,9 +1,7 @@
 """
 ui/project_modal.py — Modal de detalhes de projeto.
 Responsabilidade única: exibir + interagir com 1 projeto.
-Teto: 400 linhas.
-
-F-08: Seção Coleções visível no modal
+Teto: 350 linhas.
 """
 import os
 import threading
@@ -53,10 +51,6 @@ class ProjectModal:
         self._cache    = cache
         self._scanner  = scanner
         self._modal    = None
-        # F-08: Obtém collections_manager do main_window (via callback)
-        self._collections_manager = getattr(root, 'master', root).children.get('!laserflixmainwindow', None)
-        if self._collections_manager:
-            self._collections_manager = getattr(self._collections_manager, 'collections_manager', None)
 
     def open(self) -> None:
         data      = self._database.get(self._path, {})
@@ -203,41 +197,6 @@ class ProjectModal:
             t.bind("<Leave>", lambda e, w=t: w.config(bg=BC, fg=FS))
             t.bind("<Button-1>",
                    lambda e, tg=tag: (modal.destroy(), self._cb["on_set_tag"](tg)))
-
-        # F-08: Coleções
-        _sep(); _section("Coleções")
-        colls_row = tk.Frame(lp, bg=BG)
-        colls_row.pack(anchor="w", padx=P, fill="x", pady=(0, 4))
-        
-        # Obtém collections_manager via root (hackish mas funcional)
-        try:
-            # Busca o main_window para acessar collections_manager
-            main_window = None
-            parent = self._root
-            while parent:
-                if hasattr(parent, 'collections_manager'):
-                    main_window = parent
-                    break
-                parent = parent.master
-            
-            if main_window and hasattr(main_window, 'collections_manager'):
-                collections_manager = main_window.collections_manager
-                project_collections = collections_manager.get_project_collections(self._path)
-                
-                if project_collections:
-                    for coll_name in project_collections:
-                        tk.Label(colls_row, text=coll_name, font=self._F_SMALL,
-                                 bg="#1A2A3A", fg="#88CCFF",
-                                 padx=10, pady=5).pack(side="left", padx=(0, 6), pady=2)
-                else:
-                    tk.Label(colls_row, text="Nenhuma coleção",
-                             font=self._F_SMALL, bg=BG, fg=FT).pack(anchor="w")
-            else:
-                tk.Label(colls_row, text="Nenhuma coleção",
-                         font=self._F_SMALL, bg=BG, fg=FT).pack(anchor="w")
-        except Exception:
-            tk.Label(colls_row, text="Nenhuma coleção",
-                     font=self._F_SMALL, bg=BG, fg=FT).pack(anchor="w")
 
         # Arquivos
         _sep(); _section("Arquivos")
