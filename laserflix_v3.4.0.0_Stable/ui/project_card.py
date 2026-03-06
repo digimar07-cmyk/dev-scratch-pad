@@ -1,6 +1,6 @@
 """
 ui/project_card.py — Factory de card de projeto.
-Função pura. Teto: 150 linhas.
+Função pura. Teto: 200 linhas.
 
 HOT-06c: Callback assíncrono thread-safe:
   - Passa widget (placeholder) para get_cover_image_async
@@ -8,8 +8,10 @@ HOT-06c: Callback assíncrono thread-safe:
   - Previne "main thread is not in main loop"
 
 F-05: Badge de status de análise (🤖 IA / ⚡ Fallback / ⏳ Pendente)
+F-08: Menu contextual de coleções (botão direito)
 """
 import tkinter as tk
+from tkinter import Menu
 
 from config.card_layout import CARD_W, CARD_H, COVER_H, CARD_PAD
 from config.ui_constants import (
@@ -78,6 +80,81 @@ def _create_analysis_badge(parent: tk.Frame, data: dict) -> None:
     badge.bind("<Enter>", _show_tooltip)
 
 
+def _create_context_menu(widget: tk.Widget, project_path: str, cb: dict) -> None:
+    """
+    F-08: Cria menu contextual (botão direito) para gerenciar coleções.
+    
+    Callbacks esperados:
+        on_add_to_collection(path, collection_name)
+        on_remove_from_collection(path, collection_name)
+        on_new_collection_with(path)
+        get_collections() -> list[str]
+        get_project_collections(path) -> list[str]
+    """
+    def _show_menu(event):
+        menu = Menu(widget, tearoff=0, bg="#2E2E4E", fg="#FFFFFF",
+                    activebackground="#4A4A6E", activeforeground="#FFFFFF",
+                    font=("Arial", 10))
+        
+        # Obtém coleções disponíveis
+        all_collections = cb.get("get_collections", lambda: [])() or []
+        project_collections = cb.get("get_project_collections", lambda p: [])(project_path) or []
+        
+        # Submenu "Adicionar à coleção"
+        if all_collections:
+            add_menu = Menu(menu, tearoff=0, bg="#2E2E4E", fg="#FFFFFF",
+                            activebackground="#4A4A6E", activeforeground="#FFFFFF",
+                            font=("Arial", 9))
+            
+            for col_name in sorted(all_collections):
+                # Marca se já está na coleção
+                is_in = col_name in project_collections
+                label = f"✓ {col_name}" if is_in else f"  {col_name}"
+                
+                # Se já está na coleção, desabilita
+                state = "disabled" if is_in else "normal"
+                
+                add_menu.add_command(
+                    label=label,
+                    command=lambda c=col_name: cb["on_add_to_collection"](project_path, c),
+                    state=state
+                )
+            
+            menu.add_cascade(label="➕ Adicionar à coleção", menu=add_menu)
+        else:
+            menu.add_command(label="📁 Nenhuma coleção disponível", state="disabled")
+        
+        # Opção "Remover de coleção" (só se pertence a alguma)
+        if project_collections:
+            remove_menu = Menu(menu, tearoff=0, bg="#2E2E4E", fg="#FFFFFF",
+                               activebackground="#4A4A6E", activeforeground="#FFFFFF",
+                               font=("Arial", 9))
+            
+            for col_name in sorted(project_collections):
+                remove_menu.add_command(
+                    label=col_name,
+                    command=lambda c=col_name: cb["on_remove_from_collection"](project_path, c)
+                )
+            
+            menu.add_cascade(label="➖ Remover de coleção", menu=remove_menu)
+        
+        menu.add_separator()
+        
+        # Opção "Nova coleção com este projeto"
+        menu.add_command(
+            label="🆕 Nova coleção com este projeto",
+            command=lambda: cb["on_new_collection_with"](project_path)
+        )
+        
+        # Mostra menu na posição do mouse
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+    
+    widget.bind("<Button-3>", _show_menu)  # Botão direito
+
+
 def build_card(
     parent: tk.Widget,
     project_path: str,
@@ -89,6 +166,13 @@ def build_card(
 ) -> tk.Frame:
     """
     Constrói um card de projeto.
+    
+    Callbacks esperados (F-08):
+        on_add_to_collection(path, collection_name)
+        on_remove_from_collection(path, collection_name)
+        on_new_collection_with(path)
+        get_collections() -> list[str]
+        get_project_collections(path) -> list[str]
     
     Returns:
         tk.Frame: Widget do card criado (para virtual scroll)
@@ -108,6 +192,9 @@ def build_card(
     inner = tk.Frame(card, bg=BG_CARD)
     inner.pack(fill="both", expand=True, padx=2 if is_selected else 0, pady=2 if is_selected else 0)
 
+    # F-08: Menu contextual (botão direito) para coleções
+    _create_context_menu(inner, project_path, cb)
+
     # Checkbox de seleção (canto sup. esq. — só no modo seleção)
     if selection_mode:
         chk_var = tk.BooleanVar(value=is_selected)
@@ -126,6 +213,9 @@ def build_card(
     cover_frm.pack(fill="x")
     cover_frm.pack_propagate(False)
     cover_frm.bind("<Button-1>", _open_or_select)
+    
+    # F-08: Menu contextual na capa também
+    _create_context_menu(cover_frm, project_path, cb)
 
     # ← NOVO: Carregamento assíncrono de thumbnail
     # Placeholder instantâneo
@@ -133,6 +223,9 @@ def build_card(
                            bg=BG_SECONDARY, fg=FG_TERTIARY, cursor="hand2")
     placeholder.pack(expand=True)
     placeholder.bind("<Button-1>", _open_or_select)
+    
+    # F-08: Menu contextual no placeholder também
+    _create_context_menu(placeholder, project_path, cb)
     
     # F-05: Badge de status de análise (sobre a capa)
     _create_analysis_badge(cover_frm, data)
@@ -156,6 +249,9 @@ def build_card(
     # Info
     info = tk.Frame(inner, bg=BG_CARD)
     info.pack(fill="both", expand=True, padx=8, pady=6)
+    
+    # F-08: Menu contextual na área de info também
+    _create_context_menu(info, project_path, cb)
 
     name = data.get("name", "Sem nome")
     nm = (name[:CARD_NAME_TRUNCATE_AT] + "...") if len(name) > CARD_NAME_MAX_LENGTH else name
@@ -164,6 +260,7 @@ def build_card(
                   wraplength=CARD_W - 20, justify="left", cursor="hand2")
     nl.pack(anchor="w")
     nl.bind("<Button-1>", _open_or_select)
+    _create_context_menu(nl, project_path, cb)  # F-08: Menu no nome
 
     # Categorias
     raw_cats = data.get("categories", []) or []
