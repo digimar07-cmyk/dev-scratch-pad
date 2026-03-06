@@ -1,9 +1,12 @@
 """
 Gerenciador de análises IA de projetos.
 Encapsula toda a lógica de análise, progresso e callbacks.
+
+S-05: Thread watchdog para timeout automático (120s)
 """
 import os
 import threading
+import time
 from typing import Callable, Optional, List, Dict, Any
 
 from config.settings import FAST_MODEL_THRESHOLD
@@ -14,7 +17,12 @@ class AnalysisManager:
     """
     Gerencia análises de projetos com IA.
     Separa lógica de análise da UI.
+    
+    S-05: Watchdog protege contra travamentos (timeout 120s).
     """
+    
+    # S-05: Timeout para análise de projeto individual
+    ANALYSIS_TIMEOUT = 120  # segundos
     
     def __init__(self, text_generator, db_manager, ollama_client):
         """
@@ -34,11 +42,60 @@ class AnalysisManager:
         self.is_analyzing = False
         self.should_stop = False
         
+        # S-05: Watchdog state
+        self._current_project_start: Optional[float] = None
+        self._current_project_path: Optional[str] = None
+        self._watchdog_thread: Optional[threading.Thread] = None
+        self._watchdog_active = False
+        
         # Callbacks (conecta com UI)
         self.on_progress: Optional[Callable[[int, int, str], None]] = None
         self.on_start: Optional[Callable[[], None]] = None
         self.on_complete: Optional[Callable[[int, int], None]] = None
         self.on_error: Optional[Callable[[str], None]] = None
+    
+    def _start_watchdog(self, project_path: str) -> None:
+        """
+        S-05: Inicia watchdog para projeto atual.
+        Monitora timeout e cancela se necessário.
+        """
+        self._current_project_path = project_path
+        self._current_project_start = time.time()
+        
+        if self._watchdog_thread and self._watchdog_thread.is_alive():
+            return  # Já ativo
+        
+        self._watchdog_active = True
+        
+        def _watchdog():
+            while self._watchdog_active:
+                time.sleep(5)  # Verifica a cada 5s
+                
+                if not self._current_project_start:
+                    continue
+                
+                elapsed = time.time() - self._current_project_start
+                
+                if elapsed > self.ANALYSIS_TIMEOUT:
+                    name = os.path.basename(self._current_project_path or "unknown")
+                    self.logger.warning(
+                        "⏰ TIMEOUT: Análise de '%s' travou após %.0fs. Cancelando...",
+                        name, elapsed
+                    )
+                    self.stop()
+                    self._stop_watchdog()
+                    break
+        
+        self._watchdog_thread = threading.Thread(target=_watchdog, daemon=True)
+        self._watchdog_thread.start()
+    
+    def _stop_watchdog(self) -> None:
+        """
+        S-05: Para watchdog após análise concluir/cancelar.
+        """
+        self._watchdog_active = False
+        self._current_project_start = None
+        self._current_project_path = None
     
     def analyze_single(self, project_path: str, database: Dict[str, Any]) -> None:
         """
@@ -64,7 +121,13 @@ class AnalysisManager:
         
         def _worker():
             try:
+                # S-05: Inicia watchdog
+                self._start_watchdog(project_path)
+                
                 cats, tags = self.text_generator.analyze_project(project_path, batch_size=1)
+                
+                # S-05: Para watchdog após sucesso
+                self._stop_watchdog()
                 
                 if project_path in database:
                     database[project_path]["categories"] = cats
@@ -78,6 +141,7 @@ class AnalysisManager:
                     self.on_complete(1, 0)
                     
             except Exception as e:
+                self._stop_watchdog()  # S-05: Para watchdog em erro
                 self.logger.exception("Erro em analyze_single: %s", e)
                 if self.on_error:
                     self.on_error(f"Erro ao analisar {name}: {str(e)}")
@@ -147,8 +211,14 @@ class AnalysisManager:
                 
                 # Analisa
                 try:
+                    # S-05: Inicia watchdog para este projeto
+                    self._start_watchdog(project_path)
+                    
                     cats, tags = self.text_generator.analyze_project(
                         project_path, batch_size=batch_size)
+                    
+                    # S-05: Para watchdog após sucesso
+                    self._stop_watchdog()
                     
                     if project_path in database:
                         # Determina modelo usado
@@ -168,8 +238,12 @@ class AnalysisManager:
                         self.logger.info("Auto-save: %d/%d projetos", done, total)
                 
                 except Exception as e:
+                    self._stop_watchdog()  # S-05: Para watchdog em erro
                     self.logger.exception("Erro ao analisar %s: %s", project_path, e)
                     skipped += 1
+            
+            # S-05: Garante que watchdog está parado
+            self._stop_watchdog()
             
             # Save final
             self.db_manager.save_database()
@@ -188,6 +262,7 @@ class AnalysisManager:
         """Para a análise em andamento."""
         self.should_stop = True
         self.ollama.stop_flag = True
+        self._stop_watchdog()  # S-05: Para watchdog também
         self.logger.info("Solicitado parada da análise")
     
     def get_unanalyzed_projects(self, database: Dict[str, Any]) -> List[str]:
