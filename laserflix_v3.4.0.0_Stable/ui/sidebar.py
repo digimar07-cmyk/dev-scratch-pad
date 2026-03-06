@@ -2,7 +2,9 @@
 ui/sidebar.py — Painel lateral do Laserflix.
 Responsabilidade única: renderizar e atualizar a sidebar.
 Nunca acessa o banco diretamente — recebe `database` via refresh().
-Teto: 200 linhas.
+Teto: 250 linhas.
+
+F-08: Seção de Coleções (filtros + gerenciamento)
 """
 import tkinter as tk
 from tkinter import ttk
@@ -24,6 +26,8 @@ class SidebarPanel:
         on_category(cats_list, btn)     — clique em categoria
         on_tag(tag, btn)                — clique em tag
         on_more_categories()            — botão "+ Ver mais"
+        on_collection(name, btn)        — F-08: clique em coleção
+        on_manage_collections()         — F-08: botão "Gerenciar"
     """
 
     def __init__(self, parent: tk.Widget, cb: dict):
@@ -32,18 +36,28 @@ class SidebarPanel:
         self._canvas = None
         self._content = None
         self._origins_frame = None
+        self._collections_frame = None  # F-08: Nova seção
         self._categories_frame = None
         self._tags_frame = None
+        self._collections_manager = None  # F-08: Referência ao manager
         self._build(parent)
 
     # ------------------------------------------------------------------
     # API pública
     # ------------------------------------------------------------------
 
-    def refresh(self, database: dict) -> None:
-        """Atualiza toda a sidebar com o banco atual. Chame sempre que o banco mudar."""
+    def refresh(self, database: dict, collections_manager=None) -> None:
+        """
+        Atualiza toda a sidebar com o banco atual. Chame sempre que o banco mudar.
+        
+        Args:
+            database: Banco de dados de projetos
+            collections_manager: F-08: Manager de coleções (opcional)
+        """
         self._database = database
+        self._collections_manager = collections_manager  # F-08
         self._update_origins()
+        self._update_collections()  # F-08
         self._update_categories()
         self._update_tags()
         self._bind_scroll(self._content)
@@ -87,10 +101,12 @@ class SidebarPanel:
             lambda e: self._canvas.yview_scroll(int(-1 * (e.delta / SCROLL_SPEED)), "units"),
         )
 
+        # F-08: Adicionada seção Coleções entre Origem e Categorias
         for title, attr in [
-            ("\U0001f310 Origem",             "_origins_frame"),
-            ("\U0001f4c2 Categorias",          "_categories_frame"),
-            ("\U0001f3f7\ufe0f Tags Populares", "_tags_frame"),
+            ("🌐 Origem",             "_origins_frame"),
+            ("📁 Coleções",           "_collections_frame"),  # F-08: Nova seção
+            ("📂 Categorias",          "_categories_frame"),
+            ("🏷️ Tags Populares", "_tags_frame"),
         ]:
             tk.Label(self._content, text=title, font=("Arial", 14, "bold"),
                      bg=BG_SECONDARY, fg=FG_PRIMARY, anchor="w"
@@ -126,6 +142,59 @@ class SidebarPanel:
             btn.bind("<Enter>",  lambda e, b=btn: b.config(bg=BG_CARD)     if b is not self._active_btn else None)
             btn.bind("<Leave>", lambda e, b=btn: b.config(bg=BG_SECONDARY) if b is not self._active_btn else None)
         self._bind_scroll(self._origins_frame)
+
+    def _update_collections(self) -> None:
+        """
+        F-08: Atualiza seção de coleções.
+        Lista todas as coleções com contador de projetos.
+        Botão "Gerenciar" para abrir dialog.
+        """
+        for w in self._collections_frame.winfo_children():
+            w.destroy()
+        
+        # Se não tem manager, mostra mensagem
+        if not self._collections_manager:
+            tk.Label(
+                self._collections_frame,
+                text="Aguardando...",
+                bg=BG_SECONDARY, fg=FG_TERTIARY, font=("Arial", 10, "italic"),
+                anchor="w", padx=15, pady=10
+            ).pack(fill="x")
+            return
+        
+        collections = self._collections_manager.get_all_collections()
+        
+        if not collections:
+            tk.Label(
+                self._collections_frame,
+                text="Nenhuma coleção",
+                bg=BG_SECONDARY, fg=FG_TERTIARY, font=("Arial", 10, "italic"),
+                anchor="w", padx=15, pady=10
+            ).pack(fill="x")
+        else:
+            for collection_name in collections:
+                size = self._collections_manager.get_collection_size(collection_name)
+                btn = tk.Button(
+                    self._collections_frame,
+                    text=f"📁 {collection_name} ({size})",
+                    bg=BG_SECONDARY, fg="#88CCFF", font=("Arial", 10),
+                    relief="flat", cursor="hand2", anchor="w", padx=15, pady=8,
+                )
+                btn.config(command=lambda n=collection_name, b=btn: self._cb["on_collection"](n, b))
+                btn.pack(fill="x", pady=2)
+                btn.bind("<Enter>",  lambda e, b=btn: b.config(bg=BG_CARD)     if b is not self._active_btn else None)
+                btn.bind("<Leave>", lambda e, b=btn: b.config(bg=BG_SECONDARY) if b is not self._active_btn else None)
+        
+        # Botão "Gerenciar" sempre visível
+        tk.Button(
+            self._collections_frame,
+            text="⚙️ Gerenciar",
+            bg=BG_CARD, fg="#888888", font=("Arial", 9),
+            relief="flat", cursor="hand2", anchor="w", padx=15, pady=6,
+            command=self._cb["on_manage_collections"],
+        ).pack(fill="x", pady=(4, 2))
+        
+        self._bind_scroll(self._collections_frame)
 
     def _update_categories(self) -> None:
         for w in self._categories_frame.winfo_children():
