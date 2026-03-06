@@ -20,6 +20,7 @@ F-08: Sistema de coleções/playlists (gerenciamento + filtros + menu contextual
 
 PERF-FIX-1: Removido search_var.set("") de set_filter() (300ms debounce eliminado)
 PERF-FIX-2: Indicadores visuais de filtro ativo no header (🏠⭐✓👍👎 ficam vermelhos)
+PERF-FIX-3: Cache de estado + skip rebuild desnecessário (cliques repetidos)
 """
 import os
 import threading
@@ -102,6 +103,10 @@ class LaserflixMainWindow:
         self.items_per_page = 36
         self.current_page   = 1
         self.total_pages    = 1
+        
+        # PERF-FIX-3: Cache de último estado renderizado
+        self._last_display_state = None
+        self._force_rebuild = False  # Flag para forçar rebuild quando necessário
 
         self.import_manager = RecursiveImportManager(
             parent=self.root, database=self.database,
@@ -115,7 +120,7 @@ class LaserflixMainWindow:
         self.root.configure(bg=BG_PRIMARY)
         self._build_ui()
         self.display_projects()
-        self.logger.info("✨ Laserflix v%s iniciado (busca bilíngue + filtros empilháveis + coleções)", VERSION)
+        self.logger.info("✨ Laserflix v%s iniciado (busca bilíngue + filtros empilháveis + coleções + cache)", VERSION)
 
     def __del__(self):
         if hasattr(self, 'thumbnail_preloader'):
@@ -240,6 +245,65 @@ class LaserflixMainWindow:
         self.root.bind("<Right>", lambda e: self.next_page())
         self.root.bind("<Home>", lambda e: self.first_page())
         self.root.bind("<End>", lambda e: self.last_page())
+
+    # =========================================================================
+    # PERF-FIX-3: CACHE DE ESTADO + DETECÇÃO DE MUDANÇA
+    # =========================================================================
+
+    def _get_current_display_state(self) -> dict:
+        """
+        PERF-FIX-3: Captura estado atual para detecção de mudança.
+        Se estado é idêntico ao anterior, skip rebuild.
+        """
+        return {
+            "filter": self.current_filter,
+            "origin": self.current_origin,
+            "categories": tuple(sorted(self.current_categories)),
+            "tag": self.current_tag,
+            "search": self.search_query,
+            "sort": self.current_sort,
+            "page": self.current_page,
+            "active_filters": tuple((f["type"], f["value"]) for f in self.active_filters),
+            "selection_mode": self._selection_mode,
+            # Hash simplificado do database (conta de projetos por estado)
+            "db_hash": (
+                len(self.database),
+                sum(1 for d in self.database.values() if d.get("favorite")),
+                sum(1 for d in self.database.values() if d.get("done")),
+            )
+        }
+
+    def _should_rebuild(self) -> bool:
+        """
+        PERF-FIX-3: Retorna True se rebuild é necessário.
+        False = estado idêntico, skip rebuild.
+        """
+        if self._force_rebuild:
+            self._force_rebuild = False  # Reset flag
+            return True
+        
+        current_state = self._get_current_display_state()
+        
+        if self._last_display_state is None:
+            # Primeiro rebuild sempre necessário
+            self._last_display_state = current_state
+            return True
+        
+        if current_state == self._last_display_state:
+            # Estado idêntico: SKIP!
+            self.logger.debug("⚡ SKIP rebuild: estado idêntico")
+            return False
+        
+        # Estado mudou: rebuild necessário
+        self._last_display_state = current_state
+        return True
+
+    def _invalidate_cache(self) -> None:
+        """
+        PERF-FIX-3: Força próximo rebuild (após operações críticas).
+        Use em: import, delete, toggle fav/done, etc.
+        """
+        self._force_rebuild = True
 
     # =========================================================================
     # F-07: FILTROS EMPILHÁVEIS (CHIPS)
@@ -384,16 +448,19 @@ class LaserflixMainWindow:
             self._selected_paths.add(path)
         n = len(self._selected_paths)
         self._sel_count_lbl.config(text=f"{n} selecionado(s)")
+        self._invalidate_cache()  # PERF-FIX-3: Força rebuild (seleção mudou)
         self.display_projects()
 
     def _select_all(self) -> None:
         self._selected_paths = set(self.get_filtered_projects())
         self._sel_count_lbl.config(text=f"{len(self._selected_paths)} selecionado(s)")
+        self._invalidate_cache()  # PERF-FIX-3
         self.display_projects()
 
     def _deselect_all(self) -> None:
         self._selected_paths.clear()
         self._sel_count_lbl.config(text="0 selecionado(s)")
+        self._invalidate_cache()  # PERF-FIX-3
         self.display_projects()
 
     def _remove_selected(self) -> None:
@@ -420,6 +487,7 @@ class LaserflixMainWindow:
         self._sel_bar.pack_forget()
         self.header.set_select_btn_active(False)
         self.sidebar.refresh(self.database, self.collections_manager)  # F-08: Passa manager
+        self._invalidate_cache()  # PERF-FIX-3: Database mudou
         self.display_projects()
         self.status_bar.config(text=f"🗑️ {n} projeto(s) removido(s) do banco.")
 
@@ -431,6 +499,7 @@ class LaserflixMainWindow:
             # F-08: Limpa órfãos de coleções quando projeto é removido
             self.collections_manager.clean_orphan_projects(set(self.database.keys()))
             self.sidebar.refresh(self.database, self.collections_manager)  # F-08: Passa manager
+            self._invalidate_cache()  # PERF-FIX-3: Database mudou
             self.display_projects()
             self.status_bar.config(text=f"🗑️ '{name}' removido do banco.")
 
@@ -478,6 +547,7 @@ class LaserflixMainWindow:
         # F-08: Limpa órfãos de coleções
         self.collections_manager.clean_orphan_projects(set(self.database.keys()))
         self.sidebar.refresh(self.database, self.collections_manager)  # F-08: Passa manager
+        self._invalidate_cache()  # PERF-FIX-3: Database mudou
         self.display_projects()
         self.status_bar.config(text=f"🧼 {len(orphans)} órfão(s) removido(s) do banco.")
         
@@ -505,6 +575,7 @@ class LaserflixMainWindow:
         )
         # Refresh sidebar após fechar dialog (coleções podem ter mudado)
         self.sidebar.refresh(self.database, self.collections_manager)
+        self._invalidate_cache()  # PERF-FIX-3: Coleções podem ter mudado
 
     def _on_collection_filter(self, collection_name: str, btn=None) -> None:
         """
@@ -529,6 +600,7 @@ class LaserflixMainWindow:
         self.status_bar.config(text=f"✅ '{name}' adicionado à coleção '{collection_name}'")
         self.sidebar.refresh(self.database, self.collections_manager)
         # F-08: Atualiza display para mostrar badge no card
+        self._invalidate_cache()  # PERF-FIX-3: Coleções mudaram
         self.display_projects()
 
     def _on_remove_from_collection(self, project_path: str, collection_name: str) -> None:
@@ -538,6 +610,7 @@ class LaserflixMainWindow:
         self.status_bar.config(text=f"🗑️ '{name}' removido da coleção '{collection_name}'")
         self.sidebar.refresh(self.database, self.collections_manager)
         # Se estava filtrando por esta coleção, atualiza display
+        self._invalidate_cache()  # PERF-FIX-3: Coleções mudaram
         if any(f["type"] == "collection" and f["value"] == collection_name for f in self.active_filters):
             self.display_projects()
         else:
@@ -574,13 +647,19 @@ class LaserflixMainWindow:
         self.status_bar.config(text=f"📁 Coleção '{name}' criada com '{project_name}'")
         self.sidebar.refresh(self.database, self.collections_manager)
         # F-08: Atualiza display para mostrar badge no card
+        self._invalidate_cache()  # PERF-FIX-3: Coleções mudaram
         self.display_projects()
 
     # =========================================================================
-    # PAGINAÇÃO SIMPLES (HOT-08 / HOT-13)
+    # PAGINAÇÃO SIMPLES (HOT-08 / HOT-13) + PERF-FIX-3
     # =========================================================================
 
     def display_projects(self) -> None:
+        # PERF-FIX-3: Verifica se rebuild é necessário
+        if not self._should_rebuild():
+            self.logger.debug("⚡ SKIP display_projects: estado idêntico")
+            return  # Estado idêntico, não faz nada!
+        
         for w in self.scrollable_frame.winfo_children():
             w.destroy()
         
@@ -956,6 +1035,7 @@ class LaserflixMainWindow:
         if path in self.database:
             self.database[path][key] = value
             self.db_manager.save_database()
+            self._invalidate_cache()  # PERF-FIX-3: Database mudou
             self.display_projects()
 
     def _modal_generate_desc(self, path, desc_lbl, gen_btn, modal) -> None:
@@ -986,6 +1066,7 @@ class LaserflixMainWindow:
             self.database[path]["analyzed"] = True
             self.db_manager.save_database()
             self.sidebar.refresh(self.database, self.collections_manager)  # F-08: Passa manager
+            self._invalidate_cache()  # PERF-FIX-3: Database mudou
             self.display_projects()
             self.status_bar.config(text="✓ Projeto atualizado!")
 
@@ -998,6 +1079,7 @@ class LaserflixMainWindow:
             nv = not self.database[path].get("favorite", False)
             self.database[path]["favorite"] = nv
             self.db_manager.save_database()
+            self._invalidate_cache()  # PERF-FIX-3: Database mudou
             if btn: btn.config(text="⭐" if nv else "☆", fg=ACCENT_GOLD if nv else FG_TERTIARY)
 
     def toggle_done(self, path, btn=None) -> None:
@@ -1005,6 +1087,7 @@ class LaserflixMainWindow:
             nv = not self.database[path].get("done", False)
             self.database[path]["done"] = nv
             self.db_manager.save_database()
+            self._invalidate_cache()  # PERF-FIX-3: Database mudou
             if btn: btn.config(text="✓" if nv else "○", fg="#00FF00" if nv else FG_TERTIARY)
 
     def toggle_good(self, path, btn=None) -> None:
@@ -1013,6 +1096,7 @@ class LaserflixMainWindow:
             self.database[path]["good"] = nv
             if nv: self.database[path]["bad"] = False
             self.db_manager.save_database()
+            self._invalidate_cache()  # PERF-FIX-3: Database mudou
             if btn: btn.config(fg="#00FF00" if nv else FG_TERTIARY)
 
     def toggle_bad(self, path, btn=None) -> None:
@@ -1021,6 +1105,7 @@ class LaserflixMainWindow:
             self.database[path]["bad"] = nv
             if nv: self.database[path]["good"] = False
             self.db_manager.save_database()
+            self._invalidate_cache()  # PERF-FIX-3: Database mudou
             if btn: btn.config(fg="#FF0000" if nv else FG_TERTIARY)
 
     # =========================================================================
@@ -1035,6 +1120,7 @@ class LaserflixMainWindow:
 
     def _on_analysis_complete(self, done, skipped) -> None:
         self.hide_progress_ui(); self.sidebar.refresh(self.database, self.collections_manager)
+        self._invalidate_cache()  # PERF-FIX-3: Database mudou
         self.display_projects()
         msg = f"✅ Análise concluída: {done} projeto(s)"
         if skipped: msg += f" ({skipped} pulados)"
@@ -1094,6 +1180,7 @@ class LaserflixMainWindow:
                 except Exception as e:
                     self.logger.error("Erro desc %s: %s", path, e); skipped += 1
             self.db_manager.save_database(); self.hide_progress_ui()
+            self._invalidate_cache()  # PERF-FIX-3: Database mudou
             self.display_projects()
             msg = f"✅ {done} descrição(oes) gerada(s)"
             if skipped: msg += f" ({skipped} puladas)"
@@ -1183,6 +1270,7 @@ class LaserflixMainWindow:
             self.db_manager.load_database()
             self.database = self.db_manager.database
             self.sidebar.refresh(self.database, self.collections_manager)  # F-08: Passa manager
+            self._invalidate_cache()  # PERF-FIX-3: Database mudou
             self.display_projects()
             messagebox.showinfo("✅ Importado", "Banco importado com sucesso!")
 
@@ -1196,5 +1284,6 @@ class LaserflixMainWindow:
         self.db_manager.save_database()
         self.sidebar.refresh(self.database, self.collections_manager)  # F-08: Passa manager
         self.current_page = 1
+        self._invalidate_cache()  # PERF-FIX-3: Database mudou
         self.display_projects()
         self.status_bar.config(text="✅ Importação concluída!")
