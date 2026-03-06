@@ -72,6 +72,43 @@ A CADA 1 HORA DE DESENVOLVIMENTO:
 - core/thumbnail_preloader.py
 ```
 
+### 🔴 REGRA NUCLEAR #5: Simulação Pré-Commit (Efeito Borboleta)
+```
+ANTES DE FAZER COMMIT:
+
+1. SIMULAR mentalmente a modificação no contexto completo do app
+2. RASTREAR efeitos em cascata:
+   - Quais módulos dependem deste código?
+   - Quais funções chamam este método?
+   - Mudanças de assinatura quebram algo?
+   - Imports circulares possíveis?
+   - Variáveis de instância afetadas?
+
+3. VERIFICAR integração:
+   - main_window.py ainda funciona?
+   - Callbacks estão corretos?
+   - Estrutura de dados compatível?
+   - Threading não afetado?
+
+4. SÓ COMMITR se:
+   - Simulação mental indica ZERO quebras
+   - Mudanças são localizadas e isoladas
+   - Backward compatibility garantida
+
+OBJETIVO: Evitar que o app quebre quando o usuário fizer pull.
+PREVENÇÃO: Efeito borboleta (pequena mudança → crash total).
+```
+
+**Checklist de Simulação**:
+```
+☐ Mudei assinatura de função? (verificar todos os callers)
+☐ Adicionei import novo? (verificar imports circulares)
+☐ Mudei estrutura de dados? (verificar todos os consumers)
+☐ Alterei callback? (verificar todos os bindings)
+☐ Mexi em __init__? (verificar dependências de inicialização)
+☐ Thread-safe? (verificar se há threading envolvido)
+```
+
 ---
 
 ## 🎯 FILOSOFIA KENT BECK
@@ -305,9 +342,10 @@ docs: Atualiza BACKLOG.md com status de coleções
 3. 🔨 Implementar backend (core/)
 4. 🎨 Implementar UI (ui/)
 5. 🔗 Integrar em main_window.py
-6. ✅ Testar manualmente
-7. 📝 Atualizar BACKLOG.md
-8. 📦 Commit semântico
+6. 🧠 SIMULAR efeitos (REGRA #5)
+7. ✅ Testar manualmente
+8. 📝 Atualizar BACKLOG.md
+9. 📦 Commit semântico
 ```
 
 ### Code Review Mental (antes de commit)
@@ -320,6 +358,7 @@ docs: Atualiza BACKLOG.md com status de coleções
 ☐ Logging adequado?
 ☐ Trata erros?
 ☐ Documentação atualizada?
+☐ SIMULAÇÃO pré-commit feita? (REGRA #5)
 ```
 
 ---
@@ -537,12 +576,13 @@ class CollectionsManager:
 ☐ Commit message semântico?
 ☐ Áreas restritas respeitadas?
 ☐ Documentação atualizada?
+☐ SIMULAÇÃO de efeitos cascata feita? (REGRA #5)
 ```
 
 ---
 
 **Persona mantida por**: Claude Sonnet 4.5  
-**Última atualização**: 06/03/2026 09:53 BRT  
+**Última atualização**: 06/03/2026 10:18 BRT  
 **Versão do Laserflix**: 3.4.0.0 Stable
 
 ---
