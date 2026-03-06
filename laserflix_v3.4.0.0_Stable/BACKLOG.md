@@ -27,144 +27,82 @@
 
 ## 👉 PRÓXIMA TAREFA
 
-### 🔴 **F-01.3: Modal - Descrição Editável**
-
-**Prioridade:** 🔴 ALTA  
-**Esforço:** 🟢 Baixo  
-**Impacto:** 🟠 UX  
-**Estilo Kent Beck:** ✅ Um campo por vez, testar entre cada  
-
-**Objetivo:**
-Permitir edição da descrição gerada pela IA diretamente no modal.
-
-**Implementação Kent Beck (simples):**
-
-```python
-class ProjectModal:
-    def _build_editable_description(self, parent_frame):
-        # Frame container
-        desc_frame = tk.Frame(parent_frame, bg=BG_PRIMARY)
-        desc_frame.pack(fill="both", expand=True, pady=10)
-        
-        # Label "Descrição"
-        tk.Label(desc_frame, text="📝 Descrição do Projeto",
-                 font=("Arial", 12, "bold"), bg=BG_PRIMARY, fg=FG_PRIMARY
-                 ).pack(anchor="w", pady=(0, 5))
-        
-        # Textarea grande (500px altura) com scrollbar
-        desc_text = tk.Text(desc_frame, height=20, width=60,
-                           bg=BG_CARD, fg=FG_PRIMARY,
-                           font=("Arial", 10), wrap="word")
-        scrollbar = tk.Scrollbar(desc_frame, command=desc_text.yview)
-        desc_text.config(yscrollcommand=scrollbar.set)
-        
-        # Carrega texto existente
-        current_desc = self.database[self.path].get("ai_description", "")
-        desc_text.insert("1.0", current_desc)
-        
-        desc_text.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-        
-        # Botão Salvar
-        def save_description():
-            new_desc = desc_text.get("1.0", "end-1c").strip()
-            self.database[self.path]["ai_description"] = new_desc
-            self.db_manager.save_database()
-            messagebox.showinfo("✅ Salvo", "Descrição atualizada com sucesso!")
-        
-        tk.Button(desc_frame, text="💾 Salvar Descrição",
-                  command=save_description,
-                  bg=ACCENT_GREEN, fg=FG_PRIMARY,
-                  font=("Arial", 10, "bold"),
-                  relief="flat", cursor="hand2",
-                  padx=14, pady=8
-                  ).pack(pady=(10, 0))
-```
-
-**Arquivos afetados:**
-- `ui/project_modal.py` (adicionar textarea editável)
-
-**Critérios de aceitação:**
-- ✅ Textarea mostra descrição atual
-- ✅ Permite edição de texto
-- ✅ Botão salva no banco de dados
-- ✅ Feedback visual após salvar
-- ✅ Layout não quebra com texto longo
-
----
-
-## 🟡 FILA DE ESPERA (alta prioridade)
-
-### **F-01.4: Modal - Notas do Usuário**
-
-**Prioridade:** 🟠 MÉDIA  
-**Esforço:** 🟢 Baixo  
-**Impacto:** 🟠 Workflow  
-
-**Kent Beck:**
-```python
-def _add_user_notes(self, parent_frame):
-    # Campo livre "Minhas Notas"
-    notes_frame = tk.Frame(parent_frame, bg=BG_PRIMARY)
-    notes_frame.pack(fill="both", pady=10)
-    
-    tk.Label(notes_frame, text="📋 Minhas Notas",
-             font=("Arial", 11, "bold"), bg=BG_PRIMARY, fg=FG_PRIMARY
-             ).pack(anchor="w", pady=(0, 5))
-    
-    notes_text = tk.Text(notes_frame, height=10, width=60,
-                        bg=BG_CARD, fg=FG_PRIMARY,
-                        font=("Arial", 9), wrap="word")
-    notes_text.insert("1.0", self.database[self.path].get("notes", ""))
-    notes_text.pack(fill="both", expand=True)
-    
-    # Salvar
-    def save_notes():
-        self.database[self.path]["notes"] = notes_text.get("1.0", "end-1c").strip()
-        self.db_manager.save_database()
-        messagebox.showinfo("✅ Salvo", "Notas salvas!")
-    
-    tk.Button(notes_frame, text="💾 Salvar Notas",
-              command=save_notes, bg=ACCENT_GREEN, fg=FG_PRIMARY,
-              relief="flat", cursor="hand2", padx=12, pady=6
-              ).pack(pady=(5, 0))
-```
-
-**Arquivos afetados:**
-- `ui/project_modal.py` (adicionar notas)
-
----
-
-### **F-03: Limpeza de Órfãos**
+### 🟠 **F-03: Limpeza de Órfãos**
 
 **Prioridade:** 🟠 MÉDIA  
 **Esforço:** 🟢 Baixo  
 **Impacto:** 🟠 Integridade dados  
+**Estilo Kent Beck:** ✅ Simples e direto  
 
-**Kent Beck style:**
+**Objetivo:**
+Remover projetos do banco de dados cujas pastas não existem mais no disco.
+
+**Implementação Kent Beck (simples):**
+
 ```python
-def clean_orphans(self):
-    # Simples: lista os inválidos
-    orphans = [p for p in self.database if not os.path.isdir(p)]
-    
-    # Nenhum? Avisar e sair.
-    if not orphans:
-        messagebox.showinfo("✅ Banco limpo", "Nenhum órfão!")
-        return
-    
-    # Tem? Perguntar e remover.
-    if messagebox.askyesno("🗑️ Limpar", f"{len(orphans)} órfão(s).\n\nRemover?"):
-        for p in orphans:
-            self.database.pop(p)
-        self.db_manager.save_database()
-        self.display_projects()
+class LaserflixMainWindow:
+    def clean_orphans(self):
+        """Remove projetos órfãos (pastas deletadas do disco)."""
+        # 1. LISTA OS INVÁLIDOS
+        orphans = [p for p in self.database if not os.path.isdir(p)]
+        
+        # 2. NENHUM? AVISAR E SAIR
+        if not orphans:
+            messagebox.showinfo(
+                "✅ Banco limpo",
+                "Nenhum projeto órfão encontrado!\n\nTodos os caminhos são válidos."
+            )
+            return
+        
+        # 3. TEM? PERGUNTAR E REMOVER
+        if messagebox.askyesno(
+            "🗑️ Limpeza de Órfãos",
+            f"Encontrados {len(orphans)} projeto(s) com pastas deletadas.\n\n"
+            f"Remover do banco de dados?\n\n"
+            f"(Os arquivos no disco NÃO serão afetados)",
+            icon="warning"
+        ):
+            # Remove do banco
+            for path in orphans:
+                self.database.pop(path)
+            
+            # Salva + atualiza UI
+            self.db_manager.save_database()
+            self.sidebar.refresh(self.database)
+            self.display_projects()
+            
+            # Feedback
+            self.status_bar.config(
+                text=f"✅ {len(orphans)} projeto(s) órfão(s) removido(s)."
+            )
+            
+            self.logger.info(f"🧹 Limpeza: {len(orphans)} órfãos removidos")
+```
+
+**Adicionar botão no menu:**
+```python
+# ui/header.py - No menu "Dashboard"
+menu.add_command(
+    label="🧹 Limpar Órfãos",
+    command=callbacks["on_clean_orphans"]
+)
 ```
 
 **Arquivos afetados:**
-- `ui/main_window.py` (método `clean_orphans()`)
-- `ui/header.py` (botão no menu "Dashboard")
+- `ui/main_window.py` (adicionar método `clean_orphans()`)
+- `ui/header.py` (adicionar botão no menu "Dashboard")
+
+**Critérios de aceitação:**
+- ✅ Detecta pastas deletadas
+- ✅ Mostra contador de órfãos
+- ✅ Pede confirmação antes de remover
+- ✅ Atualiza UI após limpeza
+- ✅ Feedback visual no status bar
+- ✅ Funciona mesmo com 1000+ projetos
 
 ---
+
+## 🟡 FILA DE ESPERA (alta prioridade)
 
 ### **F-04: Busca em Tempo Real com Debounce**
 
@@ -177,6 +115,10 @@ def clean_orphans(self):
 from threading import Timer
 
 class LaserflixMainWindow:
+    def __init__(self, root):
+        # ...
+        self.search_timer = None  # Timer para debounce
+    
     def _on_search_keypress(self, event=None):
         # Cancela timer anterior (se existir)
         if self.search_timer:
@@ -185,11 +127,17 @@ class LaserflixMainWindow:
         # Novo timer: 300ms
         self.search_timer = Timer(0.3, self._execute_search)
         self.search_timer.start()
+    
+    def _execute_search(self):
+        """Executa busca (chamado pelo timer)."""
+        self.search_query = self.search_var.get().strip().lower()
+        self.current_page = 1
+        self.display_projects()
 ```
 
 **Arquivos afetados:**
 - `ui/main_window.py` (adicionar debounce)
-- `ui/header.py` (bind keypress ao invés de Return)
+- `ui/header.py` (bind `<KeyRelease>` ao invés de `<Return>`)
 
 ---
 
@@ -274,42 +222,30 @@ Exemplo:
 
 ## 📌 BLOCO PENDURICALHOS (baixa prioridade)
 
+> Features "nice-to-have" que não são core do app.
+> Implementar apenas se tempo/energia sobrarem.
+
 ### **F-01.2: Modal - Nome PT-BR Editável**
 
-**Prioridade:** 🟢 MUITO BAIXA (📌 PENDURICALHO)  
-**Esforço:** 🟡 Médio  
-**Impacto:** 🟡 Nice-to-have  
+**Prioridade:** 🟢 MUITO BAIXA  
+**STATUS:** ⚠️ Implementação anterior FALHOU (ImportError)  
+**Decisão:** Modal funciona bem sem isso.  
 
-**STATUS:** ⚠️ **Implementação anterior FALHOU**
-- Tentativa de implementar tradução automática (EN → PT-BR)
-- Problema: ImportError (módulos `Translator` não funcionaram)
-- **REVERTIDO** para v3.4.0.0 estável
-- **Decisão:** Adiar para depois de todas features principais
+---
 
-**Objetivo (para refazer no futuro):**
-Campo editável para nome traduzido em PT-BR:
+### **F-01.3: Modal - Descrição Editável**
 
-```python
-class ProjectModal:
-    def _build_editable_name(self, parent_frame):
-        # Entry + botão Editar/Salvar
-        name_entry = tk.Entry(parent_frame, width=50)
-        name_entry.insert(0, self.database[path].get("name_ptbr", ""))
-        
-        def save_name():
-            new_name = name_entry.get().strip()
-            self.database[path]["name_ptbr"] = new_name
-            self.db_manager.save_database()
-        
-        tk.Button(parent_frame, text="💾 Salvar", command=save_name).pack()
-```
+**Prioridade:** 🟢 MUITO BAIXA  
+**Objetivo:** Textarea editável para `ai_description`  
+**Decisão:** Usuário pode editar manualmente no JSON se precisar. Não é prioridade.  
 
-**Decisão Kent Beck:**
-> "Não é prioridade. Modal funciona bem sem isso. Deixa pro final quando tudo mais estiver pronto."
+---
 
-**Arquivos afetados (quando refazer):**
-- `ui/project_modal.py` (adicionar campo editável)
-- `ai/text_generator.py` (SE decidir adicionar tradução automática via Ollama)
+### **F-01.4: Modal - Notas do Usuário**
+
+**Prioridade:** 🟢 MUITO BAIXA  
+**Objetivo:** Campo livre para notas pessoais  
+**Decisão:** Não é core. Deixar para v3.5 se houver demanda real.  
 
 ---
 
@@ -366,12 +302,12 @@ class ProjectModal:
 
 ### 📝 Formato de commit:
 ```bash
-Laserflix_v3.4.0.0_F-01.3: Modal - Descrição editável
+Laserflix_v3.4.0.0_F-03: Limpeza de órfãos
 
-- Textarea 500px altura com scrollbar
-- Botão salvar atualiza banco de dados
-- Feedback visual após salvar
-- Testado com 5000+ caracteres: OK
+- Método clean_orphans() em main_window.py
+- Botão "🧹 Limpar Órfãos" no menu Dashboard
+- Detecta pastas deletadas do disco
+- Testado com 500 projetos: instantâneo
 ```
 
 ### 📖 Antes de escrever código:
@@ -416,4 +352,4 @@ Laserflix_v3.4.0.0_F-01.3: Modal - Descrição editável
 
 **Persona ativa:** Kent Beck (Extreme Programming)  
 **Mantra:** "Simplicidade radical. Baby steps. Refatoração contínua."  
-**Última atualização:** 05/03/2026 21:27 BRT
+**Última atualização:** 05/03/2026 21:30 BRT
