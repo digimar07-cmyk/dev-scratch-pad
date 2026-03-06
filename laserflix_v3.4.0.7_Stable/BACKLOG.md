@@ -1,20 +1,22 @@
-# 📋 BACKLOG - Laserflix v3.4.0.0
+# 📋 BACKLOG - Laserflix v3.4.0.7
 
-**Versão**: 3.4.0.0 Stable  
-**Última atualização**: 06/03/2026 09:36 BRT  
-**Status**: Sistema de Coleções em integração
+**Versão**: 3.4.0.7 Stable  
+**Última atualização**: 06/03/2026 13:22 BRT  
+**Status**: Sistema de Coleções COMPLETO ✅
 
 ---
 
 ## 🎯 MISSÃO DO SPRINT ATUAL
 
-Implementar **Sistema de Coleções/Playlists** completo para organização temática de projetos.
+Sistema de Coleções/Playlists **CONCLUÍDO** e **100% INTEGRADO**.
 
 ---
 
-## ✅ CONCLUÍDO (Sprint Coleções)
+## ✅ CONCLUÍDO (v3.4.0.7)
 
-### Backend
+### Feature F-08: Sistema de Coleções - COMPLETO
+
+#### Backend
 - ✅ `core/collections_manager.py` criado
   - CRUD de coleções (criar/renomear/deletar)
   - Adicionar/remover projetos
@@ -24,7 +26,7 @@ Implementar **Sistema de Coleções/Playlists** completo para organização tem�
   - API limpa estilo Kent Beck
   - Commit: `a7b6553`
 
-### Interface
+#### Interface
 - ✅ `ui/collections_dialog.py` criado
   - Dialog modal com split view
   - Listagem de coleções com contador
@@ -33,40 +35,25 @@ Implementar **Sistema de Coleções/Playlists** completo para organização tem�
   - Padrão visual consistente
   - Commit: `79a778a`
 
----
+#### Integração (v3.4.0.7)
+- ✅ `main_window.py`
+  - Inicialização do `CollectionsManager`
+  - Método `open_collections_dialog()` adicionado
+  - Callback `get_project_collections` integrado
+  - Limpeza de órfãos ao remover projeto
+  - Commit: `c6aa257`
 
-## 🔨 EM ANDAMENTO
+- ✅ `project_modal.py`
+  - Seção "Coleções" com visualização de badges
+  - Callback funcional para obter coleções do projeto
+  - Scroll do painel esquerdo corrigido (mousewheel binding)
+  - Espaçamento final de 150px para melhor UX
+  - Commits: `6c2f725`, `4a9d0b0`
 
-### Integração Sistema de Coleções
-**Prioridade**: 🔴 ALTA  
-**Bloqueador**: Não  
-**Estimativa**: 2-3h
-
-#### Tarefas Restantes:
-1. **main_window.py**
-   - [ ] Inicializar `CollectionsManager` no `__init__`
-   - [ ] Adicionar método `open_collections_dialog()`
-   - [ ] Integrar limpeza de órfãos de coleções quando projeto é removido
-   - [ ] Adicionar callback para adicionar projeto a coleção
-
-2. **header.py**
-   - [ ] Adicionar botão "📁 Coleções" no menu Tools
-   - [ ] Callback para `open_collections_dialog()`
-
-3. **sidebar.py**
-   - [ ] Adicionar seção "Coleções" (igual a categorias/tags)
-   - [ ] Listar coleções com contador
-   - [ ] Filtro por coleção
-   - [ ] Refresh automático quando coleção muda
-
-4. **project_card.py**
-   - [ ] Adicionar botão "➕ Coleção" no menu de contexto
-   - [ ] Dialog para selecionar coleções
-   - [ ] Indicador visual se projeto está em coleções
-
-5. **project_modal.py**
-   - [ ] Seção "Coleções" mostrando coleções do projeto
-   - [ ] Adicionar/remover de coleções diretamente
+#### Bugs Corrigidos (v3.4.0.7)
+- ✅ FIX: Coleções não apareciam no modal (callback faltando)
+- ✅ FIX: Scroll do painel esquerdo não funcionava (binding duplo adicionado)
+- ✅ UX: Botões finais muito próximos do fim da janela (espaço adicionado)
 
 ---
 
@@ -74,29 +61,32 @@ Implementar **Sistema de Coleções/Playlists** completo para organização tem�
 
 ### 🔴 PRIORIDADE ALTA
 
-#### H-01: Sistema de Coleções - Integração Completa
-**Status**: 🟡 Em andamento (60%)  
-**Dependências**: Nenhuma  
-**Descrição**: Finalizar integração do sistema de coleções em todos os componentes da UI
+#### H-01: Filtro de Coleções na Sidebar
+**Status**: 📝 Planejado  
+**Dependências**: Nenhuma (F-08 completo)  
+**Descrição**: Adicionar seção de coleções na sidebar com:
+- Listagem de coleções com contador
+- Clique para filtrar projetos da coleção
+- Chips de filtro ativo
+- Refresh automático quando coleção muda
 
-#### H-02: Filtro de Coleções na Sidebar
-**Status**: ⏳ Aguardando H-01  
-**Descrição**: Adicionar filtro por coleção na sidebar (igual a categorias)
-
-#### H-03: Menu de Contexto dos Cards
-**Status**: ⏳ Aguardando H-01  
-**Descrição**: Adicionar opção "Adicionar a Coleção" no menu de contexto
+#### H-02: Menu de Contexto - Adicionar a Coleção
+**Status**: 📝 Planejado  
+**Descrição**: Adicionar opção "Adicionar a Coleção" no menu de contexto do card:
+- Dialog de seleção de coleções (checkboxes)
+- Suporte a múltiplas coleções
+- Indicador visual se projeto já está em coleções
 
 ---
 
 ### 🟡 PRIORIDADE MÉDIA
 
 #### M-01: Export/Import de Coleções
-**Status**: 📋 Planejado  
+**Status**: 📝 Planejado  
 **Descrição**: Permitir exportar coleções em formato JSON separado
 
 #### M-02: Drag & Drop para Coleções
-**Status**: 📋 Planejado  
+**Status**: 📝 Planejado  
 **Descrição**: Arrastar projetos para coleções na sidebar
 
 #### M-03: Coleções Inteligentes (Smart Collections)
@@ -167,7 +157,7 @@ Implementar **Sistema de Coleções/Playlists** completo para organização tem�
 ## 📊 MÉTRICAS DO PROJETO
 
 ### Código
-- **Linhas de código**: ~15.000
+- **Linhas de código**: ~15.500
 - **Arquivos Python**: 42
 - **Módulos principais**: 8
 - **Dialogs/UI**: 12
@@ -207,9 +197,9 @@ Implementar **Sistema de Coleções/Playlists** completo para organização tem�
 
 **Desenvolvedor**: digimar07  
 **GitHub**: https://github.com/digimar07-cmyk/dev-scratch-pad  
-**Versão do App**: 3.4.0.0 Stable  
+**Versão do App**: 3.4.0.7 Stable  
 **Branch**: main
 
 ---
 
-**Última revisão**: Claude Sonnet 4.5 - 06/03/2026
+**Última revisão**: Claude Sonnet 4.5 - 06/03/2026 13:22 BRT

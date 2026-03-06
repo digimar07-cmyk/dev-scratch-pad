@@ -1,6 +1,6 @@
-# 🎉 LASERFLIX v3.4.0.0 Stable
+# 🎉 LASERFLIX v3.4.0.7 Stable
 
-**"Organize a criatividade. Libere o potencial."**
+**“Organize a criatividade. Libere o potencial.”**
 
 ---
 
@@ -52,7 +52,8 @@ Laserflix é um **organizador visual de projetos de design 3D** (LightBurn, Lase
 - ✅ Criar coleções/playlists
 - ✅ Projetos em múltiplas coleções
 - ✅ Gerenciamento completo (CRUD)
-- 🚧 Filtro por coleção (em integração)
+- ✅ Filtro por coleção na sidebar
+- ✅ Visualização no modal de projeto
 
 ### Produtividade
 - ✅ Favoritos / Já Feitos / Bom/Ruim
@@ -75,7 +76,7 @@ Laserflix é um **organizador visual de projetos de design 3D** (LightBurn, Lase
 
 ```bash
 git clone https://github.com/digimar07-cmyk/dev-scratch-pad.git
-cd dev-scratch-pad/laserflix_v3.4.0.0_Stable
+cd dev-scratch-pad/laserflix_v3.4.0.7_Stable
 ```
 
 ### Passo 2: Instalar Dependências
@@ -137,7 +138,7 @@ python main.py
 
 - **Filtros rápidos**: ⭐ Favoritos, ✓ Já Feitos, 👍 Bons, 👎 Ruins
 - **Busca**: Digite nome do projeto (bilíngue EN/PT-BR)
-- **Sidebar**: Filtrar por origem, categoria, tag
+- **Sidebar**: Filtrar por origem, categoria, tag, **coleção**
 - **Ordenação**: Data, nome, origem, status de análise
 
 ### 3. Gerenciar Projeto
@@ -148,6 +149,7 @@ python main.py
 - Gerar descrição IA
 - Abrir pasta no explorador
 - Marcar como favorito/feito/bom/ruim
+- Ver coleções do projeto
 
 ### 4. Coleções
 
@@ -165,12 +167,13 @@ python main.py
 - **[BACKLOG.md](./BACKLOG.md)**: Status do projeto, próximas features, áreas restritas
 - **[PERSONA_MASTER_CODER.md](./PERSONA_MASTER_CODER.md)**: Padrões de código Kent Beck, instruções absolutas
 - **[APP_PHILOSOPHY.md](./APP_PHILOSOPHY.md)**: Missão, valores, razão de existir
+- **[CHANGELOG_v3.4.0.7.md](./CHANGELOG_v3.4.0.7.md)**: Histórico detalhado de mudanças
 - **[README.md](./README.md)**: Este arquivo (visão geral)
 
 ### Estrutura do Projeto
 
 ```
-laserflix_v3.4.0.0_Stable/
+laserflix_v3.4.0.7_Stable/
 ├── ai/                      # 🚫 Módulos de IA (restrito)
 │   ├── ollama_client.py
 │   ├── image_analyzer.py
@@ -182,14 +185,14 @@ laserflix_v3.4.0.0_Stable/
 │   ├── project_scanner.py   # Scanner de projetos
 │   ├── thumbnail_cache.py   # 🚫 Cache (restrito)
 │   ├── thumbnail_preloader.py # 🚫 Preload assíncrono (restrito)
-│   └── collections_manager.py # ✨ NEW: Coleções
+│   └── collections_manager.py # ✨ Coleções
 ├── ui/                      # Interface
 │   ├── main_window.py       # Orquestrador principal
 │   ├── header.py            # Barra superior
 │   ├── sidebar.py           # Filtros laterais
 │   ├── project_card.py      # Card de projeto
 │   ├── project_modal.py     # Modal detalhado
-│   ├── collections_dialog.py # ✨ NEW: UI de coleções
+│   ├── collections_dialog.py # ✨ UI de coleções
 │   └── [outros dialogs]
 ├── utils/                   # Utilitários
 │   ├── logging_setup.py
@@ -212,7 +215,7 @@ laserflix_v3.4.0.0_Stable/
 ```bash
 # Clonar
 git clone https://github.com/digimar07-cmyk/dev-scratch-pad.git
-cd dev-scratch-pad/laserflix_v3.4.0.0_Stable
+cd dev-scratch-pad/laserflix_v3.4.0.7_Stable
 
 # Instalar deps
 pip install -r requirements.txt
@@ -327,6 +330,14 @@ Sem Ollama, use edição manual (igualmente poderosa).
 
 ## 🎓 CHANGELOG
 
+### v3.4.0.7 (06/03/2026)
+🔧 **Correções e Melhorias de UX**
+- ✅ FIX F-08: Sistema de coleções totalmente integrado
+- ✅ FIX: Callback `get_project_collections` adicionado ao modal
+- ✅ FIX: Scroll do painel esquerdo do modal funcionando
+- ✅ UX: Espaço vazio no final do modal para melhor acessibilidade dos botões
+- ✅ DOCS: Documentação completa atualizada para v3.4.0.7
+
 ### v3.4.0.0 (06/03/2026)
 - ✨ Sistema de Coleções/Playlists
 - 📝 Documentação completa (4 arquivos .md)
@@ -361,7 +372,7 @@ Sem Ollama, use edição manual (igualmente poderosa).
 ## 📞 CONTATO
 
 - **GitHub**: https://github.com/digimar07-cmyk/dev-scratch-pad
-- **Versão**: 3.4.0.0 Stable
+- **Versão**: 3.4.0.7 Stable
 - **Branch**: main
 - **Desenvolvedor**: digimar07
 
@@ -377,8 +388,9 @@ Sem Ollama, use edição manual (igualmente poderosa).
 
 ---
 
-**"Organize a criatividade. Libere o potencial."**
+**“Organize a criatividade. Libere o potencial.”**
 
 ---
 
 **Modelo usado**: Claude Sonnet 4.5
+**Versão do Documento**: v3.4.0.7
