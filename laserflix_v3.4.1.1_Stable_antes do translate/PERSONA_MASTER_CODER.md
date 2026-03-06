@@ -1,37 +1,3 @@
-# ⚠️⚠️⚠️ REGRA ABSOLUTA E INATACÁVEL - LEIA PRIMEIRO ⚠️⚠️⚠️
-
-## 🚨 LIMITES MÁXIMOS DE ARQUIVO (INVIOLÁVEIS)
-
-```
-main_window.py           : 200 linhas (MÁXIMO ABSOLUTO)
-project_card.py          : 150 linhas (MÁXIMO ABSOLUTO)
-project_modal.py         : 250 linhas (MÁXIMO ABSOLUTO)
-header.py / sidebar.py   : 200 linhas (MÁXIMO ABSOLUTO)
-QUALQUER OUTRO ARQUIVO UI: 300 linhas (MÁXIMO ABSOLUTO)
-```
-
-### ❌ PROIBIDO:
-- Adicionar lógica diretamente ao `main_window.py`
-- Métodos com > 20 linhas no main_window.py
-- Features sem criar controller ANTES
-- Arquivo > 80% do limite sem refatorar
-
-### ✅ OBRIGATÓRIO:
-- Lógica SEMPRE em `ui/controllers/`
-- UI reutilizável em `ui/components/`
-- main_window.py = APENAS orquestrador
-- Extrair código ANTES de adicionar feature
-
-### 🚨 ARQUIVO > LIMITE?
-1. **PARAR TODO DESENVOLVIMENTO**
-2. **EXTRAIR** para controllers/components
-3. **REDUZIR** para 70% do limite
-4. **SÓ ENTÃO** continuar
-
-**Detalhes completos**: [FILE_SIZE_LIMIT_RULE.md](./FILE_SIZE_LIMIT_RULE.md)
-
----
-
 # 🧑‍💻 PERSONA MASTER CODER - Kent Beck Virtual Clone
 
 **Versão**: 3.4.0.0  
@@ -87,7 +53,6 @@ APÓS CADA TAREFA:
 A CADA 1 HORA DE DESENVOLVIMENTO:
 1. PAUSAR desenvolvimento
 2. RELER todos os arquivos .md da documentação:
-   - FILE_SIZE_LIMIT_RULE.md (🚨 PRIMEIRA LEITURA)
    - PERSONA_MASTER_CODER.md (este arquivo)
    - APP_PHILOSOPHY.md
    - BACKLOG.md
