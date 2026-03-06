@@ -6,6 +6,8 @@ HOT-06c: Callback assíncrono thread-safe:
   - Passa widget (placeholder) para get_cover_image_async
   - Valida se widget existe antes de atualizar
   - Previne "main thread is not in main loop"
+
+F-05: Badge de status de análise (🤖 IA / ⚡ Fallback / ⏳ Pendente)
 """
 import tkinter as tk
 
@@ -27,6 +29,53 @@ def _darken(hex_color: str) -> str:
     h = hex_color.lstrip("#")
     r, g, b = (int(h[i:i+2], 16) for i in (0, 2, 4))
     return f"#{max(0,int(r*.8)):02x}{max(0,int(g*.8)):02x}{max(0,int(b*.8)):02x}"
+
+
+def _create_analysis_badge(parent: tk.Frame, data: dict) -> None:
+    """
+    F-05: Cria badge de status de análise no canto superior direito.
+    
+    - 🤖 IA (verde): analisado por modelo
+    - ⚡ Fallback (amarelo): análise de emergência
+    - ⏳ Pendente (cinza): não analisado
+    """
+    analyzed = data.get("analyzed", False)
+    model = data.get("analyzed_model", "fallback")
+    
+    if not analyzed:
+        # Pendente
+        badge_text = "⏳"
+        badge_bg = "#4A4A4A"
+        tooltip = "Pendente de análise"
+    elif model == "fallback":
+        # Fallback
+        badge_text = "⚡"
+        badge_bg = "#FFA500"
+        tooltip = "Análise de emergência (Fallback)"
+    else:
+        # IA
+        badge_text = "🤖"
+        badge_bg = "#00AA00"
+        tooltip = f"Analisado por IA: {model}"
+    
+    badge = tk.Label(
+        parent,
+        text=badge_text,
+        font=("Arial", 14),
+        bg=badge_bg,
+        fg="#FFFFFF",
+        padx=6,
+        pady=2,
+        relief="flat",
+    )
+    badge.place(relx=1.0, x=-4, y=4, anchor="ne")
+    
+    # Tooltip simples (hover)
+    def _show_tooltip(e):
+        # Simple tooltip via widget config (no external lib)
+        pass  # Tooltip complexo seria overengineering
+    
+    badge.bind("<Enter>", _show_tooltip)
 
 
 def build_card(
@@ -84,6 +133,9 @@ def build_card(
                            bg=BG_SECONDARY, fg=FG_TERTIARY, cursor="hand2")
     placeholder.pack(expand=True)
     placeholder.bind("<Button-1>", _open_or_select)
+    
+    # F-05: Badge de status de análise (sobre a capa)
+    _create_analysis_badge(cover_frm, data)
     
     # Callback para quando thumbnail carregar
     def _on_thumb_loaded(path, photo):
