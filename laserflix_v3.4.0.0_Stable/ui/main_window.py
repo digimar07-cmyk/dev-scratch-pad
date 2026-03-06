@@ -9,8 +9,9 @@ HOT-08: Paginação simples (Kent Beck style):
   - SIMPLES, PREVISÍVEL, FUNCIONAL
 
 HOT-12: Scrollbar vertical (cards com categorias ficaram mais altos)
-HOT-14: Busca bilíngue (EN + PT-BR)
-F-07: Filtros empilháveis (chips AND)
+HOT-14: Busca bilíngue (EN + PT-BR) — FUNCIONA SEM OLLAMA!
+HOT-15: Tradutor estático (utils/name_translator.py)
+F-07: Filtros empilháveis (chips AND) — CORRIGIDO!
 
 FEATURE: Ordenação FUNCIONAL na linha de paginação
 FEATURE: Análise SEQUENCIAL pós-importação (categorias+tags → descrições)
@@ -42,6 +43,7 @@ from ai.analysis_manager import AnalysisManager
 
 from utils.logging_setup import LOGGER
 from utils.platform_utils import open_folder
+from utils.name_translator import search_bilingual  # HOT-15: Busca bilíngue SEM Ollama
 
 from ui.recursive_import_integration import RecursiveImportManager
 from ui.prepare_folders_dialog import PrepareFoldersDialog
@@ -105,7 +107,7 @@ class LaserflixMainWindow:
         self.root.configure(bg=BG_PRIMARY)
         self._build_ui()
         self.display_projects()
-        self.logger.info("✨ Laserflix v%s iniciado (36 cards/página + filtros empilháveis)", VERSION)
+        self.logger.info("✨ Laserflix v%s iniciado (busca bilíngue + filtros empilháveis)", VERSION)
 
     def __del__(self):
         if hasattr(self, 'thumbnail_preloader'):
@@ -150,11 +152,10 @@ class LaserflixMainWindow:
         
         # F-07: Barra de chips (filtros empilháveis)
         self.chips_bar = tk.Frame(content_frame, bg="#1A1A2E", height=50)
-        self.chips_bar.pack(side="top", fill="x", padx=10, pady=(10, 0))
         self.chips_bar.pack_propagate(False)
         self.chips_container = tk.Frame(self.chips_bar, bg="#1A1A2E")
         self.chips_container.pack(side="left", fill="both", expand=True, padx=10, pady=8)
-        self.chips_bar.pack_forget()  # Esconde até ter filtros
+        # Não pack() aqui — só aparece quando há filtros
         
         self.content_canvas = tk.Canvas(content_frame, bg=BG_PRIMARY, highlightthickness=0)
         scrollbar = ttk.Scrollbar(content_frame, orient="vertical", command=self.content_canvas.yview)
@@ -240,7 +241,8 @@ class LaserflixMainWindow:
             self.chips_bar.pack_forget()
             return
         
-        self.chips_bar.pack(side="top", fill="x", padx=10, pady=(10, 0))
+        # Insere ANTES do content_canvas (abaixo do header)
+        self.chips_bar.pack(before=self.content_canvas, side="top", fill="x", padx=10, pady=(10, 0))
         
         # Ícones por tipo
         icons = {
@@ -276,17 +278,21 @@ class LaserflixMainWindow:
         
         # Botão "Limpar tudo"
         if len(self.active_filters) > 1:
-            tk.Button(
+            clear_btn = tk.Button(
                 self.chips_container, text="✕ Limpar tudo",
                 command=self._clear_all_chips,
                 bg="#4A1A1A", fg="#FFAAAA", font=("Arial", 9, "bold"),
                 relief="flat", cursor="hand2", padx=10, pady=4
-            ).pack(side="right", padx=8)
+            )
+            clear_btn.pack(side="right", padx=8)
+            clear_btn.bind("<Enter>", lambda e: clear_btn.config(bg="#8A1A1A"))
+            clear_btn.bind("<Leave>", lambda e: clear_btn.config(bg="#4A1A1A"))
 
     def _add_filter_chip(self, filter_type: str, value: str) -> None:
-        """Adiciona chip se não existir."""
-        if {"type": filter_type, "value": value} not in self.active_filters:
-            self.active_filters.append({"type": filter_type, "value": value})
+        """Adiciona chip se não existir (modo empilhável)."""
+        new_chip = {"type": filter_type, "value": value}
+        if new_chip not in self.active_filters:
+            self.active_filters.append(new_chip)
             self._update_chips_bar()
             self.current_page = 1
             self.display_projects()
@@ -785,11 +791,11 @@ class LaserflixMainWindow:
                     c in data.get("categories", []) for c in self.current_categories): continue
             if self.current_tag and self.current_tag not in data.get("tags", []): continue
             
-            # HOT-14: Busca bilíngue (EN + PT-BR)
+            # HOT-14/HOT-15: Busca bilíngue (EN + PT-BR) — SEM OLLAMA!
             if self.search_query:
-                name_en = data.get("name", "").lower()
-                name_pt = data.get("name_pt", "").lower()
-                if self.search_query not in name_en and self.search_query not in name_pt:
+                name_en = data.get("name", "")
+                # Usa tradutor estático: busca "espelho" encontra "Nursery Mirror"
+                if not search_bilingual(self.search_query, name_en):
                     continue
             
             result.append(path)
