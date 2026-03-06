@@ -9,6 +9,7 @@ HOT-08: Paginação simples (Kent Beck style):
   - SIMPLES, PREVISÍVEL, FUNCIONAL
 
 HOT-12: Scrollbar vertical (cards com categorias ficaram mais altos)
+HOT-14: Busca bilíngue (EN + PT-BR)
 
 FEATURE: Ordenação FUNCIONAL na linha de paginação
 FEATURE: Análise SEQUENCIAL pós-importação (categorias+tags → descrições)
@@ -643,7 +644,14 @@ class LaserflixMainWindow:
             if self.current_categories and not any(
                     c in data.get("categories", []) for c in self.current_categories): continue
             if self.current_tag and self.current_tag not in data.get("tags", []): continue
-            if self.search_query and self.search_query not in data.get("name", "").lower(): continue
+            
+            # HOT-14: Busca bilíngue (EN + PT-BR)
+            if self.search_query:
+                name_en = data.get("name", "").lower()
+                name_pt = data.get("name_pt", "").lower()
+                if self.search_query not in name_en and self.search_query not in name_pt:
+                    continue
+            
             result.append(path)
         return result
 
