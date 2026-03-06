@@ -2,6 +2,8 @@
 ui/project_modal.py — Modal de detalhes de projeto.
 Responsabilidade única: exibir + interagir com 1 projeto.
 Teto: 350 linhas.
+
+F-08: Seção de Coleções adicionada no modal
 """
 import os
 import threading
@@ -28,6 +30,7 @@ class ProjectModal:
         on_reanalize(path)
         on_set_tag(tag)
         on_remove(path)             — remove projeto do banco (F-02)
+        get_project_collections(path) — F-08: obtém coleções do projeto
     """
 
     _BG       = "#0F0F0F"
@@ -197,6 +200,24 @@ class ProjectModal:
             t.bind("<Leave>", lambda e, w=t: w.config(bg=BC, fg=FS))
             t.bind("<Button-1>",
                    lambda e, tg=tag: (modal.destroy(), self._cb["on_set_tag"](tg)))
+
+        # F-08: Coleções (NOVA SEÇÃO - ANTES de Arquivos)
+        _sep(); _section("Coleções")
+        collections_row = tk.Frame(lp, bg=BG)
+        collections_row.pack(anchor="w", padx=P, fill="x", pady=(0, 4))
+        
+        # Obtém coleções do projeto via callback
+        get_collections_cb = self._cb.get("get_project_collections")
+        project_collections = get_collections_cb(self._path) if get_collections_cb else []
+        
+        if project_collections:
+            for col_name in project_collections:
+                tk.Label(collections_row, text=f"📁 {col_name}", font=self._F_SMALL,
+                         bg="#2E2E5E", fg="#A8A8FF",
+                         padx=10, pady=5).pack(side="left", padx=(0, 6), pady=2)
+        else:
+            tk.Label(collections_row, text="Nenhuma coleção",
+                     font=self._F_SMALL, bg=BG, fg=FT).pack(anchor="w")
 
         # Arquivos
         _sep(); _section("Arquivos")
