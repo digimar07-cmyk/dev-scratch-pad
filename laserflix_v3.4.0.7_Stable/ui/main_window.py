@@ -17,6 +17,8 @@ FEATURE: Ordenação FUNCIONAL na linha de paginação
 FEATURE: Análise SEQUENCIAL pós-importação (categorias+tags → descrições)
 F-03: Limpeza de órfãos (entradas sem path válido)
 F-08: Sistema de coleções/playlists (gerenciamento + filtros + menu contextual + badges)
+
+PERF-FIX-1: Removido search_var.set("") de set_filter() (300ms debounce eliminado)
 """
 import os
 import threading
@@ -805,9 +807,11 @@ class LaserflixMainWindow:
     # =========================================================================
 
     def set_filter(self, filter_type: str) -> None:
+        """PERF-FIX-1: Remove debounce desnecessário ao trocar filtros."""
         self.current_filter = filter_type
         self.current_categories = []; self.current_tag = None; self.current_origin = "all"
-        self.search_var.set("")
+        # ❌ REMOVIDO: self.search_var.set("")  — disparava debounce de 300ms!
+        self.search_query = ""  # ✅ Limpa diretamente sem trigger
         self.sidebar.set_active_btn(None)
         self.active_filters.clear()
         self._update_chips_bar()
