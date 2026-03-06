@@ -27,106 +27,73 @@
 
 ## 👉 PRÓXIMA TAREFA
 
-### 🔴 **F-01.1: Modal - Galeria de Imagens**
-
-**Prioridade:** 🔴 ALTA  
-**Esforço:** 🔴 Médio  
-**Impacto:** 🔴 Core do app  
-**Estilo Kent Beck:** ✅ Implementar galeria primeiro, depois adicionar recursos  
-
-**Objetivo:**
-Implementar galeria de imagens no modal de projeto:
-
-1. **Grid de thumbnails**
-   - 5 colunas x N linhas
-   - Thumbnails 80x80px
-   - Click = abre image viewer
-
-2. **Image Viewer**
-   - Janela modal sobreposta
-   - Imagem em tamanho grande (fit to window)
-   - Navegação ◀ / ▶
-   - ESC = fechar
-   - Background escurecido
-
-**Implementação Kent Beck (baby steps):**
-
-```python
-# COMMIT 1: Grid de thumbs
-class ProjectModal:
-    def _build_gallery(self, parent_frame):
-        # Lista todas imagens do projeto
-        images = self._get_all_images()
-        
-        # Grid 5 colunas
-        for i, img_path in enumerate(images):
-            row = i // 5
-            col = i % 5
-            # Thumbnail 80x80
-            thumb_btn = self._create_thumbnail(img_path)
-            thumb_btn.grid(row=row, column=col)
-
-# COMMIT 2: Image viewer
-    def _open_image_viewer(self, img_path):
-        # Toplevel escurecido
-        viewer = tk.Toplevel(bg="#000000")
-        viewer.attributes("-alpha", 0.95)
-        
-        # Imagem grande
-        img = Image.open(img_path)
-        img.thumbnail((800, 600))  # fit to window
-        photo = ImageTk.PhotoImage(img)
-        
-        # Label + navegação
-        tk.Label(viewer, image=photo).pack()
-        
-        # Botões ◀ / ▶
-        # ESC = viewer.destroy()
-```
-
-**Arquivos afetados:**
-- `ui/project_modal.py` (adicionar galeria + viewer)
-
-**Critérios de aceitação:**
-- ✅ Grid mostra todas as imagens do projeto
-- ✅ Thumbnails carregam rápido (cache)
-- ✅ Click abre image viewer
-- ✅ Navegação funciona
-- ✅ ESC fecha viewer
-- ✅ Layout não quebra com 50+ imagens
-
----
-
-## 🟡 FILA DE ESPERA (alta prioridade)
-
-### **F-01.3: Modal - Descrição Editável**
+### 🔴 **F-01.3: Modal - Descrição Editável**
 
 **Prioridade:** 🔴 ALTA  
 **Esforço:** 🟢 Baixo  
 **Impacto:** 🟠 UX  
+**Estilo Kent Beck:** ✅ Um campo por vez, testar entre cada  
 
-**Kent Beck style:**
+**Objetivo:**
+Permitir edição da descrição gerada pela IA diretamente no modal.
+
+**Implementação Kent Beck (simples):**
+
 ```python
 class ProjectModal:
     def _build_editable_description(self, parent_frame):
-        # Textarea grande (500px altura)
-        desc_text = tk.Text(parent_frame, height=20, width=60)
-        desc_text.insert("1.0", self.database[path].get("ai_description", ""))
+        # Frame container
+        desc_frame = tk.Frame(parent_frame, bg=BG_PRIMARY)
+        desc_frame.pack(fill="both", expand=True, pady=10)
+        
+        # Label "Descrição"
+        tk.Label(desc_frame, text="📝 Descrição do Projeto",
+                 font=("Arial", 12, "bold"), bg=BG_PRIMARY, fg=FG_PRIMARY
+                 ).pack(anchor="w", pady=(0, 5))
+        
+        # Textarea grande (500px altura) com scrollbar
+        desc_text = tk.Text(desc_frame, height=20, width=60,
+                           bg=BG_CARD, fg=FG_PRIMARY,
+                           font=("Arial", 10), wrap="word")
+        scrollbar = tk.Scrollbar(desc_frame, command=desc_text.yview)
+        desc_text.config(yscrollcommand=scrollbar.set)
+        
+        # Carrega texto existente
+        current_desc = self.database[self.path].get("ai_description", "")
+        desc_text.insert("1.0", current_desc)
+        
+        desc_text.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
         
         # Botão Salvar
-        def save():
-            new_desc = desc_text.get("1.0", "end-1c")
-            self.database[path]["ai_description"] = new_desc
+        def save_description():
+            new_desc = desc_text.get("1.0", "end-1c").strip()
+            self.database[self.path]["ai_description"] = new_desc
             self.db_manager.save_database()
-            messagebox.showinfo("✅", "Descrição salva!")
+            messagebox.showinfo("✅ Salvo", "Descrição atualizada com sucesso!")
         
-        tk.Button(parent_frame, text="💾 Salvar", command=save).pack()
+        tk.Button(desc_frame, text="💾 Salvar Descrição",
+                  command=save_description,
+                  bg=ACCENT_GREEN, fg=FG_PRIMARY,
+                  font=("Arial", 10, "bold"),
+                  relief="flat", cursor="hand2",
+                  padx=14, pady=8
+                  ).pack(pady=(10, 0))
 ```
 
 **Arquivos afetados:**
 - `ui/project_modal.py` (adicionar textarea editável)
 
+**Critérios de aceitação:**
+- ✅ Textarea mostra descrição atual
+- ✅ Permite edição de texto
+- ✅ Botão salva no banco de dados
+- ✅ Feedback visual após salvar
+- ✅ Layout não quebra com texto longo
+
 ---
+
+## 🟡 FILA DE ESPERA (alta prioridade)
 
 ### **F-01.4: Modal - Notas do Usuário**
 
@@ -138,15 +105,29 @@ class ProjectModal:
 ```python
 def _add_user_notes(self, parent_frame):
     # Campo livre "Minhas Notas"
-    notes_text = tk.Text(parent_frame, height=10, width=60)
-    notes_text.insert("1.0", self.database[path].get("notes", ""))
+    notes_frame = tk.Frame(parent_frame, bg=BG_PRIMARY)
+    notes_frame.pack(fill="both", pady=10)
+    
+    tk.Label(notes_frame, text="📋 Minhas Notas",
+             font=("Arial", 11, "bold"), bg=BG_PRIMARY, fg=FG_PRIMARY
+             ).pack(anchor="w", pady=(0, 5))
+    
+    notes_text = tk.Text(notes_frame, height=10, width=60,
+                        bg=BG_CARD, fg=FG_PRIMARY,
+                        font=("Arial", 9), wrap="word")
+    notes_text.insert("1.0", self.database[self.path].get("notes", ""))
+    notes_text.pack(fill="both", expand=True)
     
     # Salvar
     def save_notes():
-        self.database[path]["notes"] = notes_text.get("1.0", "end-1c")
+        self.database[self.path]["notes"] = notes_text.get("1.0", "end-1c").strip()
         self.db_manager.save_database()
+        messagebox.showinfo("✅ Salvo", "Notas salvas!")
     
-    tk.Button(parent_frame, text="💾 Salvar Notas", command=save_notes).pack()
+    tk.Button(notes_frame, text="💾 Salvar Notas",
+              command=save_notes, bg=ACCENT_GREEN, fg=FG_PRIMARY,
+              relief="flat", cursor="hand2", padx=12, pady=6
+              ).pack(pady=(5, 0))
 ```
 
 **Arquivos afetados:**
@@ -385,12 +366,12 @@ class ProjectModal:
 
 ### 📝 Formato de commit:
 ```bash
-Laserflix_v3.4.0.0_F-01.1: Modal completo - Galeria de imagens
+Laserflix_v3.4.0.0_F-01.3: Modal - Descrição editável
 
-- Adicionado grid de thumbs (5 colunas)
-- Click = abre image viewer
-- Navegação ◀ / ▶
-- Testado com 20 imagens: instantâneo
+- Textarea 500px altura com scrollbar
+- Botão salvar atualiza banco de dados
+- Feedback visual após salvar
+- Testado com 5000+ caracteres: OK
 ```
 
 ### 📖 Antes de escrever código:
@@ -408,11 +389,12 @@ Laserflix_v3.4.0.0_F-01.1: Modal completo - Galeria de imagens
 ### 🔴 LEIA PRIMEIRO (sempre!):
 1. **[DEVELOPER_PERSONA.md](DEVELOPER_PERSONA.md)** → Filosofia Kent Beck
 2. **[BACKLOG.md](BACKLOG.md)** → Este arquivo (tarefas)
+3. **[REJECTED_IDEAS.md](REJECTED_IDEAS.md)** → Ideias descartadas (NÃO implementar!)
 
 ### Complementares:
-3. **[VERSION_HISTORY.md](VERSION_HISTORY.md)** → Histórico
-4. **[MIGRATION_v3.3_to_v3.4.md](MIGRATION_v3.3_to_v3.4.md)** → Migração
-5. **[README.md](README.md)** → Visão geral
+4. **[VERSION_HISTORY.md](VERSION_HISTORY.md)** → Histórico
+5. **[MIGRATION_v3.3_to_v3.4.md](MIGRATION_v3.3_to_v3.4.md)** → Migração
+6. **[README.md](README.md)** → Visão geral
 
 ---
 
@@ -434,4 +416,4 @@ Laserflix_v3.4.0.0_F-01.1: Modal completo - Galeria de imagens
 
 **Persona ativa:** Kent Beck (Extreme Programming)  
 **Mantra:** "Simplicidade radical. Baby steps. Refatoração contínua."  
-**Última atualização:** 05/03/2026 21:23 BRT
+**Última atualização:** 05/03/2026 21:27 BRT
