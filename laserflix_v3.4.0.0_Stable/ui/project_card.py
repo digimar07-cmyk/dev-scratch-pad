@@ -8,7 +8,7 @@ HOT-06c: Callback assíncrono thread-safe:
   - Previne "main thread is not in main loop"
 
 F-05: Badge de status de análise (🤖 IA / ⚡ Fallback / ⏳ Pendente)
-F-08: Menu contextual de coleções (botão direito)
+F-08: Menu contextual de coleções (botão direito) + Badges de coleções visíveis
 """
 import tkinter as tk
 from tkinter import Menu
@@ -25,6 +25,10 @@ from config.ui_constants import (
     ORIGIN_COLORS, CATEGORY_COLORS,
     CARD_BANNED_STRINGS,
 )
+
+# F-08: Constantes de coleções
+CARD_MAX_COLLECTIONS = 3  # Máximo de badges de coleções visíveis
+COLLECTION_COLOR = "#7B68EE"  # Roxo (MediumSlateBlue)
 
 
 def _darken(hex_color: str) -> str:
@@ -173,6 +177,7 @@ def build_card(
         on_new_collection_with(path)
         get_collections() -> list[str]
         get_project_collections(path) -> list[str]
+        on_set_collection(collection_name) -> filtrar por coleção
     
     Returns:
         tk.Frame: Widget do card criado (para virtual scroll)
@@ -300,6 +305,50 @@ def build_card(
               relief="flat", cursor="hand2",
               command=lambda o=origin: cb["on_set_origin"](o)
               ).pack(anchor="w", pady=(4, 0))
+
+    # F-08: Coleções (ABAIXO da origem)
+    get_project_collections = cb.get("get_project_collections")
+    if get_project_collections:
+        project_collections = get_project_collections(project_path)
+        if project_collections:
+            collections_frame = tk.Frame(info, bg=BG_CARD)
+            collections_frame.pack(anchor="w", pady=(3, 0), fill="x")
+            
+            visible_cols = project_collections[:CARD_MAX_COLLECTIONS]
+            for col_name in visible_cols:
+                # Trunca nome da coleção se muito longo
+                display_name = (col_name[:12] + "...") if len(col_name) > 15 else col_name
+                
+                b = tk.Button(
+                    collections_frame,
+                    text=f"📁 {display_name}",
+                    command=lambda c=col_name: cb.get("on_set_collection", lambda x: None)(c),
+                    bg=COLLECTION_COLOR,
+                    fg="#FFFFFF",
+                    font=("Arial", 7, "bold"),
+                    relief="flat",
+                    cursor="hand2",
+                    padx=4,
+                    pady=2
+                )
+                b.pack(side="left", padx=2, pady=1)
+                
+                # Hover: escurece
+                dark_col = _darken(COLLECTION_COLOR)
+                b.bind("<Enter>", lambda e, bt=b, dc=dark_col: bt.config(bg=dc))
+                b.bind("<Leave>", lambda e, bt=b: bt.config(bg=COLLECTION_COLOR))
+            
+            # Se tem mais coleções, mostra "..."
+            if len(project_collections) > CARD_MAX_COLLECTIONS:
+                remaining = len(project_collections) - CARD_MAX_COLLECTIONS
+                tk.Label(
+                    collections_frame,
+                    text=f"+{remaining}",
+                    bg=BG_CARD,
+                    fg="#888888",
+                    font=("Arial", 7),
+                    padx=4
+                ).pack(side="left")
 
     # Ações (ocultas no modo seleção para não poluir)
     if not selection_mode:
