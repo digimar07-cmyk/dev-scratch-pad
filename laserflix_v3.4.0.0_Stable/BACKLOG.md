@@ -27,6 +27,7 @@
 | ✅ **HOT-11** | FIX CRÍTICO: Prompt IA exige 10+ categorias | Prompt estava pedindo 3-5 categorias (bugado). Corrigido para exigir MÍNIMO 10 categorias (3 obrigatórias + 7 opcionais). Fallback já retornava 12 corretamente. | `c661d2e` |
 | ✅ **HOT-12** | Scrollbar vertical na galeria | Adicionada scrollbar vertical no canvas (cards com categorias ficaram mais altos, últimos cards ficavam fora de visão). | `56107ef` |
 | ✅ **HOT-13** | 36 cards por página (ao invés de 18) | Aumentado `items_per_page` de 18→36 (6 linhas × 6 cols). Metade das páginas, navegação 50% mais rápida. | `48afa4b` |
+| ✅ **HOT-14** | Busca bilíngue (EN + PT-BR) | Busca agora procura em `name` (inglês) E `name_pt` (português). Exemplo: "mirror" OU "espelho" encontram Nursery Mirror. | `2696f0b` |
 | ✅ **F-04** | Busca com debounce 300ms | Timer cancela busca anterior se usuário continuar digitando. Busca só executa após 300ms de silêncio. Performance 23x melhor. | `adfc881` |
 | ✅ **F-06** | Ordenação configurável | Menu dropdown com 7 opções (data asc/desc, nome A-Z/Z-A, origem, analisados, pendentes). Linha de paginação. | `78c9e67`, `b06fbf6` |
 | ✅ **S-03** | Thumbnails assíncronas | `ThumbnailPreloader(max_workers=4)` com `queue.Queue`. Carregamento em threads separadas. Zero travamento. | `224fff9` |
