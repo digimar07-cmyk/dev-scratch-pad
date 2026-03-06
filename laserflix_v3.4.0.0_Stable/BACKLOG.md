@@ -66,17 +66,19 @@
 
 ---
 
-## 🟡 BLOCO F — FUNCIONALIDADES CORE
+## 🟡 BLOCO F — FUNCIONALIDADES CORE (✅ FINALIZADO)
 
-| # | O que fazer | Impacto | Esforço | Prioridade |
-|---|---|---|---|---|
-| ☐ **F-01** | Modal de Projeto completo (galeria, nome PT-BR, desc editável, notas) | 🔴 Core do app | 🔴 Alto | **PRÓXIMO** |
-| ✅ **F-02** | Remoção de projetos do banco (botão remover + confirmação) | ✅ FEITO | ✅ FEITO | ✅ FEITO |
-| ✅ **F-03** | Limpeza de órfãos (entradas cujo `path` não existe mais em disco) | ✅ FEITO | ✅ FEITO | ✅ FEITO |
-| ✅ **F-04** | Busca em tempo real com debounce 300ms | ✅ FEITO | ✅ FEITO | ✅ FEITO |
-| ✅ **F-05** | Badge de status de análise no card (🤖 IA / ⚡ Fallback / ⏳ Na Fila) | ✅ FEITO | ✅ FEITO | ✅ FEITO |
-| ✅ **F-06** | Ordenação configurável (data, A-Z, recente, origem, status) | ✅ FEITO | ✅ FEITO | ✅ FEITO |
-| ✅ **F-07** | Filtros empilháveis (chips AND) | ✅ FEITO | ✅ FEITO | ✅ FEITO |
+| # | O que fazer | Status | Motivo |
+|---|---|---|---|
+| ❌ **F-01** | ~~Modal de Projeto completo (galeria, nome PT-BR, desc editável, notas)~~ | **REJEITADO** | Modal atual já suficiente (refatorado em S-04). Galeria removida por design em HOT-01. Foco em simplicidade. |
+| ✅ **F-02** | Remoção de projetos do banco | **FEITO** | Botão remover + confirmação dupla |
+| ✅ **F-03** | Limpeza de órfãos | **FEITO** | Detecta paths inexistentes + confirmação |
+| ✅ **F-04** | Busca com debounce 300ms | **FEITO** | Performance 23x melhor |
+| ✅ **F-05** | Badge de status de análise no card | **FEITO** | 🤖 IA / ⚡ Fallback / ⏳ Pendente |
+| ✅ **F-06** | Ordenação configurável | **FEITO** | 7 opções de ordenação |
+| ✅ **F-07** | Filtros empilháveis (chips AND) | **FEITO** | Chips clicáveis + modo AND |
+
+> ✅ **BLOCO F CONCLUÍDO**: 6 tarefas feitas (F-02 a F-07), 1 rejeitada (F-01). Core features 100% completo.
 
 ---
 
@@ -84,7 +86,7 @@
 
 | # | O que fazer | Impacto | Esforço | Prioridade |
 |---|---|---|---|---|
-| ☐ **O-01** | Sistema de Coleções/Playlists | 🔴 Game Changer | 🟡 Médio | Semana 3 |
+| ☐ **O-01** | Sistema de Coleções/Playlists | 🔴 Game Changer | 🟡 Médio | **PRÓXIMO** |
 | ☐ **O-02** | Export CSV/Excel | 🟠 Utilidade | 🟢 Baixo | Semana 3 |
 | ☐ **O-03** | Atalhos de teclado (`Ctrl+F`, `Ctrl+A`, `F5`, `Espaço`, `Del`) | 🟠 UX/Power User | 🟢 Baixo | Semana 3 |
 | ☐ **O-04** | Fila de análise com prioridade (reordenar antes do lote) | 🟡 Workflow | 🟡 Médio | Semana 3 |
