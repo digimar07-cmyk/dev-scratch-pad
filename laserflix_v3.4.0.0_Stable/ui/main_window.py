@@ -16,12 +16,12 @@ F-07: Filtros empilháveis (chips AND) — CORRIGIDO!
 FEATURE: Ordenação FUNCIONAL na linha de paginação
 FEATURE: Análise SEQUENCIAL pós-importação (categorias+tags → descrições)
 F-03: Limpeza de órfãos (entradas sem path válido)
-F-08: Sistema de coleções/playlists (gerenciamento + filtros)
+F-08: Sistema de coleções/playlists (gerenciamento + filtros + menu contextual)
 """
 import os
 import threading
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, simpledialog
 
 from config.settings import VERSION
 from config.card_layout import COLS, CARD_PAD
@@ -519,6 +519,53 @@ class LaserflixMainWindow:
         count = self.collections_manager.get_collection_size(collection_name)
         self.status_bar.config(text=f"📁 Coleção: {collection_name} ({count} projetos)")
 
+    def _on_add_to_collection(self, project_path: str, collection_name: str) -> None:
+        """F-08: Adiciona projeto a uma coleção via menu contextual do card."""
+        self.collections_manager.add_project(collection_name, project_path)
+        name = self.database.get(project_path, {}).get("name", os.path.basename(project_path))
+        self.status_bar.config(text=f"✅ '{name}' adicionado à coleção '{collection_name}'")
+        self.sidebar.refresh(self.database, self.collections_manager)
+
+    def _on_remove_from_collection(self, project_path: str, collection_name: str) -> None:
+        """F-08: Remove projeto de uma coleção via menu contextual do card."""
+        self.collections_manager.remove_project(collection_name, project_path)
+        name = self.database.get(project_path, {}).get("name", os.path.basename(project_path))
+        self.status_bar.config(text=f"🗑️ '{name}' removido da coleção '{collection_name}'")
+        self.sidebar.refresh(self.database, self.collections_manager)
+        # Se estava filtrando por esta coleção, atualiza display
+        if any(f["type"] == "collection" and f["value"] == collection_name for f in self.active_filters):
+            self.display_projects()
+
+    def _on_new_collection_with(self, project_path: str) -> None:
+        """F-08: Cria nova coleção e adiciona projeto via menu contextual do card."""
+        name = simpledialog.askstring(
+            "📁 Nova Coleção",
+            "Nome da nova coleção:",
+            parent=self.root
+        )
+        
+        if not name or not name.strip():
+            return
+        
+        name = name.strip()
+        
+        # Valida nome (sem duplicatas)
+        if name in self.collections_manager.collections:
+            messagebox.showerror(
+                "Erro",
+                f"Coleção '{name}' já existe!\n\nEscolha outro nome.",
+                parent=self.root
+            )
+            return
+        
+        # Cria coleção e adiciona projeto
+        self.collections_manager.add_collection(name)
+        self.collections_manager.add_project(name, project_path)
+        
+        project_name = self.database.get(project_path, {}).get("name", os.path.basename(project_path))
+        self.status_bar.config(text=f"📁 Coleção '{name}' criada com '{project_name}'")
+        self.sidebar.refresh(self.database, self.collections_manager)
+
     # =========================================================================
     # PAGINAÇÃO SIMPLES (HOT-08 / HOT-13)
     # =========================================================================
@@ -701,6 +748,12 @@ class LaserflixMainWindow:
             "selection_mode":        self._selection_mode,
             "selected_paths":        self._selected_paths,
             "on_toggle_select":      self.toggle_card_selection,
+            # F-08: Callbacks de menu contextual de coleções
+            "on_add_to_collection":       self._on_add_to_collection,
+            "on_remove_from_collection":  self._on_remove_from_collection,
+            "on_new_collection_with":     self._on_new_collection_with,
+            "get_collections":            lambda: list(self.collections_manager.collections.keys()),
+            "get_project_collections":    lambda p: self.collections_manager.get_project_collections(p),
         }
         
         for i, (project_path, project_data) in enumerate(page_items):
