@@ -3,7 +3,6 @@ Gerador de texto com IA - Análises e descrições
 Restaurado com lógica refinada da v740 (3 semanas de testes)
 
 HOT-11: FIX CRÍTICO - Prompt exige 10+ categorias (não 3-5)
-F-01.2: Tradução automática de nomes EN→PT-BR
 """
 import os
 import re
@@ -22,15 +21,13 @@ class TextGenerator:
       - Prompts cirúrgicos para evitar genericidade
       - Temperature 0.65 para criatividade controlada
       - HOT-11: Prompt EXIGE 10+ categorias (3 obrigatórias + até 9 opcionais)
-      - F-01.2: Tradução automática de nomes (1000+ termos especializados)
     """
 
-    def __init__(self, ollama_client, image_analyzer, project_scanner, fallback_generator, translator=None):
+    def __init__(self, ollama_client, image_analyzer, project_scanner, fallback_generator):
         self.ollama = ollama_client
         self.image_analyzer = image_analyzer
         self.scanner = project_scanner
         self.fallback = fallback_generator
-        self.translator = translator  # ← F-01.2: Tradutor opcional
         self.logger = LOGGER
 
     def _choose_model_role(self, batch_size=1):
@@ -94,9 +91,9 @@ class TextGenerator:
             # Escolhe modelo baseado no batch_size
             role = self._choose_model_role(batch_size)
 
-            # ═══════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════════════════
             # HOT-11: PROMPT REFINADO - EXIGE 10+ CATEGORIAS!
-            # ═══════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════════════════
             prompt = f"""Analise este produto de corte laser e responda EXATAMENTE no formato solicitado.
 
 📁 NOME: {name}
@@ -140,7 +137,7 @@ class TextGenerator:
 7-9. Estilos (escolha 2-3):
    - Minimalista, Rústico, Moderno, Vintage, Romântico, Elegante
    - Industrial, Boho, Escandinavo, Provençal, Infantil, Lúdico
-   - Clássico, Contemporâneo, Artístico, Delicado
+   - Clássico, Contemporâneo, Artéstico, Delicado
 
 10-12. Público/Contexto (escolha 2-3):
    - Bebê, Criança, Adolescente, Adulto, Casal, Família
@@ -217,11 +214,11 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8], [tag9], [t
 
     def generate_description(self, project_path, project_data):
         """
-        Gera descrição comercial personalizada E traduz nome automaticamente.
+        Gera descrição comercial personalizada.
         
-        ═══════════════════════════════════════════════════════════════
+        ═══════════════════════════════════════════════════════════════════
         LÓGICA REFINADA v740 (3 SEMANAS DE TESTES)
-        ═══════════════════════════════════════════════════════════════
+        ═══════════════════════════════════════════════════════════════════
         
         HIERARQUIA INVIOLÁVEL:
           1° NOME da peça — âncora absoluta. Define o que o produto É.
@@ -242,7 +239,7 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8], [tag9], [t
           • Proíbe mencionar arquivos/formatos/etapas de produção
           • Proíbe palavra "projeto" (é uma PEÇA física)
         
-        ═══════════════════════════════════════════════════════════════
+        ═══════════════════════════════════════════════════════════════════
 
         Formato de saída:
             NOME DA PEÇA
@@ -265,25 +262,15 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8], [tag9], [t
             return self.fallback.fallback_description(project_path, project_data, structure)
 
         try:
-            # ══════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════════════
             # 1° NOME — âncora absoluta
-            # ══════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════════════
             raw_name = project_data.get("name", os.path.basename(project_path) or "Sem nome")
             clean_name = self._clean_name(raw_name)
 
-            # ══════════════════════════════════════════════════════════════
-            # F-01.2: TRADUÇÃO AUTOMÁTICA (SE TRADUTOR DISPONÍVEL)
-            # ══════════════════════════════════════════════════════════════
-            if self.translator and raw_name and not project_data.get("name_ptbr"):
-                self.logger.info(f"🌎 Traduzindo nome: {raw_name}")
-                translated_name = self.translator.translate_project_name(raw_name)
-                project_data["name_ptbr"] = translated_name
-                self.logger.info(f"✅ Nome traduzido: {translated_name}")
-            # ══════════════════════════════════════════════════════════════
-
-            # ══════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════════════
             # 2° VISÃO — só se imagem passa no filtro de qualidade
-            # ══════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════════════
             vision_context = ""
             cover_img = self._find_first_image(project_path)
             if cover_img:
@@ -302,33 +289,33 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8], [tag9], [t
                 structure = self._get_structure(project_path, project_data)
                 return self.fallback.fallback_description(project_path, project_data, structure)
 
-            # ══════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════════════
             # PROMPT COM RACIOCÍNIO ESTRUTURADO (v740 refinado)
-            # ══════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════════════
             prompt = (
                 "Você é especialista em peças físicas de corte a laser — placas, espelhos, "
                 "porta-retratos, tabuletas, cabides, calendários, nomes decorativos e similares.\n\n"
                 "NOME DA PEÇA (use isso como verdade absoluta sobre o que é o produto): "
                 + clean_name + vision_context + "\n\n"
                 
-                # ────────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────────
                 # REGRA FUNDAMENTAL (v740)
-                # ────────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────────
                 "### REGRA FUNDAMENTAL:\n"
                 "O NOME define o que é o produto. O detalhe visual apenas complementa.\n"
                 "Nunca invente função ou formato que contradiga o nome.\n\n"
                 
-                # ────────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────────
                 # RACIOCÍNIO ESTRUTURADO EM 3 ETAPAS (v740)
-                # ────────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────────
                 "### RACIOCINE antes de escrever:\n"
                 "1. O que exatamente é esta peça física, baseado no nome? (tipo de objeto)\n"
                 "2. Para que serve na prática? (uso real no dia a dia)\n"
                 "3. Que emoção ou momento ela representa? (conexão afetiva)\n\n"
                 
-                # ────────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────────
                 # FORMATO DE SAÍDA
-                # ────────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────────
                 "### ESCREVA a descrição EXATAMENTE neste formato (sem nada além disso):\n\n"
                 + clean_name + "\n\n"
                 "🎨 Por Que Este Produto é Especial:\n"
@@ -337,9 +324,9 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8], [tag9], [t
                 "💖 Perfeito Para:\n"
                 "[2 a 3 frases práticas com exemplos reais de uso e ocasião para ESTA peça específica.]\n\n"
                 
-                # ────────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────────
                 # REGRAS ANTI-GENERICIDADE (v740 reforçado)
-                # ────────────────────────────────────────────────────────────
+                # ────────────────────────────────────────────────────────────────
                 "### REGRAS OBRIGATÓRIAS:\n"
                 "- Escreva em português brasileiro\n"
                 "- Nunca use a palavra projeto — esta é uma PEÇA ou PRODUTO físico\n"
@@ -350,9 +337,9 @@ Tags: [tag1], [tag2], [tag3], [tag4], [tag5], [tag6], [tag7], [tag8], [tag9], [t
                 "- Responda APENAS com o texto no formato acima, sem comentários adicionais"
             )
 
-            # ══════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════════════
             # GERAÇÃO COM TEMPERATURE 0.78 (v740 - criatividade controlada)
-            # ══════════════════════════════════════════════════════════════
+            # ═══════════════════════════════════════════════════════════════
             response_text = self.ollama.generate_text(
                 prompt,
                 role="text_quality",
