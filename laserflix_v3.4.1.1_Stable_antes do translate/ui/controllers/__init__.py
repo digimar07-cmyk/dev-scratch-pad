@@ -1,0 +1,1 @@
+"""\nui/controllers/ - Camada de Controllers (MVC)\n\nSepara lógica de coordenação da UI.\nControllers orquestram operações entre UI e Core.\n\n⚠️ REGRA ABSOLUTA: Nenhum controller pode ter > 300 linhas!\n"""\n
