@@ -96,6 +96,12 @@ class CollectionsManager:
     
     # === CRUD de Coleções ===
     
+    def add_collection(self, name: str) -> bool:
+        """
+        Alias para create_collection() (compatibilidade com UI).
+        """
+        return self.create_collection(name)
+    
     def create_collection(self, name: str) -> bool:
         """
         Cria nova coleção vazia.
@@ -251,6 +257,13 @@ class CollectionsManager:
             Lista de paths (vazia se coleção não existir)
         """
         return self.collections.get(collection_name, [])
+    
+    def get_collection_projects(self, collection_name: str) -> List[str]:
+        """
+        Alias para get_projects() (compatibilidade com UI).
+        Retorna lista de paths de projetos na coleção.
+        """
+        return self.get_projects(collection_name)
     
     def get_project_collections(self, project_path: str) -> List[str]:
         """
