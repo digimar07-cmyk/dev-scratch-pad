@@ -140,9 +140,9 @@ class HeaderBar:
         )
         menu_btn["menu"] = m
         
-        # ╔════════════════════════════════════
+        # ════════════════════════════════════
         # CATEGORIA 1: ANÁLISE IA (VERDE)
-        # ╚════════════════════════════════════
+        # ════════════════════════════════════
         m.add_command(
             label="🤖 ANÁLISE IA",
             state="disabled",
@@ -160,9 +160,9 @@ class HeaderBar:
             foreground="#66DD66",
         )
         
-        # ╔════════════════════════════════════
+        # ════════════════════════════════════
         # CATEGORIA 2: DESCRIÇÕES (AZUL)
-        # ╚════════════════════════════════════
+        # ════════════════════════════════════
         m.add_separator()
         m.add_command(
             label="📝 DESCRIÇÕES",
@@ -181,9 +181,9 @@ class HeaderBar:
             foreground="#66AAFF",
         )
         
-        # ╔════════════════════════════════════
+        # ════════════════════════════════════
         # CATEGORIA 3: SELEÇÃO (AMARELO)
-        # ╚════════════════════════════════════
+        # ════════════════════════════════════
         m.add_separator()
         m.add_command(
             label="☑️ SELEÇÃO",
@@ -197,9 +197,9 @@ class HeaderBar:
             foreground="#FFEE66",  # Amarelo
         )
         
-        # ╔════════════════════════════════════
+        # ════════════════════════════════════
         # CATEGORIA 4: BANCO DE DADOS (ROXO)
-        # ╚════════════════════════════════════
+        # ════════════════════════════════════
         m.add_separator()
         m.add_command(
             label="📦 BANCO DE DADOS",
@@ -223,9 +223,9 @@ class HeaderBar:
             foreground="#BB77FF",
         )
         
-        # ╔════════════════════════════════════
+        # ════════════════════════════════════
         # CATEGORIA 5: CONFIGURAÇÕES (LARANJA)
-        # ╚════════════════════════════════════
+        # ════════════════════════════════════
         m.add_separator()
         m.add_command(
             label="🛠️ CONFIGURAÇÕES",
