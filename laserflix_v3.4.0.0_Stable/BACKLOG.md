@@ -27,10 +27,11 @@
 | ✅ **HOT-11** | FIX CRÍTICO: Prompt IA exige 10+ categorias | Prompt estava pedindo 3-5 categorias (bugado). Corrigido para exigir MÍNIMO 10 categorias (3 obrigatórias + 7 opcionais). Fallback já retornava 12 corretamente. | `c661d2e` |
 | ✅ **HOT-12** | Scrollbar vertical na galeria | Adicionada scrollbar vertical no canvas (cards com categorias ficaram mais altos, últimos cards ficavam fora de visão). | `56107ef` |
 | ✅ **HOT-13** | 36 cards por página (ao invés de 18) | Aumentado `items_per_page` de 18→36 (6 linhas × 6 cols). Metade das páginas, navegação 50% mais rápida. | `48afa4b` |
-| ✅ **HOT-14** | Busca bilíngue (EN + PT-BR) | Busca agora procura em `name` (inglês) E `name_pt` (português). Exemplo: "mirror" OU "espelho" encontram Nursery Mirror. | `2696f0b` |
+| ✅ **HOT-14** | Busca bilíngue (EN + PT-BR) | **CORRIGIDO EM HOT-15**: Usa tradutor estático `search_bilingual()`. Busca "espelho" encontra "Nursery Mirror". **FUNCIONA SEM OLLAMA**. | `2696f0b`, `d1de99f` |
+| ✅ **HOT-15** | Tradutor estático EN→PT | Criado `utils/name_translator.py` com dicionário hardcoded (500+ termos laser cut). Tradução instantânea SEM Ollama. Usado por HOT-14. | `a3994c1` |
 | ✅ **F-04** | Busca com debounce 300ms | Timer cancela busca anterior se usuário continuar digitando. Busca só executa após 300ms de silêncio. Performance 23x melhor. | `adfc881` |
 | ✅ **F-06** | Ordenação configurável | Menu dropdown com 7 opções (data asc/desc, nome A-Z/Z-A, origem, analisados, pendentes). Linha de paginação. | `78c9e67`, `b06fbf6` |
-| ✅ **F-07** | Filtros empilháveis (chips AND) | Chips clicáveis 🏷️ categoria, 🔖 tag, 📂 origem. Modo AND: todos critérios devem ser atendidos. X remove filtro específico, "Limpar tudo" reseta. | `5f1b794` |
+| ✅ **F-07** | Filtros empilháveis (chips AND) | **CORRIGIDO EM HOT-15**: Chips clicáveis 🏷️ categoria, 🔖 tag, 📂 origem. Aparece ABAIXO do header. Modo AND: todos critérios devem ser atendidos. X remove filtro específico, "Limpar tudo" reseta. | `5f1b794`, `d1de99f` |
 | ✅ **S-03** | Thumbnails assíncronas | `ThumbnailPreloader(max_workers=4)` com `queue.Queue`. Carregamento em threads separadas. Zero travamento. | `224fff9` |
 | ✅ **F-03** | Limpeza de órfãos | Método `clean_orphans()` detecta paths inexistentes. Confirmação dupla + relatório. Botão no menu BANCO DE DADOS. | `67733c3`, `1794955` |
 | ✅ **S-05** | Thread watchdog para análise IA | Watchdog detecta travamentos (análise > 120s). Cancela automaticamente + log. Proteção defensiva Kent Beck style. | `a2bf285` |
