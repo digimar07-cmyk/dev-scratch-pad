@@ -1,3 +1,37 @@
+# ⚠️⚠️⚠️ REGRA ABSOLUTA E INATACÁVEL - LEIA PRIMEIRO ⚠️⚠️⚠️
+
+## 🚨 LIMITES MÁXIMOS DE ARQUIVO (INVIOLÁVEIS)
+
+```
+main_window.py           : 200 linhas (MÁXIMO ABSOLUTO)
+project_card.py          : 150 linhas (MÁXIMO ABSOLUTO)
+project_modal.py         : 250 linhas (MÁXIMO ABSOLUTO)
+header.py / sidebar.py   : 200 linhas (MÁXIMO ABSOLUTO)
+QUALQUER OUTRO ARQUIVO UI: 300 linhas (MÁXIMO ABSOLUTO)
+```
+
+### ❌ PROIBIDO:
+- Adicionar lógica diretamente ao `main_window.py`
+- Métodos com > 20 linhas no main_window.py
+- Features sem criar controller ANTES
+- Arquivo > 80% do limite sem refatorar
+
+### ✅ OBRIGATÓRIO:
+- Lógica SEMPRE em `ui/controllers/`
+- UI reutilizável em `ui/components/`
+- main_window.py = APENAS orquestrador
+- Extrair código ANTES de adicionar feature
+
+### 🚨 ARQUIVO > LIMITE?
+1. **PARAR TODO DESENVOLVIMENTO**
+2. **EXTRAIR** para controllers/components
+3. **REDUZIR** para 70% do limite
+4. **SÓ ENTÃO** continuar
+
+**Detalhes completos**: [FILE_SIZE_LIMIT_RULE.md](./FILE_SIZE_LIMIT_RULE.md)
+
+---
+
 # 🎉 LASERFLIX v3.4.0.7 Stable
 
 **“Organize a criatividade. Libere o potencial.”**
@@ -127,7 +161,7 @@ python main.py
 
 ### 1. Importar Projetos
 
-1. Clique em **"📂 Importar Pastas"**
+1. Clique em **“📂 Importar Pastas”**
 2. Selecione pasta raiz dos projetos
 3. Escolha modo:
    - **Rápido**: Apenas scan (sem IA)
@@ -154,7 +188,7 @@ python main.py
 ### 4. Coleções
 
 1. Menu **Tools → 📁 Coleções**
-2. Criar coleção (ex: "Natal 2025")
+2. Criar coleção (ex: “Natal 2025”)
 3. Adicionar projetos ao card ou modal
 4. Filtrar por coleção na sidebar
 
@@ -164,6 +198,7 @@ python main.py
 
 ### Arquivos de Documentação
 
+- **[FILE_SIZE_LIMIT_RULE.md](./FILE_SIZE_LIMIT_RULE.md)**: 🚨 **REGRA ABSOLUTA** (LEIA PRIMEIRO)
 - **[BACKLOG.md](./BACKLOG.md)**: Status do projeto, próximas features, áreas restritas
 - **[PERSONA_MASTER_CODER.md](./PERSONA_MASTER_CODER.md)**: Padrões de código Kent Beck, instruções absolutas
 - **[APP_PHILOSOPHY.md](./APP_PHILOSOPHY.md)**: Missão, valores, razão de existir
@@ -187,7 +222,7 @@ laserflix_v3.4.0.7_Stable/
 │   ├── thumbnail_preloader.py # 🚫 Preload assíncrono (restrito)
 │   └── collections_manager.py # ✨ Coleções
 ├── ui/                      # Interface
-│   ├── main_window.py       # Orquestrador principal
+│   ├── main_window.py       # Orquestrador principal (🚨 MAX 200 linhas)
 │   ├── header.py            # Barra superior
 │   ├── sidebar.py           # Filtros laterais
 │   ├── project_card.py      # Card de projeto
@@ -227,17 +262,21 @@ python main.py
 ### Workflow
 
 1. **Ler documentação obrigatória**:
+   - **`FILE_SIZE_LIMIT_RULE.md`** (🚨 PRIMEIRA LEITURA)
    - `PERSONA_MASTER_CODER.md` (padrões Kent Beck)
    - `APP_PHILOSOPHY.md` (missão e valores)
    - `BACKLOG.md` (tarefas atuais)
 
 2. **Desenvolvimento**:
    - Seguir Simple Design (4 regras)
+   - **NUNCA** adicionar lógica ao `main_window.py`
+   - **SEMPRE** criar controller/component ANTES
    - Commits semânticos
    - Logs claros
    - Nunca tocar áreas restritas sem autorização
 
 3. **Após cada tarefa**:
+   - **VERIFICAR** tamanho dos arquivos (`wc -l ui/*.py`)
    - Atualizar `BACKLOG.md`
    - Commit descritivo
    - Testar manualmente
@@ -253,7 +292,7 @@ python main.py
 
 ### ✅ Áreas Abertas
 
-- `ui/*` - Melhorias de interface
+- `ui/*` - Melhorias de interface (🚨 SEGUIR LIMITES)
 - `utils/*` - Novos utilitários
 - `core/project_scanner.py` - Novos detectores
 - `core/collections_manager.py` - Novas features
@@ -283,7 +322,7 @@ Sem Ollama, use edição manual (igualmente poderosa).
 **R**: Menu **Tools → Backup Manual**. Backups automáticos são criados em `backups/`.
 
 ### P: Posso contribuir?
-**R**: Sim! Issues e PRs bem-vindos. Leia `PERSONA_MASTER_CODER.md` antes.
+**R**: Sim! Issues e PRs bem-vindos. Leia `FILE_SIZE_LIMIT_RULE.md` e `PERSONA_MASTER_CODER.md` antes.
 
 ---
 
@@ -303,7 +342,7 @@ Sem Ollama, use edição manual (igualmente poderosa).
 
 ### Problema: Lento no import
 **Solução**:
-1. Use "Modo Rápido" (sem IA)
+1. Use “Modo Rápido” (sem IA)
 2. Analise depois: Menu **Tools → Analisar Novos**
 3. Evite pastas com 1000+ projetos de uma vez
 
