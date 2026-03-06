@@ -10,6 +10,7 @@ UI/UX 2026 Best Practices:
 - Redução de elementos visuais (8 vs 9)
 
 F-04: Busca com debounce 300ms (performance + UX)
+F-03: Botão Limpar Órfãos no menu BANCO DE DADOS
 """
 import tkinter as tk
 from tkinter import ttk
@@ -34,6 +35,7 @@ class HeaderBar:
         on_prepare_folders() / on_import_db() / on_export_db()
         on_backup()       /  on_model_settings()
         on_toggle_select()   — ativa/desativa modo de seleção em massa
+        on_clean_orphans()   — F-03: Remove projetos cujo path não existe mais
     """
 
     def __init__(self, parent: tk.Widget, cb: dict):
@@ -235,6 +237,12 @@ class HeaderBar:
         m.add_command(
             label="   🔄 Backup manual",
             command=self._cb["on_backup"],
+            foreground="#BB77FF",
+        )
+        # ⭐ F-03: Limpeza de órfãos
+        m.add_command(
+            label="   🧼 Limpar órfãos",
+            command=self._cb["on_clean_orphans"],
             foreground="#BB77FF",
         )
         
