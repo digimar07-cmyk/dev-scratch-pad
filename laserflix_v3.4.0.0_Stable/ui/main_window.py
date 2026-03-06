@@ -10,6 +10,7 @@ HOT-08: Paginação simples (Kent Beck style):
 
 HOT-12: Scrollbar vertical (cards com categorias ficaram mais altos)
 HOT-14: Busca bilíngue (EN + PT-BR)
+F-07: Filtros empilháveis (chips AND)
 
 FEATURE: Ordenação FUNCIONAL na linha de paginação
 FEATURE: Análise SEQUENCIAL pós-importação (categorias+tags → descrições)
@@ -80,6 +81,10 @@ class LaserflixMainWindow:
         self.current_origin     = "all"
         self.search_query       = ""
         self.current_sort       = "date_desc"
+        
+        # F-07: Filtros empilháveis (chips AND)
+        # Estrutura: [{"type": "category", "value": "Animais"}, {"type": "tag", "value": "colorido"}, ...]
+        self.active_filters = []
 
         self._selection_mode    = False
         self._selected_paths    = set()
@@ -100,7 +105,7 @@ class LaserflixMainWindow:
         self.root.configure(bg=BG_PRIMARY)
         self._build_ui()
         self.display_projects()
-        self.logger.info("✨ Laserflix v%s iniciado (36 cards/página)", VERSION)
+        self.logger.info("✨ Laserflix v%s iniciado (36 cards/página + filtros empilháveis)", VERSION)
 
     def __del__(self):
         if hasattr(self, 'thumbnail_preloader'):
@@ -142,6 +147,14 @@ class LaserflixMainWindow:
 
         content_frame = tk.Frame(main_container, bg=BG_PRIMARY)
         content_frame.pack(side="left", fill="both", expand=True)
+        
+        # F-07: Barra de chips (filtros empilháveis)
+        self.chips_bar = tk.Frame(content_frame, bg="#1A1A2E", height=50)
+        self.chips_bar.pack(side="top", fill="x", padx=10, pady=(10, 0))
+        self.chips_bar.pack_propagate(False)
+        self.chips_container = tk.Frame(self.chips_bar, bg="#1A1A2E")
+        self.chips_container.pack(side="left", fill="both", expand=True, padx=10, pady=8)
+        self.chips_bar.pack_forget()  # Esconde até ter filtros
         
         self.content_canvas = tk.Canvas(content_frame, bg=BG_PRIMARY, highlightthickness=0)
         scrollbar = ttk.Scrollbar(content_frame, orient="vertical", command=self.content_canvas.yview)
@@ -213,6 +226,85 @@ class LaserflixMainWindow:
         self.root.bind("<Right>", lambda e: self.next_page())
         self.root.bind("<Home>", lambda e: self.first_page())
         self.root.bind("<End>", lambda e: self.last_page())
+
+    # =========================================================================
+    # F-07: FILTROS EMPILHÁVEIS (CHIPS)
+    # =========================================================================
+
+    def _update_chips_bar(self) -> None:
+        """Reconstrói barra de chips baseado em active_filters."""
+        for w in self.chips_container.winfo_children():
+            w.destroy()
+        
+        if not self.active_filters:
+            self.chips_bar.pack_forget()
+            return
+        
+        self.chips_bar.pack(side="top", fill="x", padx=10, pady=(10, 0))
+        
+        # Ícones por tipo
+        icons = {
+            "category": "🏷️",
+            "tag": "🔖",
+            "origin": "📂",
+            "analysis_ai": "🤖",
+            "analysis_fallback": "⚡",
+            "analysis_pending": "⏳",
+        }
+        
+        for filt in self.active_filters:
+            ftype = filt["type"]
+            fval = filt["value"]
+            icon = icons.get(ftype, "🔹")
+            
+            chip_frame = tk.Frame(self.chips_container, bg="#2E2E4E", relief="flat", bd=0)
+            chip_frame.pack(side="left", padx=4)
+            
+            tk.Label(chip_frame, text=f"{icon} {fval}",
+                     bg="#2E2E4E", fg="#FFFFFF", font=("Arial", 10),
+                     padx=8, pady=4).pack(side="left")
+            
+            remove_btn = tk.Button(
+                chip_frame, text="✕",
+                command=lambda f=filt: self._remove_chip(f),
+                bg="#2E2E4E", fg="#FF6B6B", font=("Arial", 9, "bold"),
+                relief="flat", cursor="hand2", padx=4, pady=2, bd=0
+            )
+            remove_btn.pack(side="left")
+            remove_btn.bind("<Enter>", lambda e, b=remove_btn: b.config(bg="#FF6B6B", fg="#FFFFFF"))
+            remove_btn.bind("<Leave>", lambda e, b=remove_btn: b.config(bg="#2E2E4E", fg="#FF6B6B"))
+        
+        # Botão "Limpar tudo"
+        if len(self.active_filters) > 1:
+            tk.Button(
+                self.chips_container, text="✕ Limpar tudo",
+                command=self._clear_all_chips,
+                bg="#4A1A1A", fg="#FFAAAA", font=("Arial", 9, "bold"),
+                relief="flat", cursor="hand2", padx=10, pady=4
+            ).pack(side="right", padx=8)
+
+    def _add_filter_chip(self, filter_type: str, value: str) -> None:
+        """Adiciona chip se não existir."""
+        if {"type": filter_type, "value": value} not in self.active_filters:
+            self.active_filters.append({"type": filter_type, "value": value})
+            self._update_chips_bar()
+            self.current_page = 1
+            self.display_projects()
+
+    def _remove_chip(self, filt: dict) -> None:
+        """Remove chip específico."""
+        if filt in self.active_filters:
+            self.active_filters.remove(filt)
+            self._update_chips_bar()
+            self.current_page = 1
+            self.display_projects()
+
+    def _clear_all_chips(self) -> None:
+        """Remove todos os chips."""
+        self.active_filters.clear()
+        self._update_chips_bar()
+        self.current_page = 1
+        self.display_projects()
 
     # =========================================================================
     # ORDENAÇÃO
@@ -543,9 +635,9 @@ class LaserflixMainWindow:
             "on_toggle_bad":         self.toggle_bad,
             "on_analyze_single":     self.analyze_single_project,
             "on_open_folder":        open_folder,
-            "on_set_category":       self.set_category_filter,
-            "on_set_tag":            self.set_tag_filter,
-            "on_set_origin":         self.set_origin_filter,
+            "on_set_category":       lambda c: self._add_filter_chip("category", c),
+            "on_set_tag":            lambda t: self._add_filter_chip("tag", t),
+            "on_set_origin":         lambda o: self._add_filter_chip("origin", o),
             "get_cover_image_async": self._get_thumbnail_async,
             "selection_mode":        self._selection_mode,
             "selected_paths":        self._selected_paths,
@@ -597,6 +689,8 @@ class LaserflixMainWindow:
         self.current_categories = []; self.current_tag = None; self.current_origin = "all"
         self.search_var.set("")
         self.sidebar.set_active_btn(None)
+        self.active_filters.clear()
+        self._update_chips_bar()
         self.current_page = 1
         self.display_projects()
 
@@ -609,7 +703,9 @@ class LaserflixMainWindow:
         self.current_filter = "all"; self.current_origin = origin
         self.current_categories = []; self.current_tag = None
         self.current_page = 1
-        self.sidebar.set_active_btn(btn); self.display_projects()
+        self.active_filters.clear()
+        self._add_filter_chip("origin", origin)
+        self.sidebar.set_active_btn(btn)
         count = sum(1 for d in self.database.values() if d.get("origin") == origin)
         self.status_bar.config(text=f"Origem: {origin} ({count} projetos)")
 
@@ -617,21 +713,29 @@ class LaserflixMainWindow:
         self.current_filter = "all"; self.current_categories = cats
         self.current_tag = None; self.current_origin = "all"
         self.current_page = 1
-        self.sidebar.set_active_btn(btn); self.display_projects()
+        self.active_filters.clear()
+        for cat in cats:
+            self._add_filter_chip("category", cat)
+        self.sidebar.set_active_btn(btn)
 
     def _on_tag_filter(self, tag, btn=None) -> None:
         self.current_filter = "all"; self.current_tag = tag
         self.current_categories = []; self.current_origin = "all"
         self.current_page = 1
-        self.sidebar.set_active_btn(btn); self.display_projects()
+        self.active_filters.clear()
+        self._add_filter_chip("tag", tag)
+        self.sidebar.set_active_btn(btn)
 
-    def set_origin_filter(self, origin, btn=None):  self._on_origin_filter(origin, btn)
-    def set_category_filter(self, cats, btn=None):  self._on_category_filter(cats, btn)
-    def set_tag_filter(self, tag, btn=None):         self._on_tag_filter(tag, btn)
+    def set_origin_filter(self, origin, btn=None):  self._add_filter_chip("origin", origin)
+    def set_category_filter(self, cats, btn=None):  
+        for cat in (cats if isinstance(cats, list) else [cats]):
+            self._add_filter_chip("category", cat)
+    def set_tag_filter(self, tag, btn=None):         self._add_filter_chip("tag", tag)
 
     def get_filtered_projects(self) -> list:
         result = []
         for path, data in self.database.items():
+            # Filtro base (favoritos, feitos, bons, ruins)
             ok = (
                 self.current_filter == "all"
                 or (self.current_filter == "favorite" and data.get("favorite"))
@@ -640,6 +744,42 @@ class LaserflixMainWindow:
                 or (self.current_filter == "bad"      and data.get("bad"))
             )
             if not ok: continue
+            
+            # F-07: Filtros empilháveis (modo AND)
+            passes_all_filters = True
+            for filt in self.active_filters:
+                ftype = filt["type"]
+                fval = filt["value"]
+                
+                if ftype == "category":
+                    if fval not in data.get("categories", []):
+                        passes_all_filters = False
+                        break
+                elif ftype == "tag":
+                    if fval not in data.get("tags", []):
+                        passes_all_filters = False
+                        break
+                elif ftype == "origin":
+                    if data.get("origin") != fval:
+                        passes_all_filters = False
+                        break
+                elif ftype == "analysis_ai":
+                    if not (data.get("analyzed") and data.get("analysis_type") == "ai"):
+                        passes_all_filters = False
+                        break
+                elif ftype == "analysis_fallback":
+                    if not (data.get("analyzed") and data.get("analysis_type") == "fallback"):
+                        passes_all_filters = False
+                        break
+                elif ftype == "analysis_pending":
+                    if data.get("analyzed"):
+                        passes_all_filters = False
+                        break
+            
+            if not passes_all_filters:
+                continue
+            
+            # Compat: Filtros legados (current_categories, current_tag, current_origin)
             if self.current_origin != "all" and data.get("origin") != self.current_origin: continue
             if self.current_categories and not any(
                     c in data.get("categories", []) for c in self.current_categories): continue
@@ -672,7 +812,7 @@ class LaserflixMainWindow:
                 "on_generate_desc": self._modal_generate_desc,
                 "on_open_edit":     self.open_edit_mode,
                 "on_reanalize":     self.analyze_single_project,
-                "on_set_tag":       self.set_tag_filter,
+                "on_set_tag":       lambda t: self._add_filter_chip("tag", t),
                 "on_remove":        self.remove_project,
             },
             cache=self.thumbnail_preloader,
@@ -882,7 +1022,7 @@ class LaserflixMainWindow:
                 lambda e: cv.yview_scroll(int(-1*(e.delta/SCROLL_SPEED)), "units"))
         for cat, count in cats_sorted:
             b = tk.Button(inner, text=f"{cat} ({count})",
-                          command=lambda c=cat: (self.set_category_filter([c]), win.destroy()),
+                          command=lambda c=cat: (self._add_filter_chip("category", c), win.destroy()),
                           bg=BG_CARD, fg=FG_PRIMARY, font=("Arial", 10),
                           relief="flat", cursor="hand2", anchor="w", padx=12, pady=8)
             b.pack(fill="x", pady=2, padx=5)
