@@ -313,6 +313,9 @@ class ProjectModal:
         tk.Button(action_bar, text="◄", command=lambda: _nav(-1),
                   state="normal" if nav_idx > 0 else "disabled",
                   **BTN_NAV).pack(side="right", padx=(0, 4))
+        
+        # UX: Espaço vazio no final para facilitar clique nos últimos botões
+        tk.Frame(lp, bg=BG, height=150).pack()
 
     def _confirm_remove(self, modal) -> None:
         name = self._database.get(self._path, {}).get("name", self._path)
