@@ -176,7 +176,7 @@ class SidebarPanel:
                 size = self._collections_manager.get_collection_size(collection_name)
                 btn = tk.Button(
                     self._collections_frame,
-                    text=f"📁 {collection_name} ({size})",
+                    text=f"{collection_name} ({size})",  # F-08: Remove 📁 de cada item
                     bg=BG_SECONDARY, fg="#88CCFF", font=("Arial", 10),
                     relief="flat", cursor="hand2", anchor="w", padx=15, pady=8,
                 )
