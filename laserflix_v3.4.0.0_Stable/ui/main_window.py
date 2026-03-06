@@ -16,6 +16,7 @@ F-07: Filtros empilháveis (chips AND) — CORRIGIDO!
 FEATURE: Ordenação FUNCIONAL na linha de paginação
 FEATURE: Análise SEQUENCIAL pós-importação (categorias+tags → descrições)
 F-03: Limpeza de órfãos (entradas sem path válido)
+F-08: Sistema de coleções/playlists (gerenciamento)
 """
 import os
 import threading
@@ -32,6 +33,7 @@ from config.ui_constants import (
 )
 
 from core.database import DatabaseManager
+from core.collections_manager import CollectionsManager  # F-08: Gerenciador de coleções
 from core.thumbnail_preloader import ThumbnailPreloader
 from core.project_scanner import ProjectScanner
 
@@ -63,6 +65,9 @@ class LaserflixMainWindow:
         self.db_manager = DatabaseManager()
         self.db_manager.load_config()
         self.db_manager.load_database()
+        
+        # F-08: Inicializa gerenciador de coleções
+        self.collections_manager = CollectionsManager()
         
         self.thumbnail_preloader = ThumbnailPreloader(max_workers=4)
         self.scanner = ProjectScanner(self.db_manager.database)
@@ -107,7 +112,7 @@ class LaserflixMainWindow:
         self.root.configure(bg=BG_PRIMARY)
         self._build_ui()
         self.display_projects()
-        self.logger.info("✨ Laserflix v%s iniciado (busca bilíngue + filtros empilháveis)", VERSION)
+        self.logger.info("✨ Laserflix v%s iniciado (busca bilíngue + filtros empilháveis + coleções)", VERSION)
 
     def __del__(self):
         if hasattr(self, 'thumbnail_preloader'):
@@ -133,6 +138,7 @@ class LaserflixMainWindow:
             "on_model_settings":  self.open_model_settings,
             "on_toggle_select":   self.toggle_selection_mode,
             "on_clean_orphans":   self.clean_orphans,
+            "on_collections":     self.open_collections_dialog,  # F-08: Callback para dialog de coleções
         })
         self.search_var = self.header.search_var
 
@@ -399,6 +405,8 @@ class LaserflixMainWindow:
         for path in list(self._selected_paths):
             self.database.pop(path, None)
         self.db_manager.save_database()
+        # F-08: Limpa órfãos de coleções
+        self.collections_manager.clean_orphan_projects(set(self.database.keys()))
         self._selected_paths.clear()
         self._selection_mode = False
         self._sel_bar.pack_forget()
@@ -412,6 +420,8 @@ class LaserflixMainWindow:
             name = self.database[path].get("name", path)
             self.database.pop(path)
             self.db_manager.save_database()
+            # F-08: Limpa órfãos de coleções quando projeto é removido
+            self.collections_manager.clean_orphan_projects(set(self.database.keys()))
             self.sidebar.refresh(self.database)
             self.display_projects()
             self.status_bar.config(text=f"🗑️ '{name}' removido do banco.")
@@ -457,6 +467,8 @@ class LaserflixMainWindow:
             self.database.pop(path, None)
         
         self.db_manager.save_database()
+        # F-08: Limpa órfãos de coleções
+        self.collections_manager.clean_orphan_projects(set(self.database.keys()))
         self.sidebar.refresh(self.database)
         self.display_projects()
         self.status_bar.config(text=f"🧼 {len(orphans)} órfão(s) removido(s) do banco.")
@@ -465,6 +477,26 @@ class LaserflixMainWindow:
             "✅ Limpeza concluída",
             f"{len(orphans)} projeto(s) órfão(s) removido(s) do banco.\n\nBanco agora está sincronizado com o disco."
         )
+
+    # =========================================================================
+    # F-08: SISTEMA DE COLEÇÕES
+    # =========================================================================
+
+    def open_collections_dialog(self) -> None:
+        """
+        F-08: Abre dialog modal de gerenciamento de coleções.
+        Permite criar, renomear, deletar coleções e gerenciar projetos.
+        """
+        from ui.collections_dialog import CollectionsDialog
+        self.root.wait_window(
+            CollectionsDialog(
+                parent=self.root,
+                collections_manager=self.collections_manager,
+                database=self.database
+            )
+        )
+        # Refresh sidebar após fechar dialog (coleções podem ter mudado)
+        self.sidebar.refresh(self.database)
 
     # =========================================================================
     # PAGINAÇÃO SIMPLES (HOT-08 / HOT-13)
