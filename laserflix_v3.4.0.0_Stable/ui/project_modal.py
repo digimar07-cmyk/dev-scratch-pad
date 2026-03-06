@@ -91,13 +91,20 @@ class ProjectModal:
         lc  = tk.Canvas(left_outer, bg=self._BG, highlightthickness=0)
         lsb = ttk.Scrollbar(left_outer, orient="vertical", command=lc.yview)
         lp  = tk.Frame(lc, bg=self._BG)
+        
+        # FIX F-08: Função helper para scroll
+        def _on_mousewheel(event, canvas=lc):
+            canvas.yview_scroll(int(-1*(event.delta/SCROLL_SPEED)), "units")
+        
         lp.bind("<Configure>", lambda e: lc.configure(scrollregion=lc.bbox("all")))
         lc_win = lc.create_window((0, 0), window=lp, anchor="nw")
         lc.configure(yscrollcommand=lsb.set)
         lc.pack(side="left", fill="both", expand=True)
         lsb.pack(side="right", fill="y")
-        lc.bind("<MouseWheel>",
-                lambda ev: lc.yview_scroll(int(-1*(ev.delta/SCROLL_SPEED)), "units"))
+        
+        # FIX F-08: Bind mousewheel no canvas E no frame interno
+        lc.bind("<MouseWheel>", _on_mousewheel)
+        lp.bind("<MouseWheel>", _on_mousewheel)
 
         _desc_lbl_ref = [None]
 
