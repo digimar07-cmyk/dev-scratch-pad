@@ -19,6 +19,7 @@ F-03: Limpeza de órfãos (entradas sem path válido)
 F-08: Sistema de coleções/playlists (gerenciamento + filtros + menu contextual + badges)
 
 PERF-FIX-1: Removido search_var.set("") de set_filter() (300ms debounce eliminado)
+PERF-FIX-2: Indicadores visuais de filtro ativo no header (🏠⭐✓👍👎 ficam vermelhos)
 """
 import os
 import threading
@@ -807,7 +808,7 @@ class LaserflixMainWindow:
     # =========================================================================
 
     def set_filter(self, filter_type: str) -> None:
-        """PERF-FIX-1: Remove debounce desnecessário ao trocar filtros."""
+        """PERF-FIX-1 + PERF-FIX-2: Remove debounce + adiciona indicador visual."""
         self.current_filter = filter_type
         self.current_categories = []; self.current_tag = None; self.current_origin = "all"
         # ❌ REMOVIDO: self.search_var.set("")  — disparava debounce de 300ms!
@@ -816,6 +817,8 @@ class LaserflixMainWindow:
         self.active_filters.clear()
         self._update_chips_bar()
         self.current_page = 1
+        # PERF-FIX-2: Atualiza indicador visual do header
+        self.header.set_active_filter(filter_type)
         self.display_projects()
 
     def _on_search(self) -> None:
