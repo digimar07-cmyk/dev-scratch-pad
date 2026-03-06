@@ -17,6 +17,8 @@ F-03: Feedback visual para órfãos + limpeza em massa:
   - _get_thumbnail_async() passa is_orphan para preloader
   - clean_orphans() remove projetos com pastas inexistentes
   - Dupla confirmação antes de remover
+
+HOTFIX: Corrige assinatura _get_thumbnail_async (4 parâmetros)
 """
 import os
 import threading
@@ -565,14 +567,13 @@ class LaserflixMainWindow:
         
         self.content_canvas.yview_moveto(0)
 
-    def _get_thumbnail_async(self, project_path, callback, widget):
+    def _get_thumbnail_async(self, project_path, callback, widget, is_orphan=False):
         """
         Wrapper thread-safe para carregamento assíncrono de thumbnails.
         
-        F-03: Detecta se projeto é órfão para aplicar grayscale.
+        F-03: Aceita parâmetro is_orphan (4º argumento) para aplicar grayscale.
+        HOTFIX: Corrigido TypeError - agora aceita os 4 parâmetros esperados.
         """
-        is_orphan = not os.path.isdir(project_path)  # ← F-03: Detecção
-        
         def _ui_safe_callback(path, photo):
             try:
                 if widget and widget.winfo_exists():
