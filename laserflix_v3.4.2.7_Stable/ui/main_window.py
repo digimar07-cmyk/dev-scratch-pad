@@ -27,6 +27,7 @@ PERF-FIX-5: Virtual scrolling - renderiza apenas cards visíveis (66% redução 
 REFACTOR-FASE-2: DisplayController extraído (filtros/ordenação/paginação) ✅
 REFACTOR-FASE-3: AnalysisController extraído (análise IA + descrições) ✅
 REFACTOR-CLEANUP-1: Removidos wrappers mortos (-13 linhas) ✅
+REFACTOR-FASE-A: SelectionController integrado (-53 linhas) ✅
 """
 import os
 import threading
@@ -71,6 +72,9 @@ from ui.controllers.display_controller import DisplayController
 
 # FASE 3: Importa AnalysisController
 from ui.controllers.analysis_controller import AnalysisController
+
+# FASE A: Importa SelectionController
+from ui.controllers.selection_controller import SelectionController
 
 
 class LaserflixMainWindow:
@@ -122,11 +126,24 @@ class LaserflixMainWindow:
             self.sidebar.refresh(self.database, self.collections_manager)
         )
         self.analysis_ctrl.setup_callbacks()
-
         
-        # Estados legados (mantidos para retrocompatibilidade)
-        self._selection_mode    = False
-        self._selected_paths    = set()
+        # FASE A: SelectionController gerencia seleção múltipla
+        self.selection_ctrl = SelectionController(
+            database=self.database,
+            db_manager=self.db_manager,
+            collections_manager=self.collections_manager
+        )
+        # Conecta callbacks de UI
+        self.selection_ctrl.on_mode_changed = self._on_selection_mode_changed
+        self.selection_ctrl.on_selection_changed = self._on_selection_count_changed
+        self.selection_ctrl.on_projects_removed = lambda count: (
+            self.status_bar.config(text=f"🗑️ {count} projeto(s) removido(s)"),
+            self.sidebar.refresh(self.database, self.collections_manager)
+        )
+        self.selection_ctrl.on_refresh_needed = lambda: (
+            self._invalidate_cache(),
+            self.display_projects()
+        )
         
         # PERF-FIX-3: Cache de último estado renderizado
         self._last_display_state = None
@@ -148,7 +165,7 @@ class LaserflixMainWindow:
         self.root.configure(bg=BG_PRIMARY)
         self._build_ui()
         self.display_projects()
-        self.logger.info("✨ Laserflix v%s iniciado (DisplayController ativo)", VERSION)
+        self.logger.info("✨ Laserflix v%s iniciado (SelectionController ativo)", VERSION)
 
     def __del__(self):
         if hasattr(self, 'thumbnail_preloader'):
@@ -168,7 +185,7 @@ class LaserflixMainWindow:
             "on_export_db":       self.export_database,
             "on_backup":          self.manual_backup,
             "on_model_settings":  self.open_model_settings,
-            "on_toggle_select":   self.toggle_selection_mode,
+            "on_toggle_select":   self.selection_ctrl.toggle_mode,
             "on_clean_orphans":   self.clean_orphans,
             "on_collections":     self.open_collections_dialog,
         })
@@ -241,22 +258,22 @@ class LaserflixMainWindow:
             bg="#1A1A00", fg="#FFFF88", font=("Arial", 11, "bold"))
         self._sel_count_lbl.pack(side="left", padx=16)
         tk.Button(self._sel_bar, text="☑️ Tudo",
-                  command=self._select_all,
+                  command=lambda: self.selection_ctrl.select_all(self.display_ctrl.get_filtered_projects()),
                   bg="#333300", fg="#FFFF88", font=("Arial", 10),
                   relief="flat", cursor="hand2", padx=10, pady=6
                   ).pack(side="left", padx=4)
         tk.Button(self._sel_bar, text="🔲 Nenhum",
-                  command=self._deselect_all,
+                  command=self.selection_ctrl.deselect_all,
                   bg="#333300", fg="#FFFF88", font=("Arial", 10),
                   relief="flat", cursor="hand2", padx=10, pady=6
                   ).pack(side="left", padx=4)
         tk.Button(self._sel_bar, text="🗑️ Remover selecionados",
-                  command=self._remove_selected,
+                  command=lambda: self.selection_ctrl.remove_selected(self.root),
                   bg="#5A0000", fg="#FF8888", font=("Arial", 10, "bold"),
                   relief="flat", cursor="hand2", padx=14, pady=6
                   ).pack(side="left", padx=12)
         tk.Button(self._sel_bar, text="✕ Cancelar",
-                  command=self.toggle_selection_mode,
+                  command=self.selection_ctrl.toggle_mode,
                   bg="#1A1A00", fg="#888888", font=("Arial", 10),
                   relief="flat", cursor="hand2", padx=10, pady=6
                   ).pack(side="right", padx=16)
@@ -293,7 +310,7 @@ class LaserflixMainWindow:
         
         # FASE 2: Usa display_ctrl.get_display_state()
         current_state = self.display_ctrl.get_display_state()
-        current_state["selection_mode"] = self._selection_mode
+        current_state["selection_mode"] = self.selection_ctrl.selection_mode
         current_state["db_hash"] = (
             len(self.database),
             sum(1 for d in self.database.values() if d.get("favorite")),
@@ -398,121 +415,25 @@ class LaserflixMainWindow:
         self._update_chips_bar()
 
     # ==========================================================================
-    # SELEÇÃO MÚTIPLA (mantido no main_window por enquanto)
+    # FASE A: Callbacks para SelectionController
     # ==========================================================================
-
-    def toggle_selection_mode(self) -> None:
-        self._selection_mode = not self._selection_mode
-        self._selected_paths.clear()
-        if self._selection_mode:
+    
+    def _on_selection_mode_changed(self, is_active: bool) -> None:
+        """Callback quando modo seleção é ativado/desativado."""
+        if is_active:
             self._sel_bar.pack(fill="x", before=self.content_canvas.master)
             self.header.set_select_btn_active(True)
         else:
             self._sel_bar.pack_forget()
             self.header.set_select_btn_active(False)
-        self.display_projects()
-
-    def toggle_card_selection(self, path: str) -> None:
-        if path in self._selected_paths:
-            self._selected_paths.discard(path)
-        else:
-            self._selected_paths.add(path)
-        n = len(self._selected_paths)
-        self._sel_count_lbl.config(text=f"{n} selecionado(s)")
         self._invalidate_cache()
         self.display_projects()
-
-    def _select_all(self) -> None:
-        # FASE 2: Usa display_ctrl.get_filtered_projects()
-        self._selected_paths = set(self.display_ctrl.get_filtered_projects())
-        self._sel_count_lbl.config(text=f"{len(self._selected_paths)} selecionado(s)")
+    
+    def _on_selection_count_changed(self, count: int) -> None:
+        """Callback quando contagem de selecionados muda."""
+        self._sel_count_lbl.config(text=f"{count} selecionado(s)")
         self._invalidate_cache()
         self.display_projects()
-
-    def _deselect_all(self) -> None:
-        self._selected_paths.clear()
-        self._sel_count_lbl.config(text="0 selecionado(s)")
-        self._invalidate_cache()
-        self.display_projects()
-
-    def _remove_selected(self) -> None:
-        n = len(self._selected_paths)
-        if not n:
-            messagebox.showinfo("Seleção vazia", "Nenhum projeto selecionado."); return
-        if not messagebox.askyesno(
-            "🗑️ Remover projetos",
-            f"Remover {n} projeto(s) do banco?\n\nOs arquivos no disco NÃO serão apagados.",
-            icon="warning"):
-            return
-        if not messagebox.askyesno(
-            "⚠️ Confirmar remoção",
-            f"Segunda confirmação.\nIsso removerá {n} projeto(s) permanentemente do banco.\n\nTem certeza?",
-            icon="warning"):
-            return
-        for path in list(self._selected_paths):
-            self.database.pop(path, None)
-        self.db_manager.save_database()
-        self.collections_manager.clean_orphan_projects(set(self.database.keys()))
-        self._selected_paths.clear()
-        self._selection_mode = False
-        self._sel_bar.pack_forget()
-        self.header.set_select_btn_active(False)
-        self.sidebar.refresh(self.database, self.collections_manager)
-        self._invalidate_cache()
-        self.display_projects()
-        self.status_bar.config(text=f"🗑️ {n} projeto(s) removido(s) do banco.")
-
-    def remove_project(self, path: str) -> None:
-        if path in self.database:
-            name = self.database[path].get("name", path)
-            self.database.pop(path)
-            self.db_manager.save_database()
-            self.collections_manager.clean_orphan_projects(set(self.database.keys()))
-            self.sidebar.refresh(self.database, self.collections_manager)
-            self._invalidate_cache()
-            self.display_projects()
-            self.status_bar.config(text=f"🗑️ '{name}' removido do banco.")
-
-    def clean_orphans(self) -> None:
-        orphans = [p for p in self.database.keys() if not os.path.isdir(p)]
-        
-        if not orphans:
-            messagebox.showinfo(
-                "✅ Banco limpo",
-                "Nenhum órfão encontrado!\n\nTodos os projetos têm pastas válidas."
-            )
-            return
-        
-        msg = f"Encontrei {len(orphans)} projeto(s) órfão(s):\n\n"
-        msg += "\n".join(f"- {os.path.basename(p)}" for p in orphans[:10])
-        if len(orphans) > 10:
-            msg += f"\n... e mais {len(orphans) - 10}"
-        msg += "\n\nEsses projetos não existem mais no disco.\nRemover do banco?"
-        
-        if not messagebox.askyesno("🧹 Limpar órfãos", msg, icon="warning"):
-            return
-        
-        if not messagebox.askyesno(
-            "⚠️ Confirmar remoção",
-            f"Segunda confirmação.\n\n{len(orphans)} projeto(s) serão removidos PERMANENTEMENTE do banco.\n\nTem certeza?",
-            icon="warning"
-        ):
-            return
-        
-        for path in orphans:
-            self.database.pop(path, None)
-        
-        self.db_manager.save_database()
-        self.collections_manager.clean_orphan_projects(set(self.database.keys()))
-        self.sidebar.refresh(self.database, self.collections_manager)
-        self._invalidate_cache()
-        self.display_projects()
-        self.status_bar.config(text=f"🧹 {len(orphans)} órfão(s) removido(s) do banco.")
-        
-        messagebox.showinfo(
-            "✅ Limpeza concluída",
-            f"{len(orphans)} projeto(s) órfão(s) removido(s) do banco.\n\nBanco agora está sincronizado com o disco."
-        )
 
     # ==========================================================================
     # COLEÇÕES (F-08)
@@ -743,9 +664,9 @@ class LaserflixMainWindow:
             "on_set_origin": lambda o: self.display_ctrl.add_filter_chip("origin", o),
             "on_set_collection": lambda c: self.display_ctrl.add_filter_chip("collection", c),
             "get_cover_image_async": self._get_thumbnail_async,
-            "selection_mode": self._selection_mode,
-            "selected_paths": self._selected_paths,
-            "on_toggle_select": self.toggle_card_selection,
+            "selection_mode": self.selection_ctrl.selection_mode,
+            "selected_paths": self.selection_ctrl.selected_paths,
+            "on_toggle_select": self.selection_ctrl.toggle_project,
             "on_add_to_collection": self._on_add_to_collection,
             "on_remove_from_collection": self._on_remove_from_collection,
             "on_new_collection_with": self._on_new_collection_with,
@@ -775,8 +696,8 @@ class LaserflixMainWindow:
     # ==========================================================================
 
     def open_project_modal(self, project_path: str) -> None:
-        if self._selection_mode:
-            self.toggle_card_selection(project_path); return
+        if self.selection_ctrl.selection_mode:
+            self.selection_ctrl.toggle_project(project_path); return
         ProjectModal(
             root=self.root, project_path=project_path, database=self.database,
             cb={
@@ -865,12 +786,61 @@ class LaserflixMainWindow:
             self._invalidate_cache()
             if btn: btn.config(fg="#FF0000" if nv else FG_TERTIARY)
 
+    def remove_project(self, path: str) -> None:
+        if path in self.database:
+            name = self.database[path].get("name", path)
+            self.database.pop(path)
+            self.db_manager.save_database()
+            self.collections_manager.clean_orphan_projects(set(self.database.keys()))
+            self.sidebar.refresh(self.database, self.collections_manager)
+            self._invalidate_cache()
+            self.display_projects()
+            self.status_bar.config(text=f"🗑️ '{name}' removido do banco.")
+
+    def clean_orphans(self) -> None:
+        orphans = [p for p in self.database.keys() if not os.path.isdir(p)]
+        
+        if not orphans:
+            messagebox.showinfo(
+                "✅ Banco limpo",
+                "Nenhum órfão encontrado!\n\nTodos os projetos têm pastas válidas."
+            )
+            return
+        
+        msg = f"Encontrei {len(orphans)} projeto(s) órfão(s):\n\n"
+        msg += "\n".join(f"- {os.path.basename(p)}" for p in orphans[:10])
+        if len(orphans) > 10:
+            msg += f"\n... e mais {len(orphans) - 10}"
+        msg += "\n\nEsses projetos não existem mais no disco.\nRemover do banco?"
+        
+        if not messagebox.askyesno("🧹 Limpar órfãos", msg, icon="warning"):
+            return
+        
+        if not messagebox.askyesno(
+            "⚠️ Confirmar remoção",
+            f"Segunda confirmação.\n\n{len(orphans)} projeto(s) serão removidos PERMANENTEMENTE do banco.\n\nTem certeza?",
+            icon="warning"
+        ):
+            return
+        
+        for path in orphans:
+            self.database.pop(path, None)
+        
+        self.db_manager.save_database()
+        self.collections_manager.clean_orphan_projects(set(self.database.keys()))
+        self.sidebar.refresh(self.database, self.collections_manager)
+        self._invalidate_cache()
+        self.display_projects()
+        self.status_bar.config(text=f"🧹 {len(orphans)} órfão(s) removido(s) do banco.")
+        
+        messagebox.showinfo(
+            "✅ Limpeza concluída",
+            f"{len(orphans)} projeto(s) órfão(s) removido(s) do banco.\n\nBanco agora está sincronizado com o disco."
+        )
+
     # ==========================================================================
-    # ANÁLISE IA (mantido original - será extraído na Fase 3)
+    # ANÁLISE IA (FASE 3: Delega para AnalysisController)
     # ==========================================================================
-
-
-
 
     def show_progress_ui(self) -> None:
         self.progress_bar.pack(side="left", padx=10)
@@ -891,26 +861,25 @@ class LaserflixMainWindow:
         """FASE 3: Delega para AnalysisController."""
         self.analysis_ctrl.analyze_single(path, self.database)
 
-
     def analyze_only_new(self) -> None:
         """FASE 3: Delega para AnalysisController."""
         self.analysis_ctrl.analyze_only_new(self.database)
-
 
     def reanalyze_all(self) -> None:
         """FASE 3: Delega para AnalysisController."""
         self.analysis_ctrl.reanalyze_all(self.database)
 
-
     def generate_descriptions_for_new(self) -> None:
         """FASE 3: Delega para AnalysisController."""
         self.analysis_ctrl.generate_descriptions_for_new(self.database)
-
 
     def generate_descriptions_for_all(self) -> None:
         """FASE 3: Delega para AnalysisController."""
         self.analysis_ctrl.generate_descriptions_for_all(self.database)
 
+    # ==========================================================================
+    # DIÁLOGOS E CONFIGURAÇÕES
+    # ==========================================================================
 
     def open_import_dialog(self) -> None:
         self.import_manager.database = self.database
