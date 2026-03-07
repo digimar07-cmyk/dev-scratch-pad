@@ -26,6 +26,7 @@ PERF-FIX-5: Virtual scrolling - renderiza apenas cards visíveis (66% redução 
 
 REFACTOR-FASE-2: DisplayController extraído (filtros/ordenação/paginação) ✅
 REFACTOR-FASE-3: AnalysisController extraído (análise IA + descrições) ✅
+REFACTOR-CLEANUP-1: Removidos wrappers mortos (-13 linhas) ✅
 """
 import os
 import threading
@@ -394,22 +395,6 @@ class LaserflixMainWindow:
         """FASE 2: Delega para DisplayController."""
         self.display_ctrl.set_tag_filter(tag)
         self.sidebar.set_active_btn(btn)
-        self._update_chips_bar()
-
-    def set_origin_filter(self, origin, btn=None): 
-        """FASE 2: Delega para DisplayController."""
-        self.display_ctrl.add_filter_chip("origin", origin)
-        self._update_chips_bar()
-    
-    def set_category_filter(self, cats, btn=None):
-        """FASE 2: Delega para DisplayController."""
-        for cat in (cats if isinstance(cats, list) else [cats]):
-            self.display_ctrl.add_filter_chip("category", cat)
-        self._update_chips_bar()
-    
-    def set_tag_filter(self, tag, btn=None): 
-        """FASE 2: Delega para DisplayController."""
-        self.display_ctrl.add_filter_chip("tag", tag)
         self._update_chips_bar()
 
     # ==========================================================================
