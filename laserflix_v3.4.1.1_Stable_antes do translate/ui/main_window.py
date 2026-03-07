@@ -25,6 +25,7 @@ PERF-FIX-4: Otimização de build_card() com bind compartilhado (~25% mais rápi
 PERF-FIX-5: Virtual scrolling - renderiza apenas cards visíveis (66% redução startup!)
 
 REFACTOR-FASE-2: DisplayController extraído (filtros/ordenação/paginação) ✅
+REFACTOR-FASE-3: AnalysisController extraído (análise IA + descrições) ✅
 """
 import os
 import threading
@@ -67,6 +68,9 @@ from ui.project_modal import ProjectModal
 # FASE 2: Importa DisplayController
 from ui.controllers.display_controller import DisplayController
 
+# FASE 3: Importa AnalysisController
+from ui.controllers.analysis_controller import AnalysisController
+
 
 class LaserflixMainWindow:
     def __init__(self, root: tk.Tk):
@@ -88,7 +92,6 @@ class LaserflixMainWindow:
             self.ollama, self.image_analyzer, self.scanner, self.fallback_generator)
         self.analysis_manager   = AnalysisManager(
             self.text_generator, self.db_manager, self.ollama)
-        self._setup_analysis_callbacks()
 
         self.database           = self.db_manager.database
         
@@ -99,6 +102,26 @@ class LaserflixMainWindow:
             items_per_page=36
         )
         self.display_ctrl.on_display_update = self.display_projects
+        
+        # FASE 3: AnalysisController gerencia análise IA + descrições
+        self.analysis_ctrl = AnalysisController(
+            analysis_manager=self.analysis_manager,
+            text_generator=self.text_generator,
+            db_manager=self.db_manager,
+            ollama_client=self.ollama
+        )
+        # Conecta callbacks de UI
+        self.analysis_ctrl.on_show_progress = self.show_progress_ui
+        self.analysis_ctrl.on_hide_progress = self.hide_progress_ui
+        self.analysis_ctrl.on_update_progress = self.update_progress
+        self.analysis_ctrl.on_analysis_complete = lambda msg: self.status_bar.config(text=msg)
+        self.analysis_ctrl.on_refresh_ui = lambda: (
+            self._invalidate_cache(),
+            self.display_projects(),
+            self.sidebar.refresh(self.database, self.collections_manager)
+        )
+        self.analysis_ctrl.setup_callbacks()
+
         
         # Estados legados (mantidos para retrocompatibilidade)
         self._selection_mode    = False
@@ -861,22 +884,8 @@ class LaserflixMainWindow:
     # ANÁLISE IA (mantido original - será extraído na Fase 3)
     # ==========================================================================
 
-    def _setup_analysis_callbacks(self) -> None:
-        self.analysis_manager.on_start = self.show_progress_ui
-        self.analysis_manager.on_progress = self.update_progress
-        self.analysis_manager.on_complete = self._on_analysis_complete
-        self.analysis_manager.on_error = self._on_analysis_error
 
-    def _on_analysis_complete(self, done, skipped) -> None:
-        self.hide_progress_ui(); self.sidebar.refresh(self.database, self.collections_manager)
-        self._invalidate_cache()
-        self.display_projects()
-        msg = f"✅ Análise: {done} projeto(s)"
-        if skipped: msg += f" ({skipped} pulados)"
-        self.status_bar.config(text=msg)
 
-    def _on_analysis_error(self, error_msg) -> None:
-        messagebox.showwarning("⚠️ Erro", error_msg)
 
     def show_progress_ui(self) -> None:
         self.progress_bar.pack(side="left", padx=10)
@@ -894,62 +903,29 @@ class LaserflixMainWindow:
         self.root.update_idletasks()
 
     def analyze_single_project(self, path) -> None:
-        self.analysis_manager.analyze_single(path, self.database)
+        """FASE 3: Delega para AnalysisController."""
+        self.analysis_ctrl.analyze_single(path, self.database)
+
 
     def analyze_only_new(self) -> None:
-        targets = self.analysis_manager.get_unanalyzed_projects(self.database)
-        if not targets:
-            messagebox.showinfo("✅ Completo", "Todos analisados!"); return
-        if messagebox.askyesno("🤖 Analisar", f"Analisar {len(targets)} projeto(s)?"):
-            self.analysis_manager.analyze_batch(targets, self.database)
+        """FASE 3: Delega para AnalysisController."""
+        self.analysis_ctrl.analyze_only_new(self.database)
+
 
     def reanalyze_all(self) -> None:
-        targets = self.analysis_manager.get_all_projects(self.database)
-        if not targets:
-            messagebox.showinfo("Vazio", "Nenhum projeto."); return
-        if messagebox.askyesno("🔄 Reanalisar", f"Reanalisar {len(targets)} projeto(s)?"):
-            self.analysis_manager.analyze_batch(targets, self.database)
+        """FASE 3: Delega para AnalysisController."""
+        self.analysis_ctrl.reanalyze_all(self.database)
 
-    def _batch_generate_descriptions(self, targets) -> None:
-        self.show_progress_ui()
-        def _run():
-            done = skipped = 0
-            for i, path in enumerate(targets, 1):
-                if self.ollama.stop_flag: break
-                if not os.path.isdir(path): skipped += 1; continue
-                try:
-                    self.update_progress(i, len(targets), f"📝 {os.path.basename(path)}")
-                    desc = self.text_generator.generate_description(path, self.database[path])
-                    self.database[path]["ai_description"] = desc
-                    done += 1
-                    if done % 5 == 0: self.db_manager.save_database()
-                except Exception as e:
-                    self.logger.error("Erro: %s", e); skipped += 1
-            self.db_manager.save_database(); self.hide_progress_ui()
-            self._invalidate_cache()
-            self.display_projects()
-            msg = f"✅ {done} descrição(ões)"
-            if skipped: msg += f" ({skipped} puladas)"
-            self.status_bar.config(text=msg)
-        threading.Thread(target=_run, daemon=True).start()
 
     def generate_descriptions_for_new(self) -> None:
-        targets = [p for p, d in self.database.items() if not d.get("ai_description", "").strip()]
-        if not targets:
-            messagebox.showinfo("✅ Completo", "Todos têm descrição!"); return
-        if messagebox.askyesno("📝 Gerar", f"Gerar {len(targets)} descrição(ões)?"):
-            self._batch_generate_descriptions(targets)
+        """FASE 3: Delega para AnalysisController."""
+        self.analysis_ctrl.generate_descriptions_for_new(self.database)
+
 
     def generate_descriptions_for_all(self) -> None:
-        targets = list(self.database.keys())
-        if not targets:
-            messagebox.showinfo("Vazio", "Nenhum projeto."); return
-        if messagebox.askyesno("📝 Gerar", f"Gerar {len(targets)} descrição(ões)?"):
-            self._batch_generate_descriptions(targets)
+        """FASE 3: Delega para AnalysisController."""
+        self.analysis_ctrl.generate_descriptions_for_all(self.database)
 
-    # ==========================================================================
-    # UTILIDADES (mantidos originais)
-    # ==========================================================================
 
     def open_import_dialog(self) -> None:
         self.import_manager.database = self.database
