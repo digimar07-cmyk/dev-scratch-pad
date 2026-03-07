@@ -23,6 +23,8 @@ PERF-FIX-2: Indicadores visuais de filtro ativo no header (🏠⭐✓👍👎 fi
 PERF-FIX-3: Cache de estado + skip rebuild desnecessário (cliques repetidos)
 PERF-FIX-4: Otimização de build_card() com bind compartilhado (~25% mais rápido)
 PERF-FIX-5: Virtual scrolling - renderiza apenas cards visíveis (66% redução startup!)
+
+REFACTOR-FASE-2: DisplayController extraído (filtros/ordenação/paginação) ✅
 """
 import os
 import threading
@@ -62,6 +64,9 @@ from ui.project_card import build_card
 from ui.edit_modal import EditModal
 from ui.project_modal import ProjectModal
 
+# FASE 2: Importa DisplayController
+from ui.controllers.display_controller import DisplayController
+
 
 class LaserflixMainWindow:
     def __init__(self, root: tk.Tk):
@@ -86,19 +91,18 @@ class LaserflixMainWindow:
         self._setup_analysis_callbacks()
 
         self.database           = self.db_manager.database
-        self.current_filter     = "all"
-        self.current_categories = []
-        self.current_tag        = None
-        self.current_origin     = "all"
-        self.search_query       = ""
-        self.current_sort       = "date_desc"
-        self.active_filters     = []
+        
+        # FASE 2: DisplayController gerencia estado de filtros/ordenação/paginação
+        self.display_ctrl = DisplayController(
+            database=self.database,
+            collections_manager=self.collections_manager,
+            items_per_page=36
+        )
+        self.display_ctrl.on_display_update = self.display_projects
+        
+        # Estados legados (mantidos para retrocompatibilidade)
         self._selection_mode    = False
         self._selected_paths    = set()
-        
-        self.items_per_page = 36
-        self.current_page   = 1
-        self.total_pages    = 1
         
         # PERF-FIX-3: Cache de último estado renderizado
         self._last_display_state = None
@@ -120,7 +124,7 @@ class LaserflixMainWindow:
         self.root.configure(bg=BG_PRIMARY)
         self._build_ui()
         self.display_projects()
-        self.logger.info("✨ Laserflix v%s iniciado (virtual scroll ativo)", VERSION)
+        self.logger.info("✨ Laserflix v%s iniciado (DisplayController ativo)", VERSION)
 
     def __del__(self):
         if hasattr(self, 'thumbnail_preloader'):
@@ -233,10 +237,10 @@ class LaserflixMainWindow:
                   relief="flat", cursor="hand2", padx=10, pady=6
                   ).pack(side="right", padx=16)
         
-        self.root.bind("<Left>", lambda e: self.prev_page())
-        self.root.bind("<Right>", lambda e: self.next_page())
-        self.root.bind("<Home>", lambda e: self.first_page())
-        self.root.bind("<End>", lambda e: self.last_page())
+        self.root.bind("<Left>", lambda e: self.display_ctrl.prev_page())
+        self.root.bind("<Right>", lambda e: self.display_ctrl.next_page())
+        self.root.bind("<Home>", lambda e: self.display_ctrl.first_page())
+        self.root.bind("<End>", lambda e: self.display_ctrl.last_page())
 
     # PERF-FIX-5: Virtual Scrolling
     def _on_scroll(self, event):
@@ -258,30 +262,19 @@ class LaserflixMainWindow:
         # TODO: Implementar lógica incremental se necessário
         # Por ora, rebuild inicial já está otimizado
 
-    def _get_current_display_state(self) -> dict:
-        return {
-            "filter": self.current_filter,
-            "origin": self.current_origin,
-            "categories": tuple(sorted(self.current_categories)),
-            "tag": self.current_tag,
-            "search": self.search_query,
-            "sort": self.current_sort,
-            "page": self.current_page,
-            "active_filters": tuple((f["type"], f["value"]) for f in self.active_filters),
-            "selection_mode": self._selection_mode,
-            "db_hash": (
-                len(self.database),
-                sum(1 for d in self.database.values() if d.get("favorite")),
-                sum(1 for d in self.database.values() if d.get("done")),
-            )
-        }
-
     def _should_rebuild(self) -> bool:
         if self._force_rebuild:
             self._force_rebuild = False
             return True
         
-        current_state = self._get_current_display_state()
+        # FASE 2: Usa display_ctrl.get_display_state()
+        current_state = self.display_ctrl.get_display_state()
+        current_state["selection_mode"] = self._selection_mode
+        current_state["db_hash"] = (
+            len(self.database),
+            sum(1 for d in self.database.values() if d.get("favorite")),
+            sum(1 for d in self.database.values() if d.get("done")),
+        )
         
         if self._last_display_state is None:
             self._last_display_state = current_state
@@ -301,7 +294,8 @@ class LaserflixMainWindow:
         for w in self.chips_container.winfo_children():
             w.destroy()
         
-        if not self.active_filters:
+        # FASE 2: Usa display_ctrl.active_filters
+        if not self.display_ctrl.active_filters:
             self.chips_bar.pack_forget()
             return
         
@@ -312,7 +306,7 @@ class LaserflixMainWindow:
             "analysis_ai": "🤖", "analysis_fallback": "⚡", "analysis_pending": "⏳",
         }
         
-        for filt in self.active_filters:
+        for filt in self.display_ctrl.active_filters:
             ftype, fval = filt["type"], filt["value"]
             icon = icons.get(ftype, "🔹")
             
@@ -325,7 +319,7 @@ class LaserflixMainWindow:
             
             remove_btn = tk.Button(
                 chip_frame, text="✕",
-                command=lambda f=filt: self._remove_chip(f),
+                command=lambda f=filt: self.display_ctrl.remove_filter_chip(f),
                 bg="#2E2E4E", fg="#FF6B6B", font=("Arial", 9, "bold"),
                 relief="flat", cursor="hand2", padx=4, pady=2, bd=0
             )
@@ -333,10 +327,10 @@ class LaserflixMainWindow:
             remove_btn.bind("<Enter>", lambda e, b=remove_btn: b.config(bg="#FF6B6B", fg="#FFFFFF"))
             remove_btn.bind("<Leave>", lambda e, b=remove_btn: b.config(bg="#2E2E4E", fg="#FF6B6B"))
         
-        if len(self.active_filters) > 1:
+        if len(self.display_ctrl.active_filters) > 1:
             clear_btn = tk.Button(
                 self.chips_container, text="✕ Limpar tudo",
-                command=self._clear_all_chips,
+                command=self.display_ctrl.clear_all_filters,
                 bg="#4A1A1A", fg="#FFAAAA", font=("Arial", 9, "bold"),
                 relief="flat", cursor="hand2", padx=10, pady=4
             )
@@ -344,56 +338,60 @@ class LaserflixMainWindow:
             clear_btn.bind("<Enter>", lambda e: clear_btn.config(bg="#8A1A1A"))
             clear_btn.bind("<Leave>", lambda e: clear_btn.config(bg="#4A1A1A"))
 
-    def _add_filter_chip(self, filter_type: str, value: str) -> None:
-        new_chip = {"type": filter_type, "value": value}
-        if new_chip not in self.active_filters:
-            self.active_filters.append(new_chip)
-            self._update_chips_bar()
-            self.current_page = 1
-            self.display_projects()
-
-    def _remove_chip(self, filt: dict) -> None:
-        if filt in self.active_filters:
-            self.active_filters.remove(filt)
-            self._update_chips_bar()
-            self.current_page = 1
-            self.display_projects()
-
-    def _clear_all_chips(self) -> None:
-        self.active_filters.clear()
+    # ==========================================================================
+    # FILTROS (FASE 2: Delegam para DisplayController)
+    # ==========================================================================
+    
+    def set_filter(self, filter_type: str) -> None:
+        """FASE 2: Delega para DisplayController."""
+        self.display_ctrl.set_filter(filter_type)
+        self.sidebar.set_active_btn(None)
+        self.header.set_active_filter(filter_type)
         self._update_chips_bar()
-        self.current_page = 1
-        self.display_projects()
 
-    def _on_sort(self, sort_type: str) -> None:
-        self.current_sort = sort_type
-        self.current_page = 1
-        self.display_projects()
+    def _on_search(self) -> None:
+        """FASE 2: Delega para DisplayController."""
+        self.display_ctrl.set_search_query(self.search_var.get())
 
-    def _apply_sorting(self, projects: list) -> list:
-        if not projects:
-            return projects
-        
-        try:
-            if self.current_sort == "date_desc":
-                return sorted(projects, key=lambda p: p[1].get("added_date", ""), reverse=True)
-            elif self.current_sort == "date_asc":
-                return sorted(projects, key=lambda p: p[1].get("added_date", ""))
-            elif self.current_sort == "name_asc":
-                return sorted(projects, key=lambda p: p[1].get("name", "").lower())
-            elif self.current_sort == "name_desc":
-                return sorted(projects, key=lambda p: p[1].get("name", "").lower(), reverse=True)
-            elif self.current_sort == "origin":
-                return sorted(projects, key=lambda p: (p[1].get("origin", "zzz"), p[1].get("name", "").lower()))
-            elif self.current_sort == "analyzed":
-                return sorted(projects, key=lambda p: (not p[1].get("analyzed", False), p[1].get("name", "").lower()))
-            elif self.current_sort == "not_analyzed":
-                return sorted(projects, key=lambda p: (p[1].get("analyzed", False), p[1].get("name", "").lower()))
-            else:
-                return projects
-        except Exception as e:
-            self.logger.error("Erro ao ordenar: %s", e)
-            return projects
+    def _on_origin_filter(self, origin, btn=None) -> None:
+        """FASE 2: Delega para DisplayController."""
+        self.display_ctrl.set_origin_filter(origin)
+        self.sidebar.set_active_btn(btn)
+        self._update_chips_bar()
+        count = sum(1 for d in self.database.values() if d.get("origin") == origin)
+        self.status_bar.config(text=f"Origem: {origin} ({count} projetos)")
+
+    def _on_category_filter(self, cats, btn=None) -> None:
+        """FASE 2: Delega para DisplayController."""
+        self.display_ctrl.set_category_filter(cats)
+        self.sidebar.set_active_btn(btn)
+        self._update_chips_bar()
+
+    def _on_tag_filter(self, tag, btn=None) -> None:
+        """FASE 2: Delega para DisplayController."""
+        self.display_ctrl.set_tag_filter(tag)
+        self.sidebar.set_active_btn(btn)
+        self._update_chips_bar()
+
+    def set_origin_filter(self, origin, btn=None): 
+        """FASE 2: Delega para DisplayController."""
+        self.display_ctrl.add_filter_chip("origin", origin)
+        self._update_chips_bar()
+    
+    def set_category_filter(self, cats, btn=None):
+        """FASE 2: Delega para DisplayController."""
+        for cat in (cats if isinstance(cats, list) else [cats]):
+            self.display_ctrl.add_filter_chip("category", cat)
+        self._update_chips_bar()
+    
+    def set_tag_filter(self, tag, btn=None): 
+        """FASE 2: Delega para DisplayController."""
+        self.display_ctrl.add_filter_chip("tag", tag)
+        self._update_chips_bar()
+
+    # ==========================================================================
+    # SELEÇÃO MÚTIPLA (mantido no main_window por enquanto)
+    # ==========================================================================
 
     def toggle_selection_mode(self) -> None:
         self._selection_mode = not self._selection_mode
@@ -417,7 +415,8 @@ class LaserflixMainWindow:
         self.display_projects()
 
     def _select_all(self) -> None:
-        self._selected_paths = set(self.get_filtered_projects())
+        # FASE 2: Usa display_ctrl.get_filtered_projects()
+        self._selected_paths = set(self.display_ctrl.get_filtered_projects())
         self._sel_count_lbl.config(text=f"{len(self._selected_paths)} selecionado(s)")
         self._invalidate_cache()
         self.display_projects()
@@ -482,7 +481,7 @@ class LaserflixMainWindow:
             msg += f"\n... e mais {len(orphans) - 10}"
         msg += "\n\nEsses projetos não existem mais no disco.\nRemover do banco?"
         
-        if not messagebox.askyesno("🧼 Limpar órfãos", msg, icon="warning"):
+        if not messagebox.askyesno("🧹 Limpar órfãos", msg, icon="warning"):
             return
         
         if not messagebox.askyesno(
@@ -500,14 +499,17 @@ class LaserflixMainWindow:
         self.sidebar.refresh(self.database, self.collections_manager)
         self._invalidate_cache()
         self.display_projects()
-        self.status_bar.config(text=f"🧼 {len(orphans)} órfão(s) removido(s) do banco.")
+        self.status_bar.config(text=f"🧹 {len(orphans)} órfão(s) removido(s) do banco.")
         
         messagebox.showinfo(
             "✅ Limpeza concluída",
             f"{len(orphans)} projeto(s) órfão(s) removido(s) do banco.\n\nBanco agora está sincronizado com o disco."
         )
 
-    # F-08: Collections (mantido código original por brevidade)
+    # ==========================================================================
+    # COLEÇÕES (F-08)
+    # ==========================================================================
+
     def open_collections_dialog(self) -> None:
         from ui.collections_dialog import CollectionsDialog
         self.root.wait_window(
@@ -521,14 +523,10 @@ class LaserflixMainWindow:
         self._invalidate_cache()
 
     def _on_collection_filter(self, collection_name: str, btn=None) -> None:
-        self.current_filter = "all"
-        self.current_categories = []
-        self.current_tag = None
-        self.current_origin = "all"
-        self.current_page = 1
-        self.active_filters.clear()
-        self._add_filter_chip("collection", collection_name)
+        """FASE 2: Delega para DisplayController."""
+        self.display_ctrl.set_collection_filter(collection_name)
         self.sidebar.set_active_btn(btn)
+        self._update_chips_bar()
         count = self.collections_manager.get_collection_size(collection_name)
         self.status_bar.config(text=f"📁 Coleção: {collection_name} ({count} projetos)")
 
@@ -546,7 +544,8 @@ class LaserflixMainWindow:
         self.status_bar.config(text=f"🗑️ '{name}' removido da coleção '{collection_name}'")
         self.sidebar.refresh(self.database, self.collections_manager)
         self._invalidate_cache()
-        if any(f["type"] == "collection" and f["value"] == collection_name for f in self.active_filters):
+        # FASE 2: Verifica se filtro de coleção está ativo
+        if any(f["type"] == "collection" and f["value"] == collection_name for f in self.display_ctrl.active_filters):
             self.display_projects()
         else:
             self.display_projects()
@@ -580,41 +579,53 @@ class LaserflixMainWindow:
         self._invalidate_cache()
         self.display_projects()
 
-    # PERF-FIX-5: display_projects COM VIRTUAL SCROLLING
+    # ==========================================================================
+    # DISPLAY (FASE 2: Usa DisplayController)
+    # ==========================================================================
+
     def display_projects(self) -> None:
         if not self._should_rebuild():
             self.logger.debug("⚡ SKIP display_projects")
             return
         
+        # Atualiza chips bar
+        self._update_chips_bar()
+        
         for w in self.scrollable_frame.winfo_children():
             w.destroy()
         
+        # FASE 2: Usa DisplayController
+        filtered_paths = self.display_ctrl.get_filtered_projects()
         all_filtered = [
             (p, self.database[p])
-            for p in self.get_filtered_projects()
+            for p in filtered_paths
             if p in self.database
         ]
         
-        all_filtered = self._apply_sorting(all_filtered)
+        # FASE 2: Usa DisplayController para ordenar
+        all_filtered = self.display_ctrl.apply_sorting(all_filtered)
         total_count = len(all_filtered)
         
-        self.total_pages = max(1, (total_count + self.items_per_page - 1) // self.items_per_page)
-        self.current_page = max(1, min(self.current_page, self.total_pages))
-        
-        start_idx = (self.current_page - 1) * self.items_per_page
-        end_idx = min(start_idx + self.items_per_page, total_count)
+        # FASE 2: Usa DisplayController para paginar
+        page_info = self.display_ctrl.get_page_info(total_count)
+        start_idx = page_info["start_idx"]
+        end_idx = page_info["end_idx"]
         page_items = all_filtered[start_idx:end_idx]
         
-        # Header (mantido original)
+        # Header
         title_map = {
             "favorite": "⭐ Favoritos", "done": "✓ Já Feitos",
             "good": "👍 Bons", "bad": "👎 Ruins",
         }
-        title = title_map.get(self.current_filter, "Todos os Projetos")
-        if self.current_origin != "all": title += f" — {self.current_origin}"
-        if self.current_categories: title += f" — {', '.join(self.current_categories)}"
-        if self.current_tag: title += f" — #{self.current_tag}"
-        if self.search_query: title += f' — "{self.search_query}"'
+        title = title_map.get(self.display_ctrl.current_filter, "Todos os Projetos")
+        if self.display_ctrl.current_origin != "all": 
+            title += f" — {self.display_ctrl.current_origin}"
+        if self.display_ctrl.current_categories: 
+            title += f" — {', '.join(self.display_ctrl.current_categories)}"
+        if self.display_ctrl.current_tag: 
+            title += f" — #{self.display_ctrl.current_tag}"
+        if self.display_ctrl.search_query: 
+            title += f' — "{self.display_ctrl.search_query}"'
         
         header_frame = tk.Frame(self.scrollable_frame, bg=BG_PRIMARY)
         header_frame.grid(row=0, column=0, columnspan=COLS, sticky="ew", padx=10, pady=(0, 5))
@@ -623,7 +634,7 @@ class LaserflixMainWindow:
                  font=("Arial", 20, "bold"), bg=BG_PRIMARY, fg=FG_PRIMARY, anchor="w"
                  ).pack(side="left")
         
-        # Navigation (código original mantido por brevidade - ~80 linhas)
+        # Navigation
         if total_count > 0:
             right_controls = tk.Frame(header_frame, bg=BG_PRIMARY)
             right_controls.pack(side="right", padx=10)
@@ -640,7 +651,7 @@ class LaserflixMainWindow:
                 "origin": "🏛️ Origem", "analyzed": "🤖 Analisados", "not_analyzed": "⏳ Pendentes",
             }
             
-            sort_var = tk.StringVar(value=self.current_sort)
+            sort_var = tk.StringVar(value=self.display_ctrl.current_sort)
             style = ttk.Style()
             style.theme_use("clam")
             style.configure("Sort.TCombobox", fieldbackground="#222222", background="#222222",
@@ -654,13 +665,14 @@ class LaserflixMainWindow:
                                       values=list(sort_labels.values()), state="readonly",
                                       width=14, font=("Arial", 9), style="Sort.TCombobox")
             sort_combo.pack(side="left")
-            sort_combo.set(sort_labels[self.current_sort])
+            sort_combo.set(sort_labels[self.display_ctrl.current_sort])
             
             def on_sort_change(event):
                 selected_label = sort_combo.get()
                 for key, label in sort_labels.items():
                     if label == selected_label:
-                        self._on_sort(key)
+                        # FASE 2: Delega para DisplayController
+                        self.display_ctrl.set_sorting(key)
                         break
             
             sort_combo.bind("<<ComboboxSelected>>", on_sort_change)
@@ -668,32 +680,33 @@ class LaserflixMainWindow:
             nav_frame = tk.Frame(right_controls, bg=BG_PRIMARY)
             nav_frame.pack(side="left")
             
-            tk.Button(nav_frame, text="⏮", command=self.first_page,
+            # FASE 2: Usa page_info do DisplayController
+            tk.Button(nav_frame, text="⏮", command=self.display_ctrl.first_page,
                       bg="#333333", fg=FG_PRIMARY, font=("Arial", 9),
                       relief="flat", cursor="hand2", padx=6, pady=3,
-                      state="normal" if self.current_page > 1 else "disabled"
+                      state="normal" if page_info["current_page"] > 1 else "disabled"
                       ).pack(side="left", padx=1)
             
-            tk.Button(nav_frame, text="◀", command=self.prev_page,
+            tk.Button(nav_frame, text="◀", command=self.display_ctrl.prev_page,
                       bg="#444444", fg=FG_PRIMARY, font=("Arial", 9),
                       relief="flat", cursor="hand2", padx=6, pady=3,
-                      state="normal" if self.current_page > 1 else "disabled"
+                      state="normal" if page_info["current_page"] > 1 else "disabled"
                       ).pack(side="left", padx=1)
             
-            tk.Label(nav_frame, text=f"Pág {self.current_page}/{self.total_pages}",
+            tk.Label(nav_frame, text=f"Pág {page_info['current_page']}/{page_info['total_pages']}",
                      bg=BG_PRIMARY, fg=ACCENT_GOLD, font=("Arial", 10, "bold")
                      ).pack(side="left", padx=8)
             
-            tk.Button(nav_frame, text="▶", command=self.next_page,
+            tk.Button(nav_frame, text="▶", command=self.display_ctrl.next_page,
                       bg="#444444", fg=FG_PRIMARY, font=("Arial", 9),
                       relief="flat", cursor="hand2", padx=6, pady=3,
-                      state="normal" if self.current_page < self.total_pages else "disabled"
+                      state="normal" if page_info["current_page"] < page_info["total_pages"] else "disabled"
                       ).pack(side="left", padx=1)
             
-            tk.Button(nav_frame, text="⏭", command=self.last_page,
+            tk.Button(nav_frame, text="⏭", command=self.display_ctrl.last_page,
                       bg="#333333", fg=FG_PRIMARY, font=("Arial", 9),
                       relief="flat", cursor="hand2", padx=6, pady=3,
-                      state="normal" if self.current_page < self.total_pages else "disabled"
+                      state="normal" if page_info["current_page"] < page_info["total_pages"] else "disabled"
                       ).pack(side="left", padx=1)
         
         tk.Label(self.scrollable_frame,
@@ -708,7 +721,7 @@ class LaserflixMainWindow:
                      ).grid(row=2, column=0, columnspan=COLS, pady=80)
             return
         
-        # RENDERIZA CARDS (mantido original - FIX 4 já otimizou)
+        # RENDERIZA CARDS
         card_cb = {
             "on_open_modal": self.open_project_modal,
             "on_toggle_favorite": self.toggle_favorite,
@@ -717,10 +730,10 @@ class LaserflixMainWindow:
             "on_toggle_bad": self.toggle_bad,
             "on_analyze_single": self.analyze_single_project,
             "on_open_folder": open_folder,
-            "on_set_category": lambda c: self._add_filter_chip("category", c),
-            "on_set_tag": lambda t: self._add_filter_chip("tag", t),
-            "on_set_origin": lambda o: self._add_filter_chip("origin", o),
-            "on_set_collection": lambda c: self._add_filter_chip("collection", c),
+            "on_set_category": lambda c: self.display_ctrl.add_filter_chip("category", c),
+            "on_set_tag": lambda t: self.display_ctrl.add_filter_chip("tag", t),
+            "on_set_origin": lambda o: self.display_ctrl.add_filter_chip("origin", o),
+            "on_set_collection": lambda c: self.display_ctrl.add_filter_chip("collection", c),
             "get_cover_image_async": self._get_thumbnail_async,
             "selection_mode": self._selection_mode,
             "selected_paths": self._selected_paths,
@@ -749,118 +762,10 @@ class LaserflixMainWindow:
         
         self.thumbnail_preloader.preload_single(project_path, _ui_safe_callback)
 
-    def next_page(self) -> None:
-        if self.current_page < self.total_pages:
-            self.current_page += 1
-            self.display_projects()
+    # ==========================================================================
+    # MODAIS E TOGGLES (mantidos originais)
+    # ==========================================================================
 
-    def prev_page(self) -> None:
-        if self.current_page > 1:
-            self.current_page -= 1
-            self.display_projects()
-
-    def first_page(self) -> None:
-        self.current_page = 1
-        self.display_projects()
-
-    def last_page(self) -> None:
-        self.current_page = self.total_pages
-        self.display_projects()
-
-    def set_filter(self, filter_type: str) -> None:
-        self.current_filter = filter_type
-        self.current_categories = []; self.current_tag = None; self.current_origin = "all"
-        self.search_query = ""
-        self.sidebar.set_active_btn(None)
-        self.active_filters.clear()
-        self._update_chips_bar()
-        self.current_page = 1
-        self.header.set_active_filter(filter_type)
-        self.display_projects()
-
-    def _on_search(self) -> None:
-        self.search_query = self.search_var.get().strip().lower()
-        self.current_page = 1
-        self.display_projects()
-
-    def _on_origin_filter(self, origin, btn=None) -> None:
-        self.current_filter = "all"; self.current_origin = origin
-        self.current_categories = []; self.current_tag = None
-        self.current_page = 1
-        self.active_filters.clear()
-        self._add_filter_chip("origin", origin)
-        self.sidebar.set_active_btn(btn)
-        count = sum(1 for d in self.database.values() if d.get("origin") == origin)
-        self.status_bar.config(text=f"Origem: {origin} ({count} projetos)")
-
-    def _on_category_filter(self, cats, btn=None) -> None:
-        self.current_filter = "all"; self.current_categories = cats
-        self.current_tag = None; self.current_origin = "all"
-        self.current_page = 1
-        self.active_filters.clear()
-        for cat in cats:
-            self._add_filter_chip("category", cat)
-        self.sidebar.set_active_btn(btn)
-
-    def _on_tag_filter(self, tag, btn=None) -> None:
-        self.current_filter = "all"; self.current_tag = tag
-        self.current_categories = []; self.current_origin = "all"
-        self.current_page = 1
-        self.active_filters.clear()
-        self._add_filter_chip("tag", tag)
-        self.sidebar.set_active_btn(btn)
-
-    def set_origin_filter(self, origin, btn=None): self._add_filter_chip("origin", origin)
-    def set_category_filter(self, cats, btn=None):
-        for cat in (cats if isinstance(cats, list) else [cats]):
-            self._add_filter_chip("category", cat)
-    def set_tag_filter(self, tag, btn=None): self._add_filter_chip("tag", tag)
-
-    def get_filtered_projects(self) -> list:
-        result = []
-        for path, data in self.database.items():
-            ok = (
-                self.current_filter == "all"
-                or (self.current_filter == "favorite" and data.get("favorite"))
-                or (self.current_filter == "done" and data.get("done"))
-                or (self.current_filter == "good" and data.get("good"))
-                or (self.current_filter == "bad" and data.get("bad"))
-            )
-            if not ok: continue
-            
-            passes_all_filters = True
-            for filt in self.active_filters:
-                ftype, fval = filt["type"], filt["value"]
-                
-                if ftype == "category" and fval not in data.get("categories", []):
-                    passes_all_filters = False; break
-                elif ftype == "tag" and fval not in data.get("tags", []):
-                    passes_all_filters = False; break
-                elif ftype == "origin" and data.get("origin") != fval:
-                    passes_all_filters = False; break
-                elif ftype == "collection" and path not in self.collections_manager.get_collection_projects(fval):
-                    passes_all_filters = False; break
-                elif ftype == "analysis_ai" and not (data.get("analyzed") and data.get("analysis_type") == "ai"):
-                    passes_all_filters = False; break
-                elif ftype == "analysis_fallback" and not (data.get("analyzed") and data.get("analysis_type") == "fallback"):
-                    passes_all_filters = False; break
-                elif ftype == "analysis_pending" and data.get("analyzed"):
-                    passes_all_filters = False; break
-            
-            if not passes_all_filters: continue
-            
-            if self.current_origin != "all" and data.get("origin") != self.current_origin: continue
-            if self.current_categories and not any(c in data.get("categories", []) for c in self.current_categories): continue
-            if self.current_tag and self.current_tag not in data.get("tags", []): continue
-            
-            if self.search_query:
-                name_en = data.get("name", "")
-                if not search_bilingual(self.search_query, name_en): continue
-            
-            result.append(path)
-        return result
-
-    # Modais, toggles, IA, utilidades (mantidos originais por brevidade)
     def open_project_modal(self, project_path: str) -> None:
         if self._selection_mode:
             self.toggle_card_selection(project_path); return
@@ -873,7 +778,7 @@ class LaserflixMainWindow:
                 "on_generate_desc": self._modal_generate_desc,
                 "on_open_edit": self.open_edit_mode,
                 "on_reanalize": self.analyze_single_project,
-                "on_set_tag": lambda t: self._add_filter_chip("tag", t),
+                "on_set_tag": lambda t: self.display_ctrl.add_filter_chip("tag", t),
                 "on_remove": self.remove_project,
                 "get_project_collections": lambda p: self.collections_manager.get_project_collections(p),
             },
@@ -951,6 +856,10 @@ class LaserflixMainWindow:
             self.db_manager.save_database()
             self._invalidate_cache()
             if btn: btn.config(fg="#FF0000" if nv else FG_TERTIARY)
+
+    # ==========================================================================
+    # ANÁLISE IA (mantido original - será extraído na Fase 3)
+    # ==========================================================================
 
     def _setup_analysis_callbacks(self) -> None:
         self.analysis_manager.on_start = self.show_progress_ui
@@ -1038,6 +947,10 @@ class LaserflixMainWindow:
         if messagebox.askyesno("📝 Gerar", f"Gerar {len(targets)} descrição(ões)?"):
             self._batch_generate_descriptions(targets)
 
+    # ==========================================================================
+    # UTILIDADES (mantidos originais)
+    # ==========================================================================
+
     def open_import_dialog(self) -> None:
         self.import_manager.database = self.database
         self.import_manager.start_import()
@@ -1072,7 +985,7 @@ class LaserflixMainWindow:
         cv.bind("<MouseWheel>", lambda e: cv.yview_scroll(int(-1*(e.delta/SCROLL_SPEED)), "units"))
         for cat, count in cats_sorted:
             b = tk.Button(inner, text=f"{cat} ({count})",
-                          command=lambda c=cat: (self._add_filter_chip("category", c), win.destroy()),
+                          command=lambda c=cat: (self.display_ctrl.add_filter_chip("category", c), self._update_chips_bar(), win.destroy()),
                           bg=BG_CARD, fg=FG_PRIMARY, font=("Arial", 10),
                           relief="flat", cursor="hand2", anchor="w", padx=12, pady=8)
             b.pack(fill="x", pady=2, padx=5)
@@ -1111,7 +1024,8 @@ class LaserflixMainWindow:
         self.import_manager.database = self.database
         self.db_manager.save_database()
         self.sidebar.refresh(self.database, self.collections_manager)
-        self.current_page = 1
+        # FASE 2: Reseta DisplayController para refletir novo database
+        self.display_ctrl.current_page = 1
         self._invalidate_cache()
         self.display_projects()
         self.status_bar.config(text="✅ Importação concluída!")
