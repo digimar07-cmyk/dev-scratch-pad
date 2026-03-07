@@ -3,6 +3,10 @@ ui/controllers/project_management_controller.py - Gerencia remocao e flags.
 
 FASE 7C.3: Extrai logica de gerenciamento de projetos do main_window.py
 Reducao estimada: -70 linhas no main_window.py
+
+FASE C (07/03/2026): Controller PURO - sem logica de UI
+- toggle_flag() NAO atualiza botoes (responsabilidade do wrapper)
+- remove_project() e clean_orphans() mantem dialogs (interacao com usuario)
 """
 
 import os
@@ -17,6 +21,10 @@ class ProjectManagementController:
     - Remover projeto individual
     - Limpar projetos orfaos (pasta nao existe)
     - Alternar flags (favorite, done, good, bad)
+    
+    NAO responsavel por:
+    - Atualizar widgets (botoes, labels)
+    - Logica de good/bad exclusivo (fica no wrapper)
     """
     
     def __init__(self, database, db_manager, collections_manager):
@@ -30,9 +38,17 @@ class ProjectManagementController:
         self.on_flag_toggled = None     # callback()
     
     def remove_project(self, path, parent_window):
-        """Remove projeto individual do banco."""
+        """Remove projeto individual do banco.
+        
+        Args:
+            path: Caminho do projeto
+            parent_window: Janela pai para dialogs
+            
+        Returns:
+            bool: True se removido, False se cancelado
+        """
         if path not in self.database:
-            return
+            return False
         
         project_name = os.path.basename(path)
         
@@ -44,7 +60,7 @@ class ProjectManagementController:
         )
         
         if not confirm:
-            return
+            return False
         
         # Remover do banco
         del self.database[path]
@@ -65,9 +81,18 @@ class ProjectManagementController:
         # Notificar UI
         if self.on_project_removed:
             self.on_project_removed(project_name)
+        
+        return True
     
     def clean_orphans(self, parent_window):
-        """Remove projetos orfaos (pasta nao existe mais)."""
+        """Remove projetos orfaos (pasta nao existe mais).
+        
+        Args:
+            parent_window: Janela pai para dialogs
+            
+        Returns:
+            int: Numero de orfaos removidos (0 se cancelado ou nenhum encontrado)
+        """
         orphans = [
             path for path in self.database.keys()
             if not os.path.exists(path)
@@ -79,7 +104,7 @@ class ProjectManagementController:
                 "Nao ha projetos orfaos no banco.",
                 parent=parent_window
             )
-            return
+            return 0
         
         count = len(orphans)
         confirm = messagebox.askyesno(
@@ -90,7 +115,7 @@ class ProjectManagementController:
         )
         
         if not confirm:
-            return
+            return 0
         
         # Remover orfaos
         for path in orphans:
@@ -112,31 +137,35 @@ class ProjectManagementController:
         # Notificar UI
         if self.on_orphans_cleaned:
             self.on_orphans_cleaned(count)
+        
+        return count
     
-    def toggle_flag(self, path, flag_name, button=None):
-        """Alterna flag de projeto (favorite, done, good, bad)."""
+    def toggle_flag(self, path, flag_name):
+        """Alterna flag de projeto (favorite, done, good, bad).
+        
+        IMPORTANTE: NAO atualiza UI. Wrapper e responsavel por isso.
+        IMPORTANTE: Logica de good/bad exclusivo esta no WRAPPER.
+        
+        Args:
+            path: Caminho do projeto
+            flag_name: Nome da flag ('favorite', 'done', 'good', 'bad')
+            
+        Returns:
+            bool: Novo estado da flag (True/False)
+        """
         if path not in self.database:
-            return
+            return False
         
         # Alternar flag
         current = self.database[path].get(flag_name, False)
-        self.database[path][flag_name] = not current
+        new_state = not current
+        self.database[path][flag_name] = new_state
         
         # Salvar
         self.db_manager.save()
         
-        # Atualizar botao se fornecido
-        if button:
-            new_state = self.database[path][flag_name]
-            if flag_name == 'favorite':
-                button.config(text="★" if new_state else "☆")
-            elif flag_name == 'done':
-                button.config(text="✓" if new_state else "○")
-            elif flag_name == 'good':
-                button.config(text="👍" if new_state else "○")
-            elif flag_name == 'bad':
-                button.config(text="👎" if new_state else "○")
-        
         # Notificar UI
         if self.on_flag_toggled:
             self.on_flag_toggled()
+        
+        return new_state
