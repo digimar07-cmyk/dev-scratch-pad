@@ -1,1 +1,136 @@
-"""\nui/controllers/selection_controller.py — Gerencia seleção múltipla de projetos.\n\nFASE 7C.1: Extrai toda lógica de seleção do main_window.py\nRedução estimada: -80 linhas no main_window.py\n"""\nimport os\nfrom tkinter import messagebox\n\n\nclass SelectionController:\n    \"\"\"\n    Controller para gerenciar seleção múltipla de projetos.\n    \n    Responsabilidades:\n    - Ativar/desativar modo seleção\n    - Adicionar/remover projetos da seleção\n    - Remover projetos selecionados do banco\n    \"\"\"\n    \n    def __init__(self, database, db_manager, collections_manager):\n        self.database = database\n        self.db_manager = db_manager\n        self.collections_manager = collections_manager\n        \n        # Estado\n        self.selection_mode = False\n        self.selected_paths = set()\n        \n        # Callbacks para UI (main_window conectará)\n        self.on_mode_changed = None      # callback(bool: is_active)\n        self.on_selection_changed = None # callback(int: count)\n        self.on_projects_removed = None  # callback(int: count)\n        self.on_refresh_needed = None    # callback()\n    \n    def toggle_mode(self):\n        \"\"\"Ativa/desativa modo seleção.\"\"\"\n        self.selection_mode = not self.selection_mode\n        self.selected_paths.clear()\n        \n        if self.on_mode_changed:\n            self.on_mode_changed(self.selection_mode)\n        \n        if self.on_selection_changed:\n            self.on_selection_changed(0)\n    \n    def toggle_project(self, path):\n        \"\"\"Adiciona ou remove projeto da seleção.\"\"\"\n        if path in self.selected_paths:\n            self.selected_paths.discard(path)\n        else:\n            self.selected_paths.add(path)\n        \n        if self.on_selection_changed:\n            self.on_selection_changed(len(self.selected_paths))\n    \n    def select_all(self, paths):\n        \"\"\"Seleciona todos os projetos visíveis.\"\"\"\n        self.selected_paths = set(paths)\n        \n        if self.on_selection_changed:\n            self.on_selection_changed(len(self.selected_paths))\n    \n    def deselect_all(self):\n        \"\"\"Remove todas as seleções.\"\"\"\n        self.selected_paths.clear()\n        \n        if self.on_selection_changed:\n            self.on_selection_changed(0)\n    \n    def remove_selected(self, parent_window):\n        \"\"\"\n        Remove projetos selecionados do banco.\n        Inclui validações e confirmações duplas.\n        \"\"\"\n        n = len(self.selected_paths)\n        \n        if not n:\n            messagebox.showinfo(\n                \"Seleção vazia\",\n                \"Nenhum projeto selecionado.\",\n                parent=parent_window\n            )\n            return False\n        \n        # Primeira confirmação\n        if not messagebox.askyesno(\n            \"🗑️ Remover projetos\",\n            f\"Remover {n} projeto(s) do banco?\\n\\nOs arquivos no disco NÃO serão apagados.\",\n            icon=\"warning\",\n            parent=parent_window\n        ):\n            return False\n        \n        # Segunda confirmação\n        if not messagebox.askyesno(\n            \"⚠️ Confirmar remoção\",\n            f\"Segunda confirmação.\\nIsso removerá {n} projeto(s) permanentemente do banco.\\n\\nTem certeza?\",\n            icon=\"warning\",\n            parent=parent_window\n        ):\n            return False\n        \n        # Remover projetos\n        for path in list(self.selected_paths):\n            self.database.pop(path, None)\n        \n        self.db_manager.save_database()\n        self.collections_manager.clean_orphan_projects(set(self.database.keys()))\n        \n        # Limpar seleção e desativar modo\n        self.selected_paths.clear()\n        self.selection_mode = False\n        \n        if self.on_mode_changed:\n            self.on_mode_changed(False)\n        \n        if self.on_projects_removed:\n            self.on_projects_removed(n)\n        \n        if self.on_refresh_needed:\n            self.on_refresh_needed()\n        \n        return True\n    \n    def is_selected(self, path):\n        \"\"\"Verifica se projeto está selecionado.\"\"\"\n        return path in self.selected_paths\n    \n    def get_selection_count(self):\n        \"\"\"Retorna número de projetos selecionados.\"\"\"\n        return len(self.selected_paths)\n    \n    def is_mode_active(self):\n        \"\"\"Verifica se modo seleção está ativo.\"\"\"\n        return self.selection_mode\n
+"""
+ui/controllers/selection_controller.py - Gerencia seleção múltipla de projetos.
+
+FASE 7C.1: Extrai toda lógica de seleção do main_window.py
+Redução estimada: -80 linhas no main_window.py
+"""
+import os
+from tkinter import messagebox
+
+
+class SelectionController:
+    """
+    Controller para gerenciar seleção múltipla de projetos.
+    
+    Responsabilidades:
+    - Ativar/desativar modo seleção
+    - Adicionar/remover projetos da seleção
+    - Remover projetos selecionados do banco
+    """
+    
+    def __init__(self, database, db_manager, collections_manager):
+        self.database = database
+        self.db_manager = db_manager
+        self.collections_manager = collections_manager
+        
+        # Estado
+        self.selection_mode = False
+        self.selected_paths = set()
+        
+        # Callbacks para UI (main_window conectará)
+        self.on_mode_changed = None      # callback(bool: is_active)
+        self.on_selection_changed = None # callback(int: count)
+        self.on_projects_removed = None  # callback(int: count)
+        self.on_refresh_needed = None    # callback()
+    
+    def toggle_mode(self):
+        """Ativa/desativa modo seleção."""
+        self.selection_mode = not self.selection_mode
+        self.selected_paths.clear()
+        
+        if self.on_mode_changed:
+            self.on_mode_changed(self.selection_mode)
+        
+        if self.on_selection_changed:
+            self.on_selection_changed(0)
+    
+    def toggle_project(self, path):
+        """Adiciona ou remove projeto da seleção."""
+        if path in self.selected_paths:
+            self.selected_paths.discard(path)
+        else:
+            self.selected_paths.add(path)
+        
+        if self.on_selection_changed:
+            self.on_selection_changed(len(self.selected_paths))
+    
+    def select_all(self, paths):
+        """Seleciona todos os projetos visíveis."""
+        self.selected_paths = set(paths)
+        
+        if self.on_selection_changed:
+            self.on_selection_changed(len(self.selected_paths))
+    
+    def deselect_all(self):
+        """Remove todas as seleções."""
+        self.selected_paths.clear()
+        
+        if self.on_selection_changed:
+            self.on_selection_changed(0)
+    
+    def remove_selected(self, parent_window):
+        """
+        Remove projetos selecionados do banco.
+        Inclui validações e confirmações duplas.
+        """
+        n = len(self.selected_paths)
+        
+        if not n:
+            messagebox.showinfo(
+                "Seleção vazia",
+                "Nenhum projeto selecionado.",
+                parent=parent_window
+            )
+            return False
+        
+        # Primeira confirmação
+        if not messagebox.askyesno(
+            "🗑️ Remover projetos",
+            f"Remover {n} projeto(s) do banco?\n\nOs arquivos no disco NÃO serão apagados.",
+            icon="warning",
+            parent=parent_window
+        ):
+            return False
+        
+        # Segunda confirmação
+        if not messagebox.askyesno(
+            "⚠️ Confirmar remoção",
+            f"Segunda confirmação.\nIsso removerá {n} projeto(s) permanentemente do banco.\n\nTem certeza?",
+            icon="warning",
+            parent=parent_window
+        ):
+            return False
+        
+        # Remover projetos
+        for path in list(self.selected_paths):
+            self.database.pop(path, None)
+        
+        self.db_manager.save_database()
+        self.collections_manager.clean_orphan_projects(set(self.database.keys()))
+        
+        # Limpar seleção e desativar modo
+        self.selected_paths.clear()
+        self.selection_mode = False
+        
+        if self.on_mode_changed:
+            self.on_mode_changed(False)
+        
+        if self.on_projects_removed:
+            self.on_projects_removed(n)
+        
+        if self.on_refresh_needed:
+            self.on_refresh_needed()
+        
+        return True
+    
+    def is_selected(self, path):
+        """Verifica se projeto está selecionado."""
+        return path in self.selected_paths
+    
+    def get_selection_count(self):
+        """Retorna número de projetos selecionados."""
+        return len(self.selected_paths)
+    
+    def is_mode_active(self):
+        """Verifica se modo seleção está ativo."""
+        return self.selection_mode
