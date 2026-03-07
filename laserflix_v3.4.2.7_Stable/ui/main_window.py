@@ -28,7 +28,8 @@ REFACTOR-FASE-2: DisplayController extraído (filtros/ordenação/paginação) �
 REFACTOR-FASE-3: AnalysisController extraído (análise IA + descrições) ✅
 REFACTOR-CLEANUP-1: Removidos wrappers mortos (-13 linhas) ✅
 REFACTOR-FASE-A: SelectionController integrado (-53 linhas) ✅
-REFACTOR-FASE-B: CollectionController integrado (-47 linhas) ✅
+REFACTOR-FASE-B: CollectionController integrado (-29 linhas) ✅
+REFACTOR-FASE-C: ProjectManagementController integrado (-57 linhas) ✅
 """
 import os
 import threading
@@ -79,6 +80,9 @@ from ui.controllers.selection_controller import SelectionController
 
 # FASE B: Importa CollectionController
 from ui.controllers.collection_controller import CollectionController
+
+# FASE C: Importa ProjectManagementController
+from ui.controllers.project_management_controller import ProjectManagementController
 
 
 class LaserflixMainWindow:
@@ -161,6 +165,22 @@ class LaserflixMainWindow:
             self.display_projects()
         )
         
+        # FASE C: ProjectManagementController gerencia flags e remoção
+        self.project_mgmt_ctrl = ProjectManagementController(
+            database=self.database,
+            db_manager=self.db_manager,
+            collections_manager=self.collections_manager
+        )
+        # Conecta callbacks de UI
+        self.project_mgmt_ctrl.on_project_removed = lambda name: (
+            self.status_bar.config(text=f"🗑️ '{name}' removido do banco."),
+            self.sidebar.refresh(self.database, self.collections_manager)
+        )
+        self.project_mgmt_ctrl.on_orphans_cleaned = lambda count: (
+            self.status_bar.config(text=f"🧹 {count} órfão(s) removido(s) do banco.")
+        )
+        self.project_mgmt_ctrl.on_flag_toggled = lambda: self._invalidate_cache()
+        
         # PERF-FIX-3: Cache de último estado renderizado
         self._last_display_state = None
         self._force_rebuild = False
@@ -181,7 +201,7 @@ class LaserflixMainWindow:
         self.root.configure(bg=BG_PRIMARY)
         self._build_ui()
         self.display_projects()
-        self.logger.info("✨ Laserflix v%s iniciado (CollectionController ativo)", VERSION)
+        self.logger.info("✨ Laserflix v%s iniciado (ProjectManagementController ativo)", VERSION)
 
     def __del__(self):
         if hasattr(self, 'thumbnail_preloader'):
@@ -485,6 +505,69 @@ class LaserflixMainWindow:
         self.status_bar.config(text=f"📁 Coleção '{name}' criada com '{project_name}'")
 
     # ==========================================================================
+    # FASE C: Wrappers para ProjectManagementController (UI + flags)
+    # ==========================================================================
+
+    def toggle_favorite(self, path: str, btn=None) -> None:
+        """FASE C: Wrapper que alterna favorito + atualiza UI."""
+        new_state = self.project_mgmt_ctrl.toggle_flag(path, "favorite")
+        if btn:
+            btn.config(
+                text="⭐" if new_state else "☆",
+                fg=ACCENT_GOLD if new_state else FG_TERTIARY
+            )
+        self.display_projects()
+
+    def toggle_done(self, path: str, btn=None) -> None:
+        """FASE C: Wrapper que alterna done + atualiza UI."""
+        new_state = self.project_mgmt_ctrl.toggle_flag(path, "done")
+        if btn:
+            btn.config(
+                text="✓" if new_state else "○",
+                fg="#00FF00" if new_state else FG_TERTIARY
+            )
+        self.display_projects()
+
+    def toggle_good(self, path: str, btn=None) -> None:
+        """FASE C: Wrapper que alterna good + atualiza UI + reseta bad."""
+        new_state = self.project_mgmt_ctrl.toggle_flag(path, "good")
+        if new_state and path in self.database:
+            self.database[path]["bad"] = False  # Lógica exclusiva fica no wrapper
+            self.db_manager.save_database()
+        if btn:
+            btn.config(fg="#00FF00" if new_state else FG_TERTIARY)
+        self.display_projects()
+
+    def toggle_bad(self, path: str, btn=None) -> None:
+        """FASE C: Wrapper que alterna bad + atualiza UI + reseta good."""
+        new_state = self.project_mgmt_ctrl.toggle_flag(path, "bad")
+        if new_state and path in self.database:
+            self.database[path]["good"] = False  # Lógica exclusiva fica no wrapper
+            self.db_manager.save_database()
+        if btn:
+            btn.config(fg="#FF0000" if new_state else FG_TERTIARY)
+        self.display_projects()
+
+    def remove_project(self, path: str) -> None:
+        """FASE C: Wrapper que remove projeto + atualiza UI."""
+        removed = self.project_mgmt_ctrl.remove_project(path, self.root)
+        if removed:
+            self._invalidate_cache()
+            self.display_projects()
+
+    def clean_orphans(self) -> None:
+        """FASE C: Wrapper que limpa órfãos + atualiza UI."""
+        count = self.project_mgmt_ctrl.clean_orphans(self.root)
+        if count > 0:
+            self.sidebar.refresh(self.database, self.collections_manager)
+            self._invalidate_cache()
+            self.display_projects()
+            messagebox.showinfo(
+                "✅ Limpeza concluída",
+                f"{count} projeto(s) órfão(s) removido(s) do banco.\n\nBanco agora está sincronizado com o disco."
+            )
+
+    # ==========================================================================
     # COLEÇÕES (F-08)
     # ==========================================================================
 
@@ -751,92 +834,6 @@ class LaserflixMainWindow:
             self._invalidate_cache()
             self.display_projects()
             self.status_bar.config(text="✓ Atualizado!")
-
-    def toggle_favorite(self, path, btn=None) -> None:
-        if path in self.database:
-            nv = not self.database[path].get("favorite", False)
-            self.database[path]["favorite"] = nv
-            self.db_manager.save_database()
-            self._invalidate_cache()
-            if btn: btn.config(text="⭐" if nv else "☆", fg=ACCENT_GOLD if nv else FG_TERTIARY)
-
-    def toggle_done(self, path, btn=None) -> None:
-        if path in self.database:
-            nv = not self.database[path].get("done", False)
-            self.database[path]["done"] = nv
-            self.db_manager.save_database()
-            self._invalidate_cache()
-            if btn: btn.config(text="✓" if nv else "○", fg="#00FF00" if nv else FG_TERTIARY)
-
-    def toggle_good(self, path, btn=None) -> None:
-        if path in self.database:
-            nv = not self.database[path].get("good", False)
-            self.database[path]["good"] = nv
-            if nv: self.database[path]["bad"] = False
-            self.db_manager.save_database()
-            self._invalidate_cache()
-            if btn: btn.config(fg="#00FF00" if nv else FG_TERTIARY)
-
-    def toggle_bad(self, path, btn=None) -> None:
-        if path in self.database:
-            nv = not self.database[path].get("bad", False)
-            self.database[path]["bad"] = nv
-            if nv: self.database[path]["good"] = False
-            self.db_manager.save_database()
-            self._invalidate_cache()
-            if btn: btn.config(fg="#FF0000" if nv else FG_TERTIARY)
-
-    def remove_project(self, path: str) -> None:
-        if path in self.database:
-            name = self.database[path].get("name", path)
-            self.database.pop(path)
-            self.db_manager.save_database()
-            self.collections_manager.clean_orphan_projects(set(self.database.keys()))
-            self.sidebar.refresh(self.database, self.collections_manager)
-            self._invalidate_cache()
-            self.display_projects()
-            self.status_bar.config(text=f"🗑️ '{name}' removido do banco.")
-
-    def clean_orphans(self) -> None:
-        orphans = [p for p in self.database.keys() if not os.path.isdir(p)]
-        
-        if not orphans:
-            messagebox.showinfo(
-                "✅ Banco limpo",
-                "Nenhum órfão encontrado!\n\nTodos os projetos têm pastas válidas."
-            )
-            return
-        
-        msg = f"Encontrei {len(orphans)} projeto(s) órfão(s):\n\n"
-        msg += "\n".join(f"- {os.path.basename(p)}" for p in orphans[:10])
-        if len(orphans) > 10:
-            msg += f"\n... e mais {len(orphans) - 10}"
-        msg += "\n\nEsses projetos não existem mais no disco.\nRemover do banco?"
-        
-        if not messagebox.askyesno("🧹 Limpar órfãos", msg, icon="warning"):
-            return
-        
-        if not messagebox.askyesno(
-            "⚠️ Confirmar remoção",
-            f"Segunda confirmação.\n\n{len(orphans)} projeto(s) serão removidos PERMANENTEMENTE do banco.\n\nTem certeza?",
-            icon="warning"
-        ):
-            return
-        
-        for path in orphans:
-            self.database.pop(path, None)
-        
-        self.db_manager.save_database()
-        self.collections_manager.clean_orphan_projects(set(self.database.keys()))
-        self.sidebar.refresh(self.database, self.collections_manager)
-        self._invalidate_cache()
-        self.display_projects()
-        self.status_bar.config(text=f"🧹 {len(orphans)} órfão(s) removido(s) do banco.")
-        
-        messagebox.showinfo(
-            "✅ Limpeza concluída",
-            f"{len(orphans)} projeto(s) órfão(s) removido(s) do banco.\n\nBanco agora está sincronizado com o disco."
-        )
 
     # ==========================================================================
     # ANÁLISE IA (FASE 3: Delega para AnalysisController)
