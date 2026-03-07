@@ -1,0 +1,210 @@
+
+================================================================================
+🎯 PLANO DE REFATORAÇÃO DEFINITIVO - MAIN_WINDOW.PY
+================================================================================
+
+📅 Data: 07/03/2026
+🎯 Objetivo: Reduzir main_window.py de 870 → <500 linhas
+⏱️ Tempo estimado total: ~60 minutos
+🛡️ Estratégia: Incremental + Commit após cada fase + Rollback se necessário
+
+================================================================================
+📊 ESTADO ATUAL
+================================================================================
+
+Arquivo: laserflix_v3.4.2.6_Stable/ui/main_window.py
+Linhas: 870
+Meta: <500 linhas (redução de ~370 linhas)
+
+Seções mais pesadas:
+  • display_projects: 144 linhas
+  • _build_ui: 121 linhas
+  • __init__: 107 linhas (NÃO MEXER!)
+  • Diálogos: 77 linhas
+  • remove_project + clean_orphans: 49 linhas
+
+================================================================================
+🚀 FASES DE EXECUÇÃO (ORDEM RECOMENDADA)
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ FASE-D: UI Builder (BAIXO RISCO) 🟢                                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Objetivo: Extrair construção de UI para ui/builders/ui_builder.py          │
+│ Redução: ~100 linhas                                                        │
+│ Tempo: 15 minutos                                                           │
+│ Risco: BAIXO - Apenas reorganização, sem lógica                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ O que mover:                                                                │
+│   • Construção do HeaderBar                                                 │
+│   • Construção do SidebarPanel                                              │
+│   • Construção do content_frame + canvas + scrollbar                        │
+│   • Construção da status bar + progress bar                                 │
+│   • Construção da selection bar                                             │
+│   • Bindings de teclado (arrows, home, end)                                 │
+│                                                                              │
+│ O que fica:                                                                 │
+│   def _build_ui(self):                                                      │
+│       UIBuilder.build(self)                                                 │
+│                                                                              │
+│ Teste pós-fase:                                                             │
+│   ✓ App inicia sem erros                                                    │
+│   ✓ Header aparece corretamente                                             │
+│   ✓ Sidebar aparece corretamente                                            │
+│   ✓ Atalhos de teclado funcionam (arrows, home, end)                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ FASE-F: Dialog Manager (BAIXO RISCO) 🟢                                     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Objetivo: Extrair gerenciamento de diálogos para                            │
+│           ui/managers/dialog_manager.py                                     │
+│ Redução: ~70 linhas                                                         │
+│ Tempo: 10 minutos                                                           │
+│ Risco: BAIXO - Diálogos são independentes                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ O que mover:                                                                │
+│   • open_categories_picker (60 linhas!)                                     │
+│   • export_database                                                         │
+│   • import_database                                                         │
+│   • manual_backup                                                           │
+│   • open_prepare_folders                                                    │
+│   • open_model_settings                                                     │
+│                                                                              │
+│ O que fica:                                                                 │
+│   def open_categories_picker(self):                                         │
+│       DialogManager.open_categories_picker(self)                            │
+│   # (mesmo padrão para outros)                                              │
+│                                                                              │
+│ Teste pós-fase:                                                             │
+│   ✓ Abrir diálogo de categorias funciona                                    │
+│   ✓ Export/import database funciona                                         │
+│   ✓ Backup manual funciona                                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ FASE-G: Project Operations (BAIXO RISCO) 🟢                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Objetivo: Consolidar operações de projeto em                                │
+│           ui/operations/project_operations.py                               │
+│ Redução: ~70 linhas                                                         │
+│ Tempo: 15 minutos                                                           │
+│ Risco: BAIXO - Padrão já usado em outros controllers                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ O que mover:                                                                │
+│   • toggle_favorite, toggle_done, toggle_good, toggle_bad                   │
+│   • remove_project                                                          │
+│   • clean_orphans                                                           │
+│                                                                              │
+│ O que fica:                                                                 │
+│   def toggle_favorite(self, path, btn=None):                                │
+│       new_state = self.project_ops.toggle_flag(path, "favorite")            │
+│       self._invalidate_cache()  # ⚠️ CRÍTICO!                               │
+│       if btn: btn.config(...)                                               │
+│                                                                              │
+│ Teste pós-fase:                                                             │
+│   ✓ Toggle favorite funciona E atualiza UI                                  │
+│   ✓ Toggle done funciona E atualiza UI                                      │
+│   ✓ Toggle good/bad funciona E atualiza UI                                  │
+│   ✓ Remover projeto funciona                                                │
+│   ✓ Limpar órfãos funciona                                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ FASE-E: Display Renderer (MÉDIO RISCO) 🟡                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Objetivo: Extrair lógica de rendering para                                  │
+│           ui/renderers/display_renderer.py                                  │
+│ Redução: ~120 linhas                                                        │
+│ Tempo: 25 minutos                                                           │
+│ Risco: MÉDIO - Requer teste cuidadoso de navegação                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ O que mover:                                                                │
+│   • Construção do header_frame com título                                   │
+│   • Construção dos controles de navegação (sort + pagination)               │
+│   • Construção do label de contagem                                         │
+│   • Loop de renderização de cards                                           │
+│   • Scroll reset (yview_moveto)                                             │
+│                                                                              │
+│ O que fica:                                                                 │
+│   def display_projects(self):                                               │
+│       if not self._should_rebuild():                                        │
+│           return                                                            │
+│       self._update_chips_bar()                                              │
+│       for w in self.scrollable_frame.winfo_children():                      │
+│           w.destroy()                                                       │
+│       DisplayRenderer.render(self, filtered, page_info, card_callbacks)     │
+│                                                                              │
+│ Teste pós-fase:                                                             │
+│   ✓ Cards renderizam corretamente                                           │
+│   ✓ Navegação entre páginas funciona                                        │
+│   ✓ Ordenação funciona                                                      │
+│   ✓ Scroll funciona                                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+📈 PROGRESSO ESPERADO
+================================================================================
+
+Estado inicial:         870 linhas
+
+Após FASE-D:            770 linhas  (-100) ✅
+Após FASE-F:            700 linhas  (-70)  ✅
+Após FASE-G:            630 linhas  (-70)  ✅
+Após FASE-E:            510 linhas  (-120) ✅
+
+✅ META ATINGIDA: 510 linhas (redução de 41%)
+
+================================================================================
+🛡️ PROTOCOLO DE SEGURANÇA
+================================================================================
+
+ANTES DE CADA FASE:
+  1. git status (verificar que está limpo)
+  2. git add .
+  3. git commit -m "Pre-FASE-X: Estado funcional"
+
+APÓS CADA FASE:
+  1. Implementar código
+  2. python main.py (verificar que inicia)
+  3. TESTE COMPLETO (checklist acima)
+  4. Se OK:
+     - git add .
+     - git commit -m "FASE-X: [descrição] - FUNCIONAL"
+  5. Se FALHOU:
+     - git reset --hard HEAD~1
+     - PARAR e revisar
+
+NÃO MISTURE FASES!
+UMA FASE = UM COMMIT = UM TESTE COMPLETO
+
+================================================================================
+⚠️ ARMADILHAS A EVITAR (BASEADO NOS BUGS ANTERIORES)
+================================================================================
+
+1. CACHE NÃO INVALIDADO
+   ❌ NÃO fazer: self.display_projects()
+   ✅ FAZER:     self._invalidate_cache()
+                self.display_projects()
+
+2. CALLBACKS NÃO CONECTADOS
+   ❌ NÃO fazer: self.project_ops.on_flag_toggled = lambda: self._invalidate_cache()
+                # Mas toggle_flag() não chama callback!
+   ✅ FAZER:     Chamar _invalidate_cache() EXPLICITAMENTE no wrapper
+
+3. RESPONSABILIDADE DIVIDIDA
+   ❌ NÃO fazer: controller.toggle_flag() + wrapper acessa database diretamente
+   ✅ FAZER:     TODO via controller OU TODO via wrapper, NUNCA MISTURE
+
+4. DISPLAY_PROJECTS SEMPRE
+   ❌ NÃO fazer: display_projects() em todo lugar
+   ✅ FAZER:     Usar cache inteligente (_should_rebuild)
+
+================================================================================
+🎯 COMEÇAR PELA FASE-D
+================================================================================
+
+Pronto para gerar código da FASE-D?
+É a mais fácil e mais segura (apenas reorganização de UI).
+
+Próximo passo: Gerar código do UIBuilder.

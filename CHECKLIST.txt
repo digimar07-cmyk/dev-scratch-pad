@@ -1,0 +1,56 @@
+
+================================================================================
+✅ CHECKLIST DE EXECUÇÃO (MARCAR CONFORME PROGRESSO)
+================================================================================
+
+PRÉ-REQUISITOS:
+[ ] Backup completo feito
+[ ] Git repository inicializado
+[ ] Estado atual funcional testado
+
+FASE-D: UI Builder (~15 min)
+[ ] Código gerado
+[ ] Arquivo ui/builders/ui_builder.py criado
+[ ] main_window.py atualizado
+[ ] App inicia sem erros
+[ ] Header aparece
+[ ] Sidebar aparece
+[ ] Atalhos de teclado funcionam
+[ ] git commit -m "FASE-D: UIBuilder - FUNCIONAL"
+
+FASE-F: Dialog Manager (~10 min)
+[ ] Código gerado
+[ ] Arquivo ui/managers/dialog_manager.py criado
+[ ] main_window.py atualizado
+[ ] Diálogo de categorias abre
+[ ] Export/import funciona
+[ ] Backup manual funciona
+[ ] git commit -m "FASE-F: DialogManager - FUNCIONAL"
+
+FASE-G: Project Operations (~15 min)
+[ ] Código gerado
+[ ] Arquivo ui/operations/project_operations.py criado
+[ ] main_window.py atualizado
+[ ] Toggle favorite funciona e atualiza UI
+[ ] Toggle done funciona e atualiza UI
+[ ] Toggle good/bad funciona e atualiza UI
+[ ] Remover projeto funciona
+[ ] Limpar órfãos funciona
+[ ] git commit -m "FASE-G: ProjectOperations - FUNCIONAL"
+
+FASE-E: Display Renderer (~25 min)
+[ ] Código gerado
+[ ] Arquivo ui/renderers/display_renderer.py criado
+[ ] main_window.py atualizado
+[ ] Cards renderizam
+[ ] Navegação entre páginas funciona
+[ ] Ordenação funciona
+[ ] Scroll funciona
+[ ] git commit -m "FASE-E: DisplayRenderer - FUNCIONAL"
+
+FINALIZAÇÃO:
+[ ] Todas as fases completas
+[ ] Testes finais completos
+[ ] main_window.py tem <550 linhas
+[ ] Push para GitHub
+[ ] Comemorar! 🎉
