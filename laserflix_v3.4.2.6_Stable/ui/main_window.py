@@ -29,6 +29,7 @@ REFACTOR-FASE-3: AnalysisController extraído (análise IA + descrições) ✅
 REFACTOR-CLEANUP-1: Removidos wrappers mortos (-13 linhas) ✅
 REFACTOR-FASE-A: SelectionController integrado (-53 linhas) ✅
 REFACTOR-FASE-B: CollectionController integrado (-47 linhas) ✅
+REFACTOR-FASE-D: UIBuilder extraído (construção de UI) ✅ (-118 linhas)
 """
 import os
 import threading
@@ -79,6 +80,9 @@ from ui.controllers.selection_controller import SelectionController
 
 # FASE B: Importa CollectionController
 from ui.controllers.collection_controller import CollectionController
+
+# FASE-D: Importa UIBuilder
+from ui.builders.ui_builder import UIBuilder
 
 
 class LaserflixMainWindow:
@@ -181,123 +185,15 @@ class LaserflixMainWindow:
         self.root.configure(bg=BG_PRIMARY)
         self._build_ui()
         self.display_projects()
-        self.logger.info("✨ Laserflix v%s iniciado (CollectionController ativo)", VERSION)
+        self.logger.info("✨ Laserflix v%s iniciado (UIBuilder ativo - FASE-D)", VERSION)
 
     def __del__(self):
         if hasattr(self, 'thumbnail_preloader'):
             self.thumbnail_preloader.shutdown()
 
     def _build_ui(self) -> None:
-        self.header = HeaderBar(self.root, {
-            "on_filter":          self.set_filter,
-            "on_search":          self._on_search,
-            "on_import":          self.open_import_dialog,
-            "on_analyze_new":     self.analyze_only_new,
-            "on_analyze_all":     self.reanalyze_all,
-            "on_desc_new":        self.generate_descriptions_for_new,
-            "on_desc_all":        self.generate_descriptions_for_all,
-            "on_prepare_folders": self.open_prepare_folders,
-            "on_import_db":       self.import_database,
-            "on_export_db":       self.export_database,
-            "on_backup":          self.manual_backup,
-            "on_model_settings":  self.open_model_settings,
-            "on_toggle_select":   self.selection_ctrl.toggle_mode,
-            "on_clean_orphans":   self.clean_orphans,
-            "on_collections":     self.open_collections_dialog,
-        })
-        self.search_var = self.header.search_var
-
-        main_container = tk.Frame(self.root, bg=BG_PRIMARY)
-        main_container.pack(fill="both", expand=True)
-
-        self.sidebar = SidebarPanel(main_container, {
-            "on_origin":             self._on_origin_filter,
-            "on_category":           self._on_category_filter,
-            "on_tag":                self._on_tag_filter,
-            "on_more_categories":    self.open_categories_picker,
-            "on_collection":         self._on_collection_filter,
-            "on_manage_collections": self.open_collections_dialog,
-        })
-        self.sidebar.refresh(self.database, self.collections_manager)
-
-        content_frame = tk.Frame(main_container, bg=BG_PRIMARY)
-        content_frame.pack(side="left", fill="both", expand=True)
-        
-        self.chips_bar = tk.Frame(content_frame, bg="#1A1A2E", height=50)
-        self.chips_bar.pack_propagate(False)
-        self.chips_container = tk.Frame(self.chips_bar, bg="#1A1A2E")
-        self.chips_container.pack(side="left", fill="both", expand=True, padx=10, pady=8)
-        
-        self.content_canvas = tk.Canvas(content_frame, bg=BG_PRIMARY, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(content_frame, orient="vertical", command=self.content_canvas.yview)
-        self.content_canvas.configure(yscrollcommand=scrollbar.set)
-        
-        self.scrollable_frame = tk.Frame(self.content_canvas, bg=BG_PRIMARY)
-        self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: self.content_canvas.configure(
-                scrollregion=self.content_canvas.bbox("all")))
-        self.content_canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-        
-        self.content_canvas.pack(side="left", fill="both", expand=True, padx=10, pady=10)
-        scrollbar.pack(side="right", fill="y")
-        
-        # PERF-FIX-5: Bind scroll event para virtual scrolling
-        self.content_canvas.bind("<MouseWheel>",
-            lambda e: self._on_scroll(e))
-        self.content_canvas.bind("<Configure>", lambda e: self._schedule_viewport_update())
-        
-        for i in range(COLS):
-            self.scrollable_frame.columnconfigure(i, weight=1, uniform="card")
-
-        sf = tk.Frame(self.root, bg="#000000", height=40)
-        sf.pack(side="bottom", fill="x")
-        sf.pack_propagate(False)
-        self.status_bar = tk.Label(sf, text="Pronto.", bg="#000000", fg=FG_SECONDARY,
-                                   font=("Arial", 10), anchor="w")
-        self.status_bar.pack(side="left", padx=10, fill="both", expand=True)
-        style = ttk.Style()
-        style.theme_use("clam")
-        style.configure("G.Horizontal.TProgressbar",
-                        troughcolor=BG_CARD, background=ACCENT_GREEN, bordercolor="#000000")
-        self.progress_bar = ttk.Progressbar(sf, mode="determinate", length=300,
-                                             style="G.Horizontal.TProgressbar")
-        self.stop_btn = tk.Button(sf, text="⏹ Parar",
-                                   command=self.analysis_manager.stop,
-                                   bg=ACCENT_RED, fg=FG_PRIMARY,
-                                   font=("Arial", 10, "bold"), relief="flat", cursor="hand2")
-
-        self._sel_bar = tk.Frame(self.root, bg="#1A1A00", height=48)
-        self._sel_bar.pack_propagate(False)
-        self._sel_count_lbl = tk.Label(
-            self._sel_bar, text="0 selecionado(s)",
-            bg="#1A1A00", fg="#FFFF88", font=("Arial", 11, "bold"))
-        self._sel_count_lbl.pack(side="left", padx=16)
-        tk.Button(self._sel_bar, text="☑️ Tudo",
-                  command=lambda: self.selection_ctrl.select_all(self.display_ctrl.get_filtered_projects()),
-                  bg="#333300", fg="#FFFF88", font=("Arial", 10),
-                  relief="flat", cursor="hand2", padx=10, pady=6
-                  ).pack(side="left", padx=4)
-        tk.Button(self._sel_bar, text="🔲 Nenhum",
-                  command=self.selection_ctrl.deselect_all,
-                  bg="#333300", fg="#FFFF88", font=("Arial", 10),
-                  relief="flat", cursor="hand2", padx=10, pady=6
-                  ).pack(side="left", padx=4)
-        tk.Button(self._sel_bar, text="🗑️ Remover selecionados",
-                  command=lambda: self.selection_ctrl.remove_selected(self.root),
-                  bg="#5A0000", fg="#FF8888", font=("Arial", 10, "bold"),
-                  relief="flat", cursor="hand2", padx=14, pady=6
-                  ).pack(side="left", padx=12)
-        tk.Button(self._sel_bar, text="✕ Cancelar",
-                  command=self.selection_ctrl.toggle_mode,
-                  bg="#1A1A00", fg="#888888", font=("Arial", 10),
-                  relief="flat", cursor="hand2", padx=10, pady=6
-                  ).pack(side="right", padx=16)
-        
-        self.root.bind("<Left>", lambda e: self.display_ctrl.prev_page())
-        self.root.bind("<Right>", lambda e: self.display_ctrl.next_page())
-        self.root.bind("<Home>", lambda e: self.display_ctrl.first_page())
-        self.root.bind("<End>", lambda e: self.display_ctrl.last_page())
+        """Constrói toda a UI usando UIBuilder (FASE-D)."""
+        UIBuilder.build(self)
 
     # PERF-FIX-5: Virtual Scrolling
     def _on_scroll(self, event):
