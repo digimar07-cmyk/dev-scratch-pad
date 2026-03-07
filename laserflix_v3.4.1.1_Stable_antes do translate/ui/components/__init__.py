@@ -1,1 +1,8 @@
-"""\nui/components/ - Componentes UI Reutilizáveis\n\nWidgets Tkinter isolados e reutilizáveis.\nCada componente é responsável por sua própria renderização.\n\n⚠️ REGRA ABSOLUTA: Nenhum componente pode ter > 200 linhas!\n"""\n
+"""
+ui/components/ - Componentes UI Reutilizáveis
+
+Widgets Tkinter isolados e reutilizáveis.
+Cada componente é responsável por sua própria renderização.
+
+⚠️ REGRA ABSOLUTA: Nenhum componente pode ter > 200 linhas!
+"""
