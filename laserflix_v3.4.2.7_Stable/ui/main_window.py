@@ -28,6 +28,7 @@ REFACTOR-FASE-2: DisplayController extraído (filtros/ordenação/paginação) �
 REFACTOR-FASE-3: AnalysisController extraído (análise IA + descrições) ✅
 REFACTOR-CLEANUP-1: Removidos wrappers mortos (-13 linhas) ✅
 REFACTOR-FASE-A: SelectionController integrado (-53 linhas) ✅
+REFACTOR-FASE-B: CollectionController integrado (-47 linhas) ✅
 """
 import os
 import threading
@@ -75,6 +76,9 @@ from ui.controllers.analysis_controller import AnalysisController
 
 # FASE A: Importa SelectionController
 from ui.controllers.selection_controller import SelectionController
+
+# FASE B: Importa CollectionController
+from ui.controllers.collection_controller import CollectionController
 
 
 class LaserflixMainWindow:
@@ -145,6 +149,18 @@ class LaserflixMainWindow:
             self.display_projects()
         )
         
+        # FASE B: CollectionController gerencia coleções
+        self.collection_ctrl = CollectionController(
+            collections_manager=self.collections_manager,
+            database=self.database
+        )
+        # Conecta callbacks de UI
+        self.collection_ctrl.on_collection_changed = lambda: (
+            self.sidebar.refresh(self.database, self.collections_manager),
+            self._invalidate_cache(),
+            self.display_projects()
+        )
+        
         # PERF-FIX-3: Cache de último estado renderizado
         self._last_display_state = None
         self._force_rebuild = False
@@ -165,7 +181,7 @@ class LaserflixMainWindow:
         self.root.configure(bg=BG_PRIMARY)
         self._build_ui()
         self.display_projects()
-        self.logger.info("✨ Laserflix v%s iniciado (SelectionController ativo)", VERSION)
+        self.logger.info("✨ Laserflix v%s iniciado (CollectionController ativo)", VERSION)
 
     def __del__(self):
         if hasattr(self, 'thumbnail_preloader'):
@@ -436,6 +452,39 @@ class LaserflixMainWindow:
         self.display_projects()
 
     # ==========================================================================
+    # FASE B: Wrappers para CollectionController (UI + status bar)
+    # ==========================================================================
+
+    def _on_add_to_collection(self, project_path: str, collection_name: str) -> None:
+        """FASE B: Wrapper que adiciona projeto + atualiza UI."""
+        self.collection_ctrl.add_project(project_path, collection_name)
+        name = self.database.get(project_path, {}).get("name", os.path.basename(project_path))
+        self.status_bar.config(text=f"✅ '{name}' adicionado à coleção '{collection_name}'")
+
+    def _on_remove_from_collection(self, project_path: str, collection_name: str) -> None:
+        """FASE B: Wrapper que remove projeto + atualiza UI."""
+        self.collection_ctrl.remove_project(project_path, collection_name)
+        name = self.database.get(project_path, {}).get("name", os.path.basename(project_path))
+        self.status_bar.config(text=f"🗑️ '{name}' removido da coleção '{collection_name}'")
+
+    def _on_new_collection_with(self, project_path: str) -> None:
+        """FASE B: Wrapper que cria nova coleção com projeto + UI."""
+        name = simpledialog.askstring(
+            "📁 Nova Coleção",
+            "Nome da nova coleção:",
+            parent=self.root
+        )
+        
+        if not name or not name.strip():
+            return
+        
+        name = name.strip()
+        self.collection_ctrl.create_collection_with_project(project_path, name)
+        
+        project_name = self.database.get(project_path, {}).get("name", os.path.basename(project_path))
+        self.status_bar.config(text=f"📁 Coleção '{name}' criada com '{project_name}'")
+
+    # ==========================================================================
     # COLEÇÕES (F-08)
     # ==========================================================================
 
@@ -458,55 +507,6 @@ class LaserflixMainWindow:
         self._update_chips_bar()
         count = self.collections_manager.get_collection_size(collection_name)
         self.status_bar.config(text=f"📁 Coleção: {collection_name} ({count} projetos)")
-
-    def _on_add_to_collection(self, project_path: str, collection_name: str) -> None:
-        self.collections_manager.add_project(collection_name, project_path)
-        name = self.database.get(project_path, {}).get("name", os.path.basename(project_path))
-        self.status_bar.config(text=f"✅ '{name}' adicionado à coleção '{collection_name}'")
-        self.sidebar.refresh(self.database, self.collections_manager)
-        self._invalidate_cache()
-        self.display_projects()
-
-    def _on_remove_from_collection(self, project_path: str, collection_name: str) -> None:
-        self.collections_manager.remove_project(collection_name, project_path)
-        name = self.database.get(project_path, {}).get("name", os.path.basename(project_path))
-        self.status_bar.config(text=f"🗑️ '{name}' removido da coleção '{collection_name}'")
-        self.sidebar.refresh(self.database, self.collections_manager)
-        self._invalidate_cache()
-        # FASE 2: Verifica se filtro de coleção está ativo
-        if any(f["type"] == "collection" and f["value"] == collection_name for f in self.display_ctrl.active_filters):
-            self.display_projects()
-        else:
-            self.display_projects()
-
-    def _on_new_collection_with(self, project_path: str) -> None:
-        name = simpledialog.askstring(
-            "📁 Nova Coleção",
-            "Nome da nova coleção:",
-            parent=self.root
-        )
-        
-        if not name or not name.strip():
-            return
-        
-        name = name.strip()
-        
-        if name in self.collections_manager.collections:
-            messagebox.showerror(
-                "Erro",
-                f"Coleção '{name}' já existe!\n\nEscolha outro nome.",
-                parent=self.root
-            )
-            return
-        
-        self.collections_manager.add_collection(name)
-        self.collections_manager.add_project(name, project_path)
-        
-        project_name = self.database.get(project_path, {}).get("name", os.path.basename(project_path))
-        self.status_bar.config(text=f"📁 Coleção '{name}' criada com '{project_name}'")
-        self.sidebar.refresh(self.database, self.collections_manager)
-        self._invalidate_cache()
-        self.display_projects()
 
     # ==========================================================================
     # DISPLAY (FASE 2: Usa DisplayController)
