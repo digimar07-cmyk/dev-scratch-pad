@@ -30,6 +30,7 @@ REFACTOR-CLEANUP-1: Removidos wrappers mortos (-13 linhas) ✅
 REFACTOR-FASE-A: SelectionController integrado (-53 linhas) ✅
 REFACTOR-FASE-B: CollectionController integrado (-47 linhas) ✅
 REFACTOR-FASE-D: UIBuilder extraído (construção de UI) ✅ (-118 linhas)
+REFACTOR-FASE-F: DialogManager extraído (diálogos + configs) ✅ (-70 linhas)
 """
 import os
 import threading
@@ -83,6 +84,9 @@ from ui.controllers.collection_controller import CollectionController
 
 # FASE-D: Importa UIBuilder
 from ui.builders.ui_builder import UIBuilder
+
+# FASE-F: Importa DialogManager
+from ui.managers.dialog_manager import DialogManager
 
 
 class LaserflixMainWindow:
@@ -185,7 +189,7 @@ class LaserflixMainWindow:
         self.root.configure(bg=BG_PRIMARY)
         self._build_ui()
         self.display_projects()
-        self.logger.info("✨ Laserflix v%s iniciado (UIBuilder ativo - FASE-D)", VERSION)
+        self.logger.info("✨ Laserflix v%s iniciado (DialogManager ativo - FASE-F)", VERSION)
 
     def __del__(self):
         if hasattr(self, 'thumbnail_preloader'):
@@ -774,7 +778,7 @@ class LaserflixMainWindow:
         self.analysis_ctrl.generate_descriptions_for_all(self.database)
 
     # ==========================================================================
-    # DIÁLOGOS E CONFIGURAÇÕES
+    # DIÁLOGOS E CONFIGURAÇÕES (FASE-F: Delega para DialogManager)
     # ==========================================================================
 
     def open_import_dialog(self) -> None:
@@ -782,68 +786,28 @@ class LaserflixMainWindow:
         self.import_manager.start_import()
 
     def open_prepare_folders(self) -> None:
-        self.root.wait_window(PrepareFoldersDialog(self.root))
+        """FASE-F: Delega para DialogManager."""
+        DialogManager.open_prepare_folders(self)
 
     def open_model_settings(self) -> None:
-        self.root.wait_window(ModelSettingsDialog(self.root, self.db_manager))
+        """FASE-F: Delega para DialogManager."""
+        DialogManager.open_model_settings(self)
 
     def open_categories_picker(self) -> None:
-        all_cats: dict = {}
-        for d in self.database.values():
-            for c in d.get("categories", []):
-                c = (c or "").strip()
-                if c and c != "Sem Categoria": all_cats[c] = all_cats.get(c, 0) + 1
-        cats_sorted = sorted(all_cats.items(), key=lambda x: x[1], reverse=True)
-        win = tk.Toplevel(self.root)
-        win.title("Categorias"); win.configure(bg=BG_PRIMARY)
-        win.geometry("400x600"); win.transient(self.root); win.grab_set()
-        tk.Label(win, text="Selecione categoria", font=("Arial", 13, "bold"),
-                 bg=BG_PRIMARY, fg=FG_PRIMARY).pack(pady=10)
-        frm = tk.Frame(win, bg=BG_PRIMARY)
-        frm.pack(fill="both", expand=True, padx=10, pady=5)
-        cv = tk.Canvas(frm, bg=BG_PRIMARY, highlightthickness=0)
-        sb = ttk.Scrollbar(frm, orient="vertical", command=cv.yview)
-        inner = tk.Frame(cv, bg=BG_PRIMARY)
-        inner.bind("<Configure>", lambda e: cv.configure(scrollregion=cv.bbox("all")))
-        cv.create_window((0, 0), window=inner, anchor="nw")
-        cv.configure(yscrollcommand=sb.set)
-        cv.pack(side="left", fill="both", expand=True); sb.pack(side="right", fill="y")
-        cv.bind("<MouseWheel>", lambda e: cv.yview_scroll(int(-1*(e.delta/SCROLL_SPEED)), "units"))
-        for cat, count in cats_sorted:
-            b = tk.Button(inner, text=f"{cat} ({count})",
-                          command=lambda c=cat: (self.display_ctrl.add_filter_chip("category", c), self._update_chips_bar(), win.destroy()),
-                          bg=BG_CARD, fg=FG_PRIMARY, font=("Arial", 10),
-                          relief="flat", cursor="hand2", anchor="w", padx=12, pady=8)
-            b.pack(fill="x", pady=2, padx=5)
-            b.bind("<Enter>", lambda e, w=b: w.config(bg=ACCENT_RED))
-            b.bind("<Leave>", lambda e, w=b: w.config(bg=BG_CARD))
-        tk.Button(win, text="Fechar", command=win.destroy,
-                  bg="#555555", fg=FG_PRIMARY, font=("Arial", 11, "bold"),
-                  relief="flat", cursor="hand2", padx=14, pady=8).pack(pady=10)
+        """FASE-F: Delega para DialogManager."""
+        DialogManager.open_categories_picker(self)
 
     def export_database(self) -> None:
-        import shutil
-        path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON", "*.json")],
-                                             title="Exportar banco")
-        if path:
-            shutil.copy2("laserflix_database.json", path)
-            messagebox.showinfo("✅ Exportado", f"Banco exportado:\n{path}")
+        """FASE-F: Delega para DialogManager."""
+        DialogManager.export_database(self)
 
     def import_database(self) -> None:
-        import shutil
-        path = filedialog.askopenfilename(filetypes=[("JSON", "*.json")], title="Importar banco")
-        if path:
-            shutil.copy2(path, "laserflix_database.json")
-            self.db_manager.load_database()
-            self.database = self.db_manager.database
-            self.sidebar.refresh(self.database, self.collections_manager)
-            self._invalidate_cache()
-            self.display_projects()
-            messagebox.showinfo("✅ Importado", "Banco importado!")
+        """FASE-F: Delega para DialogManager."""
+        DialogManager.import_database(self)
 
     def manual_backup(self) -> None:
-        self.db_manager.auto_backup()
-        messagebox.showinfo("✅ Backup", "Backup criado!")
+        """FASE-F: Delega para DialogManager."""
+        DialogManager.manual_backup(self)
 
     def _on_import_complete(self) -> None:
         self.database = self.db_manager.database
