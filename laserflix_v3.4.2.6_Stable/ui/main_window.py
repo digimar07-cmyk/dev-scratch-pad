@@ -1,49 +1,31 @@
 """
 ui/main_window.py — Orquestrador puro do Laserflix.
-Teto: 350 linhas. Nunca constrói widgets diretamente.
+Versão LIMPA - SEM código duplicado.
 
-HOT-08: Paginação simples (Kent Beck style):
-  - HOT-13: 36 cards por página (6 linhas × 6 cols)
-  - Navegação: Início/Anterior/Próxima/Final
-  - Atalhos: Home/End/Arrows
-  - SIMPLES, PREVISÍVEL, FUNCIONAL
+HOT-08: Paginação simples (Kent Beck style)
+HOT-12: Scrollbar vertical
+HOT-14: Busca bilíngue (EN + PT-BR)
+F-07: Filtros empilháveis (chips AND)
+F-08: Sistema de coleções/playlists
 
-HOT-12: Scrollbar vertical (cards com categorias ficaram mais altos)
-HOT-14: Busca bilíngue (EN + PT-BR) — FUNCIONA SEM OLLAMA!
-HOT-15: Tradutor estático (utils/name_translator.py)
-F-07: Filtros empilháveis (chips AND) — CORRIGIDO!
-
-FEATURE: Ordenação FUNCIONAL na linha de paginação
-FEATURE: Análise SEQUENCIAL pós-importação (categorias+tags → descrições)
-F-03: Limpeza de órfãos (entradas sem path válido)
-F-08: Sistema de coleções/playlists (gerenciamento + filtros + menu contextual + badges)
-
-PERF-FIX-1: Removido search_var.set("") de set_filter() (300ms debounce eliminado)
-PERF-FIX-2: Indicadores visuais de filtro ativo no header (🏠⭐✓👍👎 ficam vermelhos)
-PERF-FIX-3: Cache de estado + skip rebuild desnecessário (cliques repetidos)
-PERF-FIX-4: Otimização de build_card() com bind compartilhado (~25% mais rápido)
-PERF-FIX-5: Virtual scrolling - renderiza apenas cards visíveis (66% redução startup!)
-
-REFACTOR-FASE-2: DisplayController extraído (filtros/ordenação/paginação) ✅
-REFACTOR-FASE-3: AnalysisController extraído (análise IA + descrições) ✅
-REFACTOR-CLEANUP-1: Removidos wrappers mortos (-13 linhas) ✅
-REFACTOR-FASE-A: SelectionController integrado (-53 linhas) ✅
-REFACTOR-FASE-B: CollectionController integrado (-47 linhas) ✅
-REFACTOR-FASE-D: UIBuilder extraído (construção de UI) ✅ (-118 linhas)
-REFACTOR-FASE-F: DialogManager extraído (diálogos + configs) ✅ (-70 linhas)
+REFACTOR-FASE-2: DisplayController extraído ✅
+REFACTOR-FASE-3: AnalysisController extraído ✅
+REFACTOR-FASE-A: SelectionController integrado ✅
+REFACTOR-FASE-B: CollectionController integrado ✅
+REFACTOR-FASE-D: UIBuilder extraído ✅
+REFACTOR-FASE-F: DialogManager extraído ✅
+REFACTOR-CORREÇÃO: Código duplicado REMOVIDO ✅
 """
 import os
 import threading
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, simpledialog
+from tkinter import ttk, simpledialog
 
 from config.settings import VERSION
-from config.card_layout import COLS, CARD_PAD, CARD_H
+from config.card_layout import COLS
 from config.ui_constants import (
-    BG_PRIMARY, BG_CARD, BG_SEPARATOR,
-    ACCENT_RED, ACCENT_GREEN, ACCENT_GOLD,
-    FG_PRIMARY, FG_SECONDARY, FG_TERTIARY,
-    SCROLL_SPEED,
+    BG_PRIMARY, BG_CARD, ACCENT_RED, ACCENT_GOLD,
+    FG_PRIMARY, FG_TERTIARY, SCROLL_SPEED,
 )
 
 from core.database import DatabaseManager
@@ -59,39 +41,23 @@ from ai.analysis_manager import AnalysisManager
 
 from utils.logging_setup import LOGGER
 from utils.platform_utils import open_folder
-from utils.name_translator import search_bilingual
 
 from ui.recursive_import_integration import RecursiveImportManager
-from ui.prepare_folders_dialog import PrepareFoldersDialog
-from ui.model_settings_dialog import ModelSettingsDialog
-from ui.header import HeaderBar
-from ui.sidebar import SidebarPanel
 from ui.project_card import build_card
 from ui.edit_modal import EditModal
 from ui.project_modal import ProjectModal
 
-# FASE 2: Importa DisplayController
 from ui.controllers.display_controller import DisplayController
-
-# FASE 3: Importa AnalysisController
 from ui.controllers.analysis_controller import AnalysisController
-
-# FASE A: Importa SelectionController
 from ui.controllers.selection_controller import SelectionController
-
-# FASE B: Importa CollectionController
 from ui.controllers.collection_controller import CollectionController
-
-# FASE-D: Importa UIBuilder
 from ui.builders.ui_builder import UIBuilder
-
-# FASE-F: Importa DialogManager
 from ui.managers.dialog_manager import DialogManager
 
 
 class LaserflixMainWindow:
     def __init__(self, root: tk.Tk):
-        self.root   = root
+        self.root = root
         self.logger = LOGGER
 
         self.db_manager = DatabaseManager()
@@ -102,17 +68,17 @@ class LaserflixMainWindow:
         self.thumbnail_preloader = ThumbnailPreloader(max_workers=4)
         self.scanner = ProjectScanner(self.db_manager.database)
 
-        self.ollama             = OllamaClient(self.db_manager.config.get("models"))
-        self.image_analyzer     = ImageAnalyzer(self.ollama)
+        self.ollama = OllamaClient(self.db_manager.config.get("models"))
+        self.image_analyzer = ImageAnalyzer(self.ollama)
         self.fallback_generator = FallbackGenerator(self.scanner)
-        self.text_generator     = TextGenerator(
+        self.text_generator = TextGenerator(
             self.ollama, self.image_analyzer, self.scanner, self.fallback_generator)
-        self.analysis_manager   = AnalysisManager(
+        self.analysis_manager = AnalysisManager(
             self.text_generator, self.db_manager, self.ollama)
 
-        self.database           = self.db_manager.database
+        self.database = self.db_manager.database
         
-        # FASE 2: DisplayController gerencia estado de filtros/ordenação/paginação
+        # DisplayController gerencia filtros/ordenação/paginação
         self.display_ctrl = DisplayController(
             database=self.database,
             collections_manager=self.collections_manager,
@@ -120,14 +86,13 @@ class LaserflixMainWindow:
         )
         self.display_ctrl.on_display_update = self.display_projects
         
-        # FASE 3: AnalysisController gerencia análise IA + descrições
+        # AnalysisController gerencia análise IA
         self.analysis_ctrl = AnalysisController(
             analysis_manager=self.analysis_manager,
             text_generator=self.text_generator,
             db_manager=self.db_manager,
             ollama_client=self.ollama
         )
-        # Conecta callbacks de UI
         self.analysis_ctrl.on_show_progress = self.show_progress_ui
         self.analysis_ctrl.on_hide_progress = self.hide_progress_ui
         self.analysis_ctrl.on_update_progress = self.update_progress
@@ -139,13 +104,12 @@ class LaserflixMainWindow:
         )
         self.analysis_ctrl.setup_callbacks()
         
-        # FASE A: SelectionController gerencia seleção múltipla
+        # SelectionController gerencia seleção múltipla
         self.selection_ctrl = SelectionController(
             database=self.database,
             db_manager=self.db_manager,
             collections_manager=self.collections_manager
         )
-        # Conecta callbacks de UI
         self.selection_ctrl.on_mode_changed = self._on_selection_mode_changed
         self.selection_ctrl.on_selection_changed = self._on_selection_count_changed
         self.selection_ctrl.on_projects_removed = lambda count: (
@@ -157,24 +121,20 @@ class LaserflixMainWindow:
             self.display_projects()
         )
         
-        # FASE B: CollectionController gerencia coleções
+        # CollectionController gerencia coleções
         self.collection_ctrl = CollectionController(
             collections_manager=self.collections_manager,
             database=self.database
         )
-        # Conecta callbacks de UI
         self.collection_ctrl.on_collection_changed = lambda: (
             self.sidebar.refresh(self.database, self.collections_manager),
             self._invalidate_cache(),
             self.display_projects()
         )
         
-        # PERF-FIX-3: Cache de último estado renderizado
         self._last_display_state = None
         self._force_rebuild = False
-        
-        # PERF-FIX-5: Virtual scrolling state
-        self._visible_range = (0, 36)  # (start_idx, end_idx)
+        self._visible_range = (0, 36)
         self._scroll_update_pending = False
 
         self.import_manager = RecursiveImportManager(
@@ -189,42 +149,34 @@ class LaserflixMainWindow:
         self.root.configure(bg=BG_PRIMARY)
         self._build_ui()
         self.display_projects()
-        self.logger.info("✨ Laserflix v%s iniciado (DialogManager ativo - FASE-F)", VERSION)
+        self.logger.info("✨ Laserflix v%s iniciado (VERSÃO LIMPA)", VERSION)
 
     def __del__(self):
         if hasattr(self, 'thumbnail_preloader'):
             self.thumbnail_preloader.shutdown()
 
     def _build_ui(self) -> None:
-        """Constrói toda a UI usando UIBuilder (FASE-D)."""
+        """Constrói UI usando UIBuilder (FASE-D)."""
         UIBuilder.build(self)
 
-    # PERF-FIX-5: Virtual Scrolling
     def _on_scroll(self, event):
-        """Handle mouse wheel scroll + schedule viewport update."""
         self.content_canvas.yview_scroll(int(-1*(event.delta/SCROLL_SPEED)), "units")
         self._schedule_viewport_update()
     
     def _schedule_viewport_update(self):
-        """Debounce viewport updates to avoid excessive re-renders."""
         if self._scroll_update_pending:
             return
-        
         self._scroll_update_pending = True
-        self.root.after(100, self._update_visible_cards)  # 100ms debounce
+        self.root.after(100, self._update_visible_cards)
     
     def _update_visible_cards(self):
-        """Update which cards are rendered based on viewport."""
         self._scroll_update_pending = False
-        # TODO: Implementar lógica incremental se necessário
-        # Por ora, rebuild inicial já está otimizado
 
     def _should_rebuild(self) -> bool:
         if self._force_rebuild:
             self._force_rebuild = False
             return True
         
-        # FASE 2: Usa display_ctrl.get_display_state()
         current_state = self.display_ctrl.get_display_state()
         current_state["selection_mode"] = self.selection_ctrl.selection_mode
         current_state["db_hash"] = (
@@ -238,7 +190,7 @@ class LaserflixMainWindow:
             return True
         
         if current_state == self._last_display_state:
-            self.logger.debug("⚡ SKIP rebuild: estado idêntico")
+            self.logger.debug("⚡ SKIP rebuild")
             return False
         
         self._last_display_state = current_state
@@ -251,7 +203,6 @@ class LaserflixMainWindow:
         for w in self.chips_container.winfo_children():
             w.destroy()
         
-        # FASE 2: Usa display_ctrl.active_filters
         if not self.display_ctrl.active_filters:
             self.chips_bar.pack_forget()
             return
@@ -295,23 +246,17 @@ class LaserflixMainWindow:
             clear_btn.bind("<Enter>", lambda e: clear_btn.config(bg="#8A1A1A"))
             clear_btn.bind("<Leave>", lambda e: clear_btn.config(bg="#4A1A1A"))
 
-    # ==========================================================================
-    # FILTROS (FASE 2: Delegam para DisplayController)
-    # ==========================================================================
-    
+    # FILTROS
     def set_filter(self, filter_type: str) -> None:
-        """FASE 2: Delega para DisplayController."""
         self.display_ctrl.set_filter(filter_type)
         self.sidebar.set_active_btn(None)
         self.header.set_active_filter(filter_type)
         self._update_chips_bar()
 
     def _on_search(self) -> None:
-        """FASE 2: Delega para DisplayController."""
         self.display_ctrl.set_search_query(self.search_var.get())
 
     def _on_origin_filter(self, origin, btn=None) -> None:
-        """FASE 2: Delega para DisplayController."""
         self.display_ctrl.set_origin_filter(origin)
         self.sidebar.set_active_btn(btn)
         self._update_chips_bar()
@@ -319,23 +264,17 @@ class LaserflixMainWindow:
         self.status_bar.config(text=f"Origem: {origin} ({count} projetos)")
 
     def _on_category_filter(self, cats, btn=None) -> None:
-        """FASE 2: Delega para DisplayController."""
         self.display_ctrl.set_category_filter(cats)
         self.sidebar.set_active_btn(btn)
         self._update_chips_bar()
 
     def _on_tag_filter(self, tag, btn=None) -> None:
-        """FASE 2: Delega para DisplayController."""
         self.display_ctrl.set_tag_filter(tag)
         self.sidebar.set_active_btn(btn)
         self._update_chips_bar()
 
-    # ==========================================================================
-    # FASE A: Callbacks para SelectionController
-    # ==========================================================================
-    
+    # SELECTION CALLBACKS
     def _on_selection_mode_changed(self, is_active: bool) -> None:
-        """Callback quando modo seleção é ativado/desativado."""
         if is_active:
             self._sel_bar.pack(fill="x", before=self.content_canvas.master)
             self.header.set_select_btn_active(True)
@@ -346,47 +285,29 @@ class LaserflixMainWindow:
         self.display_projects()
     
     def _on_selection_count_changed(self, count: int) -> None:
-        """Callback quando contagem de selecionados muda."""
         self._sel_count_lbl.config(text=f"{count} selecionado(s)")
         self._invalidate_cache()
         self.display_projects()
 
-    # ==========================================================================
-    # FASE B: Wrappers para CollectionController (UI + status bar)
-    # ==========================================================================
-
+    # COLLECTION WRAPPERS
     def _on_add_to_collection(self, project_path: str, collection_name: str) -> None:
-        """FASE B: Wrapper que adiciona projeto + atualiza UI."""
         self.collection_ctrl.add_project(project_path, collection_name)
         name = self.database.get(project_path, {}).get("name", os.path.basename(project_path))
         self.status_bar.config(text=f"✅ '{name}' adicionado à coleção '{collection_name}'")
 
     def _on_remove_from_collection(self, project_path: str, collection_name: str) -> None:
-        """FASE B: Wrapper que remove projeto + atualiza UI."""
         self.collection_ctrl.remove_project(project_path, collection_name)
         name = self.database.get(project_path, {}).get("name", os.path.basename(project_path))
         self.status_bar.config(text=f"🗑️ '{name}' removido da coleção '{collection_name}'")
 
     def _on_new_collection_with(self, project_path: str) -> None:
-        """FASE B: Wrapper que cria nova coleção com projeto + UI."""
-        name = simpledialog.askstring(
-            "📁 Nova Coleção",
-            "Nome da nova coleção:",
-            parent=self.root
-        )
-        
+        name = simpledialog.askstring("📁 Nova Coleção", "Nome da nova coleção:", parent=self.root)
         if not name or not name.strip():
             return
-        
         name = name.strip()
         self.collection_ctrl.create_collection_with_project(project_path, name)
-        
         project_name = self.database.get(project_path, {}).get("name", os.path.basename(project_path))
         self.status_bar.config(text=f"📁 Coleção '{name}' criada com '{project_name}'")
-
-    # ==========================================================================
-    # COLEÇÕES (F-08)
-    # ==========================================================================
 
     def open_collections_dialog(self) -> None:
         from ui.collections_dialog import CollectionsDialog
@@ -401,41 +322,28 @@ class LaserflixMainWindow:
         self._invalidate_cache()
 
     def _on_collection_filter(self, collection_name: str, btn=None) -> None:
-        """FASE 2: Delega para DisplayController."""
         self.display_ctrl.set_collection_filter(collection_name)
         self.sidebar.set_active_btn(btn)
         self._update_chips_bar()
         count = self.collections_manager.get_collection_size(collection_name)
         self.status_bar.config(text=f"📁 Coleção: {collection_name} ({count} projetos)")
 
-    # ==========================================================================
-    # DISPLAY (FASE 2: Usa DisplayController)
-    # ==========================================================================
-
+    # DISPLAY
     def display_projects(self) -> None:
         if not self._should_rebuild():
             self.logger.debug("⚡ SKIP display_projects")
             return
         
-        # Atualiza chips bar
         self._update_chips_bar()
         
         for w in self.scrollable_frame.winfo_children():
             w.destroy()
         
-        # FASE 2: Usa DisplayController
         filtered_paths = self.display_ctrl.get_filtered_projects()
-        all_filtered = [
-            (p, self.database[p])
-            for p in filtered_paths
-            if p in self.database
-        ]
-        
-        # FASE 2: Usa DisplayController para ordenar
+        all_filtered = [(p, self.database[p]) for p in filtered_paths if p in self.database]
         all_filtered = self.display_ctrl.apply_sorting(all_filtered)
         total_count = len(all_filtered)
         
-        # FASE 2: Usa DisplayController para paginar
         page_info = self.display_ctrl.get_page_info(total_count)
         start_idx = page_info["start_idx"]
         end_idx = page_info["end_idx"]
@@ -447,13 +355,13 @@ class LaserflixMainWindow:
             "good": "👍 Bons", "bad": "👎 Ruins",
         }
         title = title_map.get(self.display_ctrl.current_filter, "Todos os Projetos")
-        if self.display_ctrl.current_origin != "all": 
+        if self.display_ctrl.current_origin != "all":
             title += f" — {self.display_ctrl.current_origin}"
-        if self.display_ctrl.current_categories: 
+        if self.display_ctrl.current_categories:
             title += f" — {', '.join(self.display_ctrl.current_categories)}"
-        if self.display_ctrl.current_tag: 
+        if self.display_ctrl.current_tag:
             title += f" — #{self.display_ctrl.current_tag}"
-        if self.display_ctrl.search_query: 
+        if self.display_ctrl.search_query:
             title += f' — "{self.display_ctrl.search_query}"'
         
         header_frame = tk.Frame(self.scrollable_frame, bg=BG_PRIMARY)
@@ -500,7 +408,6 @@ class LaserflixMainWindow:
                 selected_label = sort_combo.get()
                 for key, label in sort_labels.items():
                     if label == selected_label:
-                        # FASE 2: Delega para DisplayController
                         self.display_ctrl.set_sorting(key)
                         break
             
@@ -509,7 +416,6 @@ class LaserflixMainWindow:
             nav_frame = tk.Frame(right_controls, bg=BG_PRIMARY)
             nav_frame.pack(side="left")
             
-            # FASE 2: Usa page_info do DisplayController
             tk.Button(nav_frame, text="⏮", command=self.display_ctrl.first_page,
                       bg="#333333", fg=FG_PRIMARY, font=("Arial", 9),
                       relief="flat", cursor="hand2", padx=6, pady=3,
@@ -550,7 +456,7 @@ class LaserflixMainWindow:
                      ).grid(row=2, column=0, columnspan=COLS, pady=80)
             return
         
-        # RENDERIZA CARDS
+        # CARDS
         card_cb = {
             "on_open_modal": self.open_project_modal,
             "on_toggle_favorite": self.toggle_favorite,
@@ -588,13 +494,9 @@ class LaserflixMainWindow:
                     self.root.after(0, lambda: callback(path, photo))
             except Exception as e:
                 self.logger.debug(f"Widget destruído: {e}")
-        
         self.thumbnail_preloader.preload_single(project_path, _ui_safe_callback)
 
-    # ==========================================================================
-    # MODAIS E TOGGLES (mantidos originais)
-    # ==========================================================================
-
+    # MODALS
     def open_project_modal(self, project_path: str) -> None:
         if self.selection_ctrl.selection_mode:
             self.selection_ctrl.toggle_project(project_path); return
@@ -652,6 +554,7 @@ class LaserflixMainWindow:
             self.display_projects()
             self.status_bar.config(text="✓ Atualizado!")
 
+    # TOGGLES
     def toggle_favorite(self, path, btn=None) -> None:
         if path in self.database:
             nv = not self.database[path].get("favorite", False)
@@ -698,13 +601,11 @@ class LaserflixMainWindow:
             self.status_bar.config(text=f"🗑️ '{name}' removido do banco.")
 
     def clean_orphans(self) -> None:
+        from tkinter import messagebox
         orphans = [p for p in self.database.keys() if not os.path.isdir(p)]
         
         if not orphans:
-            messagebox.showinfo(
-                "✅ Banco limpo",
-                "Nenhum órfão encontrado!\n\nTodos os projetos têm pastas válidas."
-            )
+            messagebox.showinfo("✅ Banco limpo", "Nenhum órfão encontrado!\n\nTodos os projetos têm pastas válidas.")
             return
         
         msg = f"Encontrei {len(orphans)} projeto(s) órfão(s):\n\n"
@@ -732,16 +633,9 @@ class LaserflixMainWindow:
         self._invalidate_cache()
         self.display_projects()
         self.status_bar.config(text=f"🧹 {len(orphans)} órfão(s) removido(s) do banco.")
-        
-        messagebox.showinfo(
-            "✅ Limpeza concluída",
-            f"{len(orphans)} projeto(s) órfão(s) removido(s) do banco.\n\nBanco agora está sincronizado com o disco."
-        )
+        messagebox.showinfo("✅ Limpeza concluída", f"{len(orphans)} projeto(s) órfão(s) removido(s) do banco.\n\nBanco agora está sincronizado com o disco.")
 
-    # ==========================================================================
-    # ANÁLISE IA (FASE 3: Delega para AnalysisController)
-    # ==========================================================================
-
+    # ANALYSIS
     def show_progress_ui(self) -> None:
         self.progress_bar.pack(side="left", padx=10)
         self.stop_btn.pack(side="right", padx=10)
@@ -758,55 +652,41 @@ class LaserflixMainWindow:
         self.root.update_idletasks()
 
     def analyze_single_project(self, path) -> None:
-        """FASE 3: Delega para AnalysisController."""
         self.analysis_ctrl.analyze_single(path, self.database)
 
     def analyze_only_new(self) -> None:
-        """FASE 3: Delega para AnalysisController."""
         self.analysis_ctrl.analyze_only_new(self.database)
 
     def reanalyze_all(self) -> None:
-        """FASE 3: Delega para AnalysisController."""
         self.analysis_ctrl.reanalyze_all(self.database)
 
     def generate_descriptions_for_new(self) -> None:
-        """FASE 3: Delega para AnalysisController."""
         self.analysis_ctrl.generate_descriptions_for_new(self.database)
 
     def generate_descriptions_for_all(self) -> None:
-        """FASE 3: Delega para AnalysisController."""
         self.analysis_ctrl.generate_descriptions_for_all(self.database)
 
-    # ==========================================================================
-    # DIÁLOGOS E CONFIGURAÇÕES (FASE-F: Delega para DialogManager)
-    # ==========================================================================
-
+    # DIALOGS (delegados para DialogManager)
     def open_import_dialog(self) -> None:
         self.import_manager.database = self.database
         self.import_manager.start_import()
 
     def open_prepare_folders(self) -> None:
-        """FASE-F: Delega para DialogManager."""
         DialogManager.open_prepare_folders(self)
 
     def open_model_settings(self) -> None:
-        """FASE-F: Delega para DialogManager."""
         DialogManager.open_model_settings(self)
 
     def open_categories_picker(self) -> None:
-        """FASE-F: Delega para DialogManager."""
         DialogManager.open_categories_picker(self)
 
     def export_database(self) -> None:
-        """FASE-F: Delega para DialogManager."""
         DialogManager.export_database(self)
 
     def import_database(self) -> None:
-        """FASE-F: Delega para DialogManager."""
         DialogManager.import_database(self)
 
     def manual_backup(self) -> None:
-        """FASE-F: Delega para DialogManager."""
         DialogManager.manual_backup(self)
 
     def _on_import_complete(self) -> None:
@@ -814,7 +694,6 @@ class LaserflixMainWindow:
         self.import_manager.database = self.database
         self.db_manager.save_database()
         self.sidebar.refresh(self.database, self.collections_manager)
-        # FASE 2: Reseta DisplayController para refletir novo database
         self.display_ctrl.current_page = 1
         self._invalidate_cache()
         self.display_projects()
