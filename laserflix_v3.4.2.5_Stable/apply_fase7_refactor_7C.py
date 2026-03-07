@@ -26,7 +26,7 @@ Uso:
 
 Autor: Claude Sonnet 4.5
 Data: 07/03/2026
-Versão: 1.0
+Versão: 1.1 (com pause no final)
 """
 
 import os
@@ -35,6 +35,7 @@ import ast
 import argparse
 import shutil
 import re
+import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import List
@@ -44,6 +45,8 @@ try:
     from fase7_patches import PHASE_7C_IMPORTS, PHASE_7C_INIT, PHASE_7C_METHODS_TO_REMOVE
 except ImportError:
     print("❌ Erro: fase7_patches.py não encontrado!")
+    print("\nPressione ENTER para fechar...")
+    input()
     sys.exit(1)
 
 # Importa gerenciador de versões
@@ -236,61 +239,85 @@ def update_version() -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Aplica Fase 7C")
-    parser.add_argument('--dry-run', action='store_true', help='Ver mudanças sem aplicar')
-    parser.add_argument('--undo', action='store_true', help='Desfazer última mudança')
-    args = parser.parse_args()
-    
-    if not MAIN_WINDOW_PATH.exists():
-        print_error(f"Arquivo não encontrado: {MAIN_WINDOW_PATH}")
-        sys.exit(1)
-    
-    original_content = read_file(MAIN_WINDOW_PATH)
-    original_lines = count_lines(MAIN_WINDOW_PATH)
-    
-    print_header("🔧 REFATORAÇÃO AUTOMÁTICA - FASE 7C")
-    print_info(f"Arquivo: {MAIN_WINDOW_PATH}")
-    print_info(f"Linhas atuais: {original_lines}")
-    print()
-    
-    if not args.dry_run:
-        create_backup(MAIN_WINDOW_PATH)
+    try:
+        parser = argparse.ArgumentParser(description="Aplica Fase 7C")
+        parser.add_argument('--dry-run', action='store_true', help='Ver mudanças sem aplicar')
+        parser.add_argument('--undo', action='store_true', help='Desfazer última mudança')
+        args = parser.parse_args()
+        
+        if not MAIN_WINDOW_PATH.exists():
+            print_error(f"Arquivo não encontrado: {MAIN_WINDOW_PATH}")
+            print("\nPressione ENTER para fechar...")
+            input()
+            sys.exit(1)
+        
+        original_content = read_file(MAIN_WINDOW_PATH)
+        original_lines = count_lines(MAIN_WINDOW_PATH)
+        
+        print_header("🔧 REFATORAÇÃO AUTOMÁTICA - FASE 7C")
+        print_info(f"Arquivo: {MAIN_WINDOW_PATH}")
+        print_info(f"Linhas atuais: {original_lines}")
         print()
-    
-    print_header("APLICANDO FASE 7C")
-    content = apply_phase_7c(original_content)
-    print()
-    
-    print_header("✓ VALIDAÇÃO")
-    if not validate_syntax(content):
-        print_error("Sintaxe inválida! Abortando.")
+        
+        if not args.dry_run:
+            create_backup(MAIN_WINDOW_PATH)
+            print()
+        
+        print_header("APLICANDO FASE 7C")
+        content = apply_phase_7c(original_content)
+        print()
+        
+        print_header("✓ VALIDAÇÃO")
+        if not validate_syntax(content):
+            print_error("Sintaxe inválida! Abortando.")
+            print("\nPressione ENTER para fechar...")
+            input()
+            sys.exit(1)
+        print_success("Sintaxe Python válida")
+        
+        new_lines = len([l for l in content.split('\n') if l.strip()])
+        reduction = original_lines - new_lines
+        print_info(f"Linhas: {original_lines} → {new_lines} ({reduction:+d} linhas)")
+        print()
+        
+        if args.dry_run:
+            print_warning("DRY-RUN: Mudanças NÃO foram aplicadas")
+            print("\nPressione ENTER para fechar...")
+            input()
+            return
+        
+        write_file(MAIN_WINDOW_PATH, content)
+        print_success(f"Arquivo atualizado: {MAIN_WINDOW_PATH}")
+        
+        print_header("🔢 VERSIONAMENTO")
+        update_version()
+        
+        print()
+        print_header("✅ FASE 7C CONCLUÍDA")
+        print_success(f"Refatoração aplicada com sucesso!")
+        print_info(f"Linhas: {original_lines} → {new_lines} ({reduction} linhas removidas)")
+        print()
+        print_info("Próximos passos:")
+        print(f"  1. {Color.CYAN}python main.py{Color.RESET} - Testar")
+        print(f"  2. {Color.CYAN}git add . && git commit && git push{Color.RESET} - Commit")
+        print()
+        
+        # PAUSE NO FINAL
+        print("\nPressione ENTER para fechar...")
+        input()
+        
+    except KeyboardInterrupt:
+        print("\n\n❌ Operação cancelada pelo usuário")
+        print("\nPressione ENTER para fechar...")
+        input()
         sys.exit(1)
-    print_success("Sintaxe Python válida")
-    
-    new_lines = len([l for l in content.split('\n') if l.strip()])
-    reduction = original_lines - new_lines
-    print_info(f"Linhas: {original_lines} → {new_lines} ({reduction:+d} linhas)")
-    print()
-    
-    if args.dry_run:
-        print_warning("DRY-RUN: Mudanças NÃO foram aplicadas")
-        return
-    
-    write_file(MAIN_WINDOW_PATH, content)
-    print_success(f"Arquivo atualizado: {MAIN_WINDOW_PATH}")
-    
-    print_header("🔢 VERSIONAMENTO")
-    update_version()
-    
-    print()
-    print_header("✅ FASE 7C CONCLUÍDA")
-    print_success(f"Refatoração aplicada com sucesso!")
-    print_info(f"Linhas: {original_lines} → {new_lines} ({reduction} linhas removidas)")
-    print()
-    print_info("Próximos passos:")
-    print(f"  1. {Color.CYAN}python main.py{Color.RESET} - Testar")
-    print(f"  2. {Color.CYAN}python apply_fase7_refactor_7D.py{Color.RESET} - Aplicar Fase 7D")
-    print()
+    except Exception as e:
+        print("\n")
+        print_error("ERRO FATAL:")
+        print(f"{Color.RED}{traceback.format_exc()}{Color.RESET}")
+        print("\nPressione ENTER para fechar...")
+        input()
+        sys.exit(1)
 
 
 if __name__ == '__main__':
