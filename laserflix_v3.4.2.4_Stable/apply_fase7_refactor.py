@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Script de Refatoração Automática - Fase 7
-==========================================
+Script de Refatoração Automática - Fase 7 (com versionamento)
+====================================================================
 
 Aplica refatoração completa do main_window.py de forma cirúrgica e segura.
+Auto-incrementa versão e documenta cada modificação.
 
 Fases:
   7C: SelectionController, CollectionController, ProjectManagementController (-200 linhas)
@@ -22,6 +23,7 @@ Uso:
 
 Autor: Claude Sonnet 4.5
 Data: 07/03/2026
+Versão: 2.0 (com versionamento automático)
 """
 
 import os
@@ -34,7 +36,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Tuple, Optional
 
-# Importa definições de patches (será criado em seguida)
+# Importa definições de patches
 try:
     from fase7_patches import (
         PHASE_7C_IMPORTS, PHASE_7C_INIT, PHASE_7C_METHODS_TO_REMOVE,
@@ -47,11 +49,63 @@ except ImportError:
     print("Execute: git pull para baixar todos os arquivos.")
     sys.exit(1)
 
+# Importa gerenciador de versões
+try:
+    from version_manager import VersionManager
+    VERSION_MANAGER_AVAILABLE = True
+except ImportError:
+    print("⚠️  Warning: version_manager.py não encontrado. Versionamento desabilitado.")
+    VERSION_MANAGER_AVAILABLE = False
+
 # Constantes
 MAIN_WINDOW_PATH = Path("ui/main_window.py")
 BACKUP_DIR = Path(".backups")
 TARGET_LINES = 198
 ORIGINAL_LINES = 868
+
+# Descrições das fases para CHANGELOG
+PHASE_DESCRIPTIONS = {
+    '7c': {
+        'title': 'Fase 7C: SelectionController, CollectionController, ProjectManagementController',
+        'changes': [
+            'SelectionController extraído (gerencia seleção múltipla)',
+            'CollectionController extraído (gerencia coleções/playlists)',
+            'ProjectManagementController extraído (gerencia remoção e flags)',
+            '14 métodos removidos do main_window.py',
+            'Redução estimada: -200 linhas'
+        ]
+    },
+    '7d': {
+        'title': 'Fase 7D: ChipsBar, SelectionBar, PaginationControls',
+        'changes': [
+            'ChipsBar component criado (barra de chips de filtros)',
+            'SelectionBar component criado (barra de ferramentas de seleção)',
+            'PaginationControls component criado (controles de paginação)',
+            'Construção de UI delegada para components',
+            'Redução estimada: -250 linhas'
+        ]
+    },
+    '7e': {
+        'title': 'Fase 7E: Simplificações',
+        'changes': [
+            'Callbacks de filtro simplificados',
+            'Toggles consolidados com helper methods',
+            'Código morto removido',
+            'Comentários obsoletos removidos',
+            'Redução estimada: -100 linhas'
+        ]
+    },
+    '7f': {
+        'title': 'Fase 7F: ModalManager, DatabaseController, CardFactory',
+        'changes': [
+            'ModalManager criado (centraliza dialogs)',
+            'DatabaseController criado (operações de database)',
+            'CardFactory criado (factory pattern para cards)',
+            '7 métodos removidos do main_window.py',
+            'Redução estimada: -120 linhas'
+        ]
+    }
+}
 
 
 class Color:
@@ -355,15 +409,52 @@ def apply_phase_7f(content: str) -> str:
     return content
 
 
+def update_version_for_phases(phases: List[str]) -> None:
+    """
+    Atualiza versão após aplicar fases.
+    
+    Args:
+        phases: Lista de fases aplicadas (ex: ['7c'] ou ['7c', '7d', '7e', '7f'])
+    """
+    if not VERSION_MANAGER_AVAILABLE:
+        print_warning("Version manager não disponível. Pulando atualização de versão.")
+        return
+    
+    manager = VersionManager()
+    
+    # Determinar descrição e mudanças
+    if len(phases) == 1:
+        # Fase única
+        phase_id = phases[0]
+        description = PHASE_DESCRIPTIONS[phase_id]['title']
+        changes = PHASE_DESCRIPTIONS[phase_id]['changes']
+    else:
+        # Múltiplas fases
+        description = f"Fase 7 completa: {', '.join([p.upper() for p in phases])}"
+        changes = []
+        for phase_id in phases:
+            changes.extend(PHASE_DESCRIPTIONS[phase_id]['changes'])
+    
+    # Incrementar versão (build para fases individuais, patch para release completo)
+    bump_type = 'patch' if len(phases) > 1 else 'build'
+    
+    try:
+        new_version = manager.bump_and_update(bump_type, description, changes)
+        print()
+        print_success(f"Versão atualizada: {new_version}")
+    except Exception as e:
+        print_warning(f"Erro ao atualizar versão: {e}")
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Refatoração automática Fase 7 - main_window.py",
+        description="Refatoração automática Fase 7 - main_window.py (com versionamento)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Exemplos:
   %(prog)s --dry-run          # Ver mudanças sem aplicar
-  %(prog)s --phase 7c         # Aplicar apenas Fase 7C
-  %(prog)s --all              # Aplicar todas as fases
+  %(prog)s --phase 7c         # Aplicar apenas Fase 7C (auto-incrementa versão)
+  %(prog)s --all              # Aplicar todas as fases (auto-incrementa versão)
   %(prog)s --undo             # Desfazer última mudança
   %(prog)s --list-backups     # Listar backups disponíveis
         """
@@ -489,6 +580,10 @@ Exemplos:
     write_file(MAIN_WINDOW_PATH, content)
     print_success(f"Arquivo atualizado: {MAIN_WINDOW_PATH}")
     
+    # Update version
+    print_header("🔢 VERSIONAMENTO")
+    update_version_for_phases(phases_to_apply)
+    
     print()
     print_header("✅ REFATORAÇÃO CONCLUÍDA")
     print_success(f"main_window.py refatorado com sucesso!")
@@ -496,8 +591,9 @@ Exemplos:
     print()
     print_info("Próximos passos:")
     print(f"  1. {Color.CYAN}python main.py{Color.RESET} - Testar aplicação")
-    print(f"  2. {Color.CYAN}git add ui/main_window.py{Color.RESET}")
-    print(f"  3. {Color.CYAN}git commit -m 'refactor(fase7): Integração completa ({original_lines}→{new_lines} linhas)'{Color.RESET}")
+    print(f"  2. {Color.CYAN}cat CHANGELOG.md{Color.RESET} - Ver histórico de mudanças")
+    print(f"  3. {Color.CYAN}git add .{Color.RESET}")
+    print(f"  4. {Color.CYAN}git commit -m 'refactor(fase7): {phases_to_apply[0].upper()} aplicada ({original_lines}→{new_lines} linhas)'{Color.RESET}")
     print()
     print_warning("Se algo quebrar:")
     print(f"  {Color.YELLOW}python apply_fase7_refactor.py --undo{Color.RESET}")
