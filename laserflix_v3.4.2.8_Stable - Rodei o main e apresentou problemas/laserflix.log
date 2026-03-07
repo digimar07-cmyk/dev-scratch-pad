@@ -378,3 +378,8 @@
 2026-03-07 16:45:36,025 | WARNING | Laserflix | ⚠️ Ollama retornou vazio para My-First-Year-Photo-Frame-119872681, usando fallback
 2026-03-07 16:45:36,026 | INFO | Laserflix | 📝 31 descrições geradas
 2026-03-07 16:45:36,026 | INFO | Laserflix | ✅ Análise sequencial concluída!
+2026-03-07 17:23:43,422 | INFO | Laserflix | ⚠️ Config não encontrado, usando padrão vazio
+2026-03-07 17:23:43,424 | INFO | Laserflix | ✅ Database carregado: 46 projetos
+2026-03-07 17:23:43,425 | INFO | Laserflix | ✅ Collections carregado: 0 coleções
+2026-03-07 17:23:43,425 | INFO | Laserflix | 📷 Thumbnail Preloader iniciado: 4 threads, cache 300 images
+2026-03-07 17:23:45,108 | INFO | Laserflix | ✨ Laserflix v3.4.2.5 iniciado (ProjectManagementController ativo)
