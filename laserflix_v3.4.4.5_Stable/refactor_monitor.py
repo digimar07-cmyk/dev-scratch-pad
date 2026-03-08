@@ -91,157 +91,127 @@ class RefactorMonitor(tk.Tk):
         super().__init__()
         
         self.title("🔍 Laserflix Refactor Monitor")
-        
-        # Obter tamanho da tela
-        screen_width = self.winfo_screenwidth()
-        screen_height = self.winfo_screenheight()
-        
-        # Usar 70% da largura e altura máxima (descontando barra de tarefas)
-        width = int(screen_width * 0.4)  # 40% da largura
-        height = screen_height - 80  # Altura total menos barra de tarefas
-        
-        # Centralizar na tela
-        x = (screen_width - width) // 2
-        y = 20  # 20px do topo
-        
-        self.geometry(f"{width}x{height}+{x}+{y}")
+        self.geometry("700x750")  # Tamanho fixo e ajustado
         self.configure(bg="#1a1a1a")
         
         # Estilo
         self.style = ttk.Style()
         self.style.theme_use('clam')
         self.style.configure('TLabel', background='#1a1a1a', foreground='#ffffff', font=('Arial', 11))
-        self.style.configure('Title.TLabel', font=('Arial', 18, 'bold'), foreground='#00d4ff')
-        self.style.configure('Subtitle.TLabel', font=('Arial', 14, 'bold'), foreground='#00d4ff')
-        self.style.configure('Big.TLabel', font=('Arial', 48, 'bold'), foreground='#00ff88')
-        self.style.configure('Red.TLabel', foreground='#ff4444', font=('Arial', 14, 'bold'))
-        self.style.configure('Green.TLabel', foreground='#00ff88', font=('Arial', 14, 'bold'))
-        self.style.configure('Yellow.TLabel', foreground='#ffaa00', font=('Arial', 13))
-        self.style.configure('White.TLabel', foreground='#ffffff', font=('Arial', 13))
+        self.style.configure('Title.TLabel', font=('Arial', 16, 'bold'), foreground='#00d4ff')
+        self.style.configure('Big.TLabel', font=('Arial', 32, 'bold'), foreground='#00ff88')
+        self.style.configure('Red.TLabel', foreground='#ff4444', font=('Arial', 12, 'bold'))
+        self.style.configure('Green.TLabel', foreground='#00ff88', font=('Arial', 12, 'bold'))
+        self.style.configure('Yellow.TLabel', foreground='#ffaa00', font=('Arial', 12))
+        self.style.configure('White.TLabel', foreground='#ffffff', font=('Arial', 12))
         
         self._build_ui()
         self.atualizar()
     
     def _build_ui(self):
-        # Container com scroll
-        container = tk.Frame(self, bg="#1a1a1a")
-        container.pack(fill="both", expand=True)
-        
         # Título
-        ttk.Label(container, text="📊 MONITOR DE REFATORAÇÃO", style='Title.TLabel').pack(pady=30)
-        ttk.Label(container, text="main_window.py", font=('Courier', 12), 
-                 foreground='#888888', background='#1a1a1a').pack(pady=(0, 20))
+        ttk.Label(self, text="📊 MONITOR DE REFATORAÇÃO", style='Title.TLabel').pack(pady=20)
         
         # Frame principal
-        main_frame = tk.Frame(container, bg="#2a2a2a", relief="solid", bd=2)
-        main_frame.pack(padx=30, pady=10, fill="both", expand=True)
+        main_frame = tk.Frame(self, bg="#2a2a2a", relief="solid", bd=2)
+        main_frame.pack(padx=20, pady=10, fill="both", expand=True)
         
         # COMPARAÇÃO: ESPERADO vs REAL
-        ttk.Label(main_frame, text="⚠️  COMPARAÇÃO", style='Subtitle.TLabel').pack(pady=(30, 20))
+        ttk.Label(main_frame, text="⚠️  COMPARAÇÃO:", style='Title.TLabel').pack(pady=(20, 10))
         
         compare_frame = tk.Frame(main_frame, bg="#2a2a2a")
-        compare_frame.pack(pady=15, fill="x", padx=50)
+        compare_frame.pack(pady=10, fill="x", padx=40)
         
         # Esperado
         frame_esp = tk.Frame(compare_frame, bg="#2a2a2a")
-        frame_esp.pack(fill="x", pady=8)
-        ttk.Label(frame_esp, text="Esperado (após FASE-1.2):", font=('Arial', 12)).pack(side="left")
+        frame_esp.pack(fill="x", pady=5)
+        ttk.Label(frame_esp, text="Esperado (após FASE-1.2):").pack(side="left")
         self.lbl_esperado = ttk.Label(frame_esp, text="---", style='White.TLabel')
         self.lbl_esperado.pack(side="right")
         
         # Real
         frame_real = tk.Frame(compare_frame, bg="#2a2a2a")
-        frame_real.pack(fill="x", pady=8)
-        ttk.Label(frame_real, text="Real (atual no GitHub):", font=('Arial', 12)).pack(side="left")
+        frame_real.pack(fill="x", pady=5)
+        ttk.Label(frame_real, text="Real (atual no GitHub):").pack(side="left")
         self.lbl_real = ttk.Label(frame_real, text="---", style='White.TLabel')
         self.lbl_real.pack(side="right")
         
         # Diferença
         frame_diff = tk.Frame(compare_frame, bg="#2a2a2a")
-        frame_diff.pack(fill="x", pady=8)
-        ttk.Label(frame_diff, text="Diferença:", font=('Arial', 12, 'bold')).pack(side="left")
+        frame_diff.pack(fill="x", pady=5)
+        ttk.Label(frame_diff, text="Diferença:").pack(side="left")
         self.lbl_diferenca = ttk.Label(frame_diff, text="---", style='Red.TLabel')
         self.lbl_diferenca.pack(side="right")
         
         # Status
         self.lbl_status = ttk.Label(main_frame, text="---", style='Red.TLabel')
-        self.lbl_status.pack(pady=20)
+        self.lbl_status.pack(pady=10)
         
         # Separador
-        ttk.Separator(main_frame, orient='horizontal').pack(fill='x', padx=30, pady=25)
+        ttk.Separator(main_frame, orient='horizontal').pack(fill='x', padx=20, pady=15)
         
         # Métricas gerais
-        ttk.Label(main_frame, text="📈 PROGRESSO GERAL", style='Subtitle.TLabel').pack(pady=(15, 20))
+        ttk.Label(main_frame, text="📈 PROGRESSO GERAL:", style='Title.TLabel').pack(pady=(10, 10))
         
         metrics_frame = tk.Frame(main_frame, bg="#2a2a2a")
-        metrics_frame.pack(pady=15, fill="x", padx=50)
+        metrics_frame.pack(pady=10, fill="x", padx=40)
         
         # Redução total
         frame1 = tk.Frame(metrics_frame, bg="#2a2a2a")
-        frame1.pack(fill="x", pady=8)
-        ttk.Label(frame1, text="Redução desde início (609):", font=('Arial', 12)).pack(side="left")
+        frame1.pack(fill="x", pady=5)
+        ttk.Label(frame1, text="Redução desde início (609):").pack(side="left")
         self.lbl_reducao = ttk.Label(frame1, text="---", style='Green.TLabel')
         self.lbl_reducao.pack(side="right")
         
         # Percentual
         frame2 = tk.Frame(metrics_frame, bg="#2a2a2a")
-        frame2.pack(fill="x", pady=8)
-        ttk.Label(frame2, text="Percentual:", font=('Arial', 12)).pack(side="left")
+        frame2.pack(fill="x", pady=5)
+        ttk.Label(frame2, text="Percentual:").pack(side="left")
         self.lbl_percentual = ttk.Label(frame2, text="---", style='Green.TLabel')
         self.lbl_percentual.pack(side="right")
         
         # Falta para meta
         frame3 = tk.Frame(metrics_frame, bg="#2a2a2a")
-        frame3.pack(fill="x", pady=8)
-        ttk.Label(frame3, text="Falta para meta (200):", font=('Arial', 12)).pack(side="left")
+        frame3.pack(fill="x", pady=5)
+        ttk.Label(frame3, text="Falta para meta (200):").pack(side="left")
         self.lbl_falta = ttk.Label(frame3, text="---", style='Yellow.TLabel')
         self.lbl_falta.pack(side="right")
         
         # Separador
-        ttk.Separator(main_frame, orient='horizontal').pack(fill='x', padx=30, pady=25)
+        ttk.Separator(main_frame, orient='horizontal').pack(fill='x', padx=20, pady=15)
         
         # Barra de progresso
-        ttk.Label(main_frame, text="PROGRESSO ATÉ A META (200 linhas)", 
-                 font=('Arial', 12, 'bold'), foreground='#ffffff', background='#2a2a2a').pack(pady=(15, 10))
-        
-        progress_container = tk.Frame(main_frame, bg="#2a2a2a")
-        progress_container.pack(pady=15)
-        
-        self.progress = ttk.Progressbar(progress_container, length=500, mode='determinate', maximum=100)
+        ttk.Label(main_frame, text="PROGRESSO ATÉ A META:", style='TLabel').pack(pady=(10, 5))
+        self.progress = ttk.Progressbar(main_frame, length=450, mode='determinate', maximum=100)
         self.progress.pack(pady=10)
-        self.lbl_progress = ttk.Label(progress_container, text="0%", font=('Arial', 16, 'bold'),
-                                     foreground='#ffaa00', background='#2a2a2a')
-        self.lbl_progress.pack(pady=10)
+        self.lbl_progress = ttk.Label(main_frame, text="0%", style='Yellow.TLabel')
+        self.lbl_progress.pack(pady=5)
         
         # Separador
-        ttk.Separator(main_frame, orient='horizontal').pack(fill='x', padx=30, pady=25)
+        ttk.Separator(main_frame, orient='horizontal').pack(fill='x', padx=20, pady=15)
         
         # Timeline
-        ttk.Label(main_frame, text="📅 HISTÓRICO DE FASES", style='Subtitle.TLabel').pack(pady=(15, 20))
+        ttk.Label(main_frame, text="📅 HISTÓRICO DE FASES:", style='Title.TLabel').pack(pady=(10, 10))
         
         timeline_frame = tk.Frame(main_frame, bg="#1a1a1a", relief="sunken", bd=1)
-        timeline_frame.pack(padx=50, pady=15, fill="x")
+        timeline_frame.pack(padx=40, pady=10, fill="x")
         
         for fase in FASES:
             status = "✅" if fase["nome"] != "FASE-1.2" else "⚠️ "
             linha_txt = f"{status} {fase['nome']}: {fase['linhas']} linhas - {fase['descricao']}"
-            ttk.Label(timeline_frame, text=linha_txt, font=('Courier', 11),
-                     foreground='#cccccc', background='#1a1a1a').pack(anchor="w", pady=5, padx=15)
-        
-        # Espaço final
-        tk.Frame(main_frame, bg="#2a2a2a", height=30).pack()
+            ttk.Label(timeline_frame, text=linha_txt, font=('Courier', 9)).pack(anchor="w", pady=2, padx=10)
         
         # Botões
-        btn_frame = tk.Frame(container, bg="#1a1a1a")
-        btn_frame.pack(pady=25)
+        btn_frame = tk.Frame(self, bg="#1a1a1a")
+        btn_frame.pack(pady=15)
         
         tk.Button(btn_frame, text="🔄 Atualizar", command=self.atualizar, 
-                 bg="#00d4ff", fg="#000", font=('Arial', 12, 'bold'),
-                 relief="flat", padx=30, pady=12).pack(side="left", padx=10)
+                 bg="#00d4ff", fg="#000", font=('Arial', 10, 'bold'),
+                 relief="flat", padx=20, pady=8).pack(side="left", padx=5)
         
         tk.Button(btn_frame, text="❌ Fechar", command=self.quit,
-                 bg="#ff4444", fg="#fff", font=('Arial', 12, 'bold'),
-                 relief="flat", padx=30, pady=12).pack(side="left", padx=10)
+                 bg="#ff4444", fg="#fff", font=('Arial', 10, 'bold'),
+                 relief="flat", padx=20, pady=8).pack(side="left", padx=5)
     
     def atualizar(self):
         """Atualiza as métricas na tela."""
