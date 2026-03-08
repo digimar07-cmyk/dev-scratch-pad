@@ -15,7 +15,7 @@ from tkinter import ttk
 # CONFIGURAÇÃO FÁCIL - MODIFIQUE AQUI!
 # =====================================================================
 WINDOW_WIDTH = 700   # Largura da janela em pixels
-WINDOW_HEIGHT = 750  # Altura da janela em pixels
+WINDOW_HEIGHT = 950  # Altura da janela em pixels
 # =====================================================================
 
 # CONFIGURAÇÃO DO MONITOR
@@ -98,7 +98,17 @@ class RefactorMonitor(tk.Tk):
         super().__init__()
         
         self.title("🔍 Laserflix Refactor Monitor")
-        self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")  # Usa as constantes definidas no topo
+        
+        # Obter tamanho da tela
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        
+        # Calcular posição para centralizar a janela
+        x = (screen_width - WINDOW_WIDTH) // 2
+        y = (screen_height - WINDOW_HEIGHT) // 2
+        
+        # Definir geometria: widthxheight+x+y
+        self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}+{x}+{y}")
         self.configure(bg="#1a1a1a")
         
         # Estilo
