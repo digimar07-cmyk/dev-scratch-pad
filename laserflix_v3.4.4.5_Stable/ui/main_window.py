@@ -15,7 +15,8 @@ REFACTOR-FASE-B: CollectionController integrado ✅
 REFACTOR-FASE-D: UIBuilder extraído ✅
 REFACTOR-FASE-F: DialogManager extraído ✅
 REFACTOR-CORREÇÃO: Código duplicado REMOVIDO ✅
-REFACTOR-FASE-1C: _build_navigation_controls() extraído ✅
+REFACTOR-FASE-1.1: NavigationBuilder extraído ✅
+REFACTOR-FASE-1.2: HeaderBuilder + CardsGridBuilder extraídos ✅
 """
 import os
 import threading
@@ -44,7 +45,6 @@ from utils.logging_setup import LOGGER
 from utils.platform_utils import open_folder
 
 from ui.recursive_import_integration import RecursiveImportManager
-from ui.project_card import build_card
 from ui.edit_modal import EditModal
 from ui.project_modal import ProjectModal
 
@@ -280,43 +280,11 @@ class LaserflixMainWindow:
         count = self.collections_manager.get_collection_size(collection_name)
         self.status_bar.config(text=f"📁 Coleção: {collection_name} ({count} projetos)")
 
-    def _build_navigation_controls(self, parent: tk.Frame, page_info: dict) -> None:
-        """Constrói controles usando NavigationBuilder (FASE-1.1)."""
-        from ui.builders.navigation_builder import NavigationBuilder
-        NavigationBuilder.build(parent, page_info, self.display_ctrl)
-
-    def _build_header(self, total_count: int, page_info: dict) -> None:
-        """Constrói cabeçalho com título e navegação (FASE-1D)."""
-        title_map = {
-            "favorite": "⭐ Favoritos", "done": "✓ Já Feitos",
-            "good": "👍 Bons", "bad": "👎 Ruins",
-        }
-        title = title_map.get(self.display_ctrl.current_filter, "Todos os Projetos")
-        if self.display_ctrl.current_origin != "all":
-            title += f" — {self.display_ctrl.current_origin}"
-        if self.display_ctrl.current_categories:
-            title += f" — {', '.join(self.display_ctrl.current_categories)}"
-        if self.display_ctrl.current_tag:
-            title += f" — #{self.display_ctrl.current_tag}"
-        if self.display_ctrl.search_query:
-            title += f' — "{self.display_ctrl.search_query}"'
-        
-        header_frame = tk.Frame(self.scrollable_frame, bg=BG_PRIMARY)
-        header_frame.grid(row=0, column=0, columnspan=COLS, sticky="ew", padx=10, pady=(0, 5))
-        
-        tk.Label(header_frame, text=title,
-                 font=("Arial", 20, "bold"), bg=BG_PRIMARY, fg=FG_PRIMARY, anchor="w"
-                 ).pack(side="left")
-        
-        if total_count > 0:
-            self._build_navigation_controls(header_frame, page_info)
-
     # DISPLAY
     def display_projects(self) -> None:
         if not self._should_rebuild():
             self.logger.debug("⚡ SKIP display_projects")
             return
-        
         
         for w in self.scrollable_frame.winfo_children():
             w.destroy()
@@ -331,8 +299,9 @@ class LaserflixMainWindow:
         end_idx = page_info["end_idx"]
         page_items = all_filtered[start_idx:end_idx]
         
-        self._build_header(total_count, page_info)
-        
+        # Usar HeaderBuilder (FASE-1.2A)
+        from ui.builders.header_builder import HeaderBuilder
+        HeaderBuilder.build(self.scrollable_frame, self.display_ctrl)
         
         tk.Label(self.scrollable_frame,
                  text=f"{total_count} projeto(s) | Mostrando {len(page_items)} itens",
@@ -343,11 +312,16 @@ class LaserflixMainWindow:
             self._build_empty_state()
             return
         
-        self._build_cards_grid(page_items)
+        # Usar CardsGridBuilder (FASE-1.2B)
+        from ui.builders.cards_grid_builder import CardsGridBuilder
+        card_cb = self._get_card_callbacks()
+        CardsGridBuilder.build(self.scrollable_frame, page_items, card_cb)
+        
+        self.content_canvas.yview_moveto(0)
 
-    def _build_cards_grid(self, page_items: list) -> None:
-        """Constrói grid de cards com callbacks (FASE-1F)."""
-        card_cb = {
+    def _get_card_callbacks(self) -> dict:
+        """Retorna dict de callbacks para project_card (FASE-1.2 Bônus)."""
+        return {
             "on_open_modal": self.open_project_modal,
             "on_toggle_favorite": self.toggle_favorite,
             "on_toggle_done": self.toggle_done,
@@ -369,13 +343,6 @@ class LaserflixMainWindow:
             "get_collections": lambda: list(self.collections_manager.collections.keys()),
             "get_project_collections": lambda p: self.collections_manager.get_project_collections(p),
         }
-        
-        for i, (project_path, project_data) in enumerate(page_items):
-            row = (i // COLS) + 2
-            col = i % COLS
-            build_card(self.scrollable_frame, project_path, project_data, card_cb, row, col)
-        
-        self.content_canvas.yview_moveto(0)
 
     def _build_empty_state(self) -> None:
         """Exibe mensagem quando não há projetos (FASE-1E)."""
