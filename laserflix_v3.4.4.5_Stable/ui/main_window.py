@@ -18,10 +18,10 @@ REFACTOR-CORREÇÃO: Código duplicado REMOVIDO ✅
 REFACTOR-FASE-1.1: NavigationBuilder extraído ✅
 REFACTOR-FASE-1.2: HeaderBuilder + CardsGridBuilder extraídos ✅
 REFACTOR-FASE-1.2.1: Contador integrado ao HeaderBuilder ✅
+REFACTOR-FASE-1.2.2: ModalGenerator extraído ✅
 REFACTOR-FASE-1.3: OrphanManager extraído ✅
 """
 import os
-import threading
 import tkinter as tk
 from tkinter import ttk, simpledialog
 
@@ -60,6 +60,7 @@ from ui.managers.toggle_manager import ToggleManager
 from ui.managers.collection_dialog_manager import CollectionDialogManager
 from ui.managers.progress_ui_manager import ProgressUIManager
 from ui.managers.orphan_manager import OrphanManager
+from ui.managers.modal_generator import ModalGenerator
 
 class LaserflixMainWindow:
     def __init__(self, root: tk.Tk):
@@ -184,10 +185,16 @@ class LaserflixMainWindow:
             ),
             on_status_update=lambda msg: self.status_bar.config(text=msg)
         )
+        
+        self.modal_gen = ModalGenerator(
+            text_generator=self.text_generator,
+            database=self.database,
+            db_manager=self.db_manager
+        )
         # === FIM MANAGERS ===
         
         self.display_projects()
-        self.logger.info("✨ Laserflix v%s iniciado (FASE-1.2.1)", VERSION)
+        self.logger.info("✨ Laserflix v%s iniciado (FASE-1.2.2)", VERSION)
 
     def __del__(self):
         if hasattr(self, 'thumbnail_preloader'):
@@ -403,21 +410,10 @@ class LaserflixMainWindow:
             self.display_projects()
 
     def _modal_generate_desc(self, path, desc_lbl, gen_btn, modal) -> None:
-        gen_btn.config(state="disabled", text="⏳ Gerando...")
-        desc_lbl.config(text="⏳ Gerando descrição...", fg="#555555")
-        modal.update()
-        def _run():
-            try:
-                desc = self.text_generator.generate_description(path, self.database[path])
-                self.database[path]["ai_description"] = desc
-                self.db_manager.save_database()
-                modal.after(0, modal.destroy)
-                modal.after(50, lambda: self.open_project_modal(path))
-            except Exception as e:
-                self.logger.error("Erro: %s", e)
-                modal.after(0, lambda: desc_lbl.config(text="❌ Erro", fg="#EF5350"))
-                modal.after(0, lambda: gen_btn.config(state="normal", text="🤖 Gerar"))
-        threading.Thread(target=_run, daemon=True).start()
+        """Delega geração de descrição para ModalGenerator (FASE-1.2.2)."""
+        self.modal_gen.generate_description(
+            path, desc_lbl, gen_btn, modal, self.open_project_modal
+        )
 
     def open_edit_mode(self, project_path: str) -> None:
         EditModal(self.root, project_path, self.database.get(project_path, {}), self._on_edit_save)
