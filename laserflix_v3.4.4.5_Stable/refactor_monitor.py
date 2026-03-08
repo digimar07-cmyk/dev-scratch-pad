@@ -13,11 +13,20 @@ from tkinter import ttk
 
 # CONFIGURAÇÃO
 MAIN_WINDOW_PATH = "ui/main_window.py"
-LINHA_INICIAL = 1000  # Meta original
-META_FINAL = 200      # Meta de 80% de redução
+
+# HISTÓRICO DE FASES
+LINHA_INICIAL = 609  # Linha antes de QUALQUER refatoração
+META_FINAL = 200     # Meta final de 80% de redução
+
+# FASES COMPLETAS
+FASES = [
+    {"nome": "INICIAL", "linhas": 609, "descricao": "Código original"},
+    {"nome": "FASE-1.1", "linhas": 545, "descricao": "NavigationBuilder extraído"},
+    {"nome": "FASE-1.2", "linhas": 490, "descricao": "HeaderBuilder + CardsGridBuilder (ESPERADO)"},
+]
 
 def contar_linhas(filepath):
-    """Conta linhas de código (excluindo vazias e comentários)."""
+    """Conta linhas totais e de código."""
     if not os.path.exists(filepath):
         return 0, 0
     
@@ -25,7 +34,11 @@ def contar_linhas(filepath):
         linhas = f.readlines()
     
     total = len(linhas)
-    codigo = sum(1 for linha in linhas if linha.strip() and not linha.strip().startswith('#'))
+    codigo = sum(1 for linha in linhas 
+                 if linha.strip() 
+                 and not linha.strip().startswith('#')
+                 and not linha.strip().startswith('"""')
+                 and not linha.strip() == '"""')
     
     return total, codigo
 
@@ -33,19 +46,44 @@ def calcular_metricas():
     """Calcula métricas de progresso."""
     total, codigo = contar_linhas(MAIN_WINDOW_PATH)
     
-    reducao_total = LINHA_INICIAL - codigo
-    reducao_percentual = (reducao_total / LINHA_INICIAL) * 100 if LINHA_INICIAL > 0 else 0
+    # Fase atual esperada
+    fase_atual = FASES[-1]
+    linhas_esperadas = fase_atual["linhas"]
     
-    falta_para_meta = codigo - META_FINAL
-    progresso_meta = ((LINHA_INICIAL - codigo) / (LINHA_INICIAL - META_FINAL)) * 100
+    # Diferença entre esperado e real
+    diferenca = total - linhas_esperadas
+    
+    # Redução total desde o início
+    reducao_total = LINHA_INICIAL - total
+    reducao_percentual = (reducao_total / LINHA_INICIAL) * 100
+    
+    # Falta para meta
+    falta_para_meta = total - META_FINAL
+    progresso_meta = ((LINHA_INICIAL - total) / (LINHA_INICIAL - META_FINAL)) * 100
+    
+    # Status da fase
+    if diferenca > 0:
+        status_fase = "ACIMA DO ESPERADO"
+        cor_status = "red"
+    elif diferenca < 0:
+        status_fase = "ABAIXO DO ESPERADO"
+        cor_status = "green"
+    else:
+        status_fase = "CONFORME ESPERADO"
+        cor_status = "green"
     
     return {
         'total': total,
         'codigo': codigo,
+        'esperado': linhas_esperadas,
+        'diferenca': diferenca,
+        'status_fase': status_fase,
+        'cor_status': cor_status,
         'reducao_total': reducao_total,
         'reducao_percentual': reducao_percentual,
         'falta_para_meta': falta_para_meta,
-        'progresso_meta': progresso_meta
+        'progresso_meta': progresso_meta,
+        'fase_atual': fase_atual['nome']
     }
 
 class RefactorMonitor(tk.Tk):
@@ -53,7 +91,7 @@ class RefactorMonitor(tk.Tk):
         super().__init__()
         
         self.title("🔍 Laserflix Refactor Monitor")
-        self.geometry("600x500")
+        self.geometry("650x600")
         self.configure(bg="#1a1a1a")
         
         # Estilo
@@ -62,9 +100,10 @@ class RefactorMonitor(tk.Tk):
         self.style.configure('TLabel', background='#1a1a1a', foreground='#ffffff', font=('Arial', 11))
         self.style.configure('Title.TLabel', font=('Arial', 16, 'bold'), foreground='#00d4ff')
         self.style.configure('Big.TLabel', font=('Arial', 32, 'bold'), foreground='#00ff88')
-        self.style.configure('Red.TLabel', foreground='#ff4444')
-        self.style.configure('Green.TLabel', foreground='#00ff88')
-        self.style.configure('Yellow.TLabel', foreground='#ffaa00')
+        self.style.configure('Red.TLabel', foreground='#ff4444', font=('Arial', 12, 'bold'))
+        self.style.configure('Green.TLabel', foreground='#00ff88', font=('Arial', 12, 'bold'))
+        self.style.configure('Yellow.TLabel', foreground='#ffaa00', font=('Arial', 12))
+        self.style.configure('White.TLabel', foreground='#ffffff', font=('Arial', 12))
         
         self._build_ui()
         self.atualizar()
@@ -77,22 +116,50 @@ class RefactorMonitor(tk.Tk):
         main_frame = tk.Frame(self, bg="#2a2a2a", relief="solid", bd=2)
         main_frame.pack(padx=20, pady=10, fill="both", expand=True)
         
-        # Linha atual
-        ttk.Label(main_frame, text="LINHAS ATUAIS:", style='TLabel').pack(pady=(20, 5))
-        self.lbl_atual = ttk.Label(main_frame, text="---", style='Big.TLabel')
-        self.lbl_atual.pack()
+        # COMPARAÇÃO: ESPERADO vs REAL
+        ttk.Label(main_frame, text="⚠️  COMPARAÇÃO:", style='Title.TLabel').pack(pady=(20, 10))
+        
+        compare_frame = tk.Frame(main_frame, bg="#2a2a2a")
+        compare_frame.pack(pady=10, fill="x", padx=40)
+        
+        # Esperado
+        frame_esp = tk.Frame(compare_frame, bg="#2a2a2a")
+        frame_esp.pack(fill="x", pady=5)
+        ttk.Label(frame_esp, text="Esperado (após FASE-1.2):").pack(side="left")
+        self.lbl_esperado = ttk.Label(frame_esp, text="---", style='White.TLabel')
+        self.lbl_esperado.pack(side="right")
+        
+        # Real
+        frame_real = tk.Frame(compare_frame, bg="#2a2a2a")
+        frame_real.pack(fill="x", pady=5)
+        ttk.Label(frame_real, text="Real (atual no GitHub):").pack(side="left")
+        self.lbl_real = ttk.Label(frame_real, text="---", style='White.TLabel')
+        self.lbl_real.pack(side="right")
+        
+        # Diferença
+        frame_diff = tk.Frame(compare_frame, bg="#2a2a2a")
+        frame_diff.pack(fill="x", pady=5)
+        ttk.Label(frame_diff, text="Diferença:").pack(side="left")
+        self.lbl_diferenca = ttk.Label(frame_diff, text="---", style='Red.TLabel')
+        self.lbl_diferenca.pack(side="right")
+        
+        # Status
+        self.lbl_status = ttk.Label(main_frame, text="---", style='Red.TLabel')
+        self.lbl_status.pack(pady=10)
         
         # Separador
         ttk.Separator(main_frame, orient='horizontal').pack(fill='x', padx=20, pady=15)
         
-        # Métricas
+        # Métricas gerais
+        ttk.Label(main_frame, text="📈 PROGRESSO GERAL:", style='Title.TLabel').pack(pady=(10, 10))
+        
         metrics_frame = tk.Frame(main_frame, bg="#2a2a2a")
         metrics_frame.pack(pady=10, fill="x", padx=40)
         
         # Redução total
         frame1 = tk.Frame(metrics_frame, bg="#2a2a2a")
         frame1.pack(fill="x", pady=5)
-        ttk.Label(frame1, text="Redução total:").pack(side="left")
+        ttk.Label(frame1, text="Redução desde início (609):").pack(side="left")
         self.lbl_reducao = ttk.Label(frame1, text="---", style='Green.TLabel')
         self.lbl_reducao.pack(side="right")
         
@@ -115,24 +182,10 @@ class RefactorMonitor(tk.Tk):
         
         # Barra de progresso
         ttk.Label(main_frame, text="PROGRESSO ATÉ A META:", style='TLabel').pack(pady=(10, 5))
-        self.progress = ttk.Progressbar(main_frame, length=400, mode='determinate', maximum=100)
+        self.progress = ttk.Progressbar(main_frame, length=450, mode='determinate', maximum=100)
         self.progress.pack(pady=10)
         self.lbl_progress = ttk.Label(main_frame, text="0%", style='Yellow.TLabel')
         self.lbl_progress.pack(pady=5)
-        
-        # Timeline
-        ttk.Label(main_frame, text="HISTÓRICO:", style='TLabel').pack(pady=(20, 5))
-        timeline_frame = tk.Frame(main_frame, bg="#1a1a1a")
-        timeline_frame.pack(padx=20, pady=10, fill="x")
-        
-        timeline_text = [
-            "✅ FASE-1.1: NavigationBuilder (609 → 545)",
-            "✅ FASE-1.2: HeaderBuilder + CardsGridBuilder (545 → 421)",
-            "📋 FASE-2+: Em andamento..."
-        ]
-        
-        for line in timeline_text:
-            ttk.Label(timeline_frame, text=line, font=('Courier', 9)).pack(anchor="w", pady=2)
         
         # Botões
         btn_frame = tk.Frame(self, bg="#1a1a1a")
@@ -150,8 +203,39 @@ class RefactorMonitor(tk.Tk):
         """Atualiza as métricas na tela."""
         metricas = calcular_metricas()
         
-        # Atualizar labels
-        self.lbl_atual.config(text=f"{metricas['codigo']} linhas")
+        # Atualizar comparação
+        self.lbl_esperado.config(text=f"{metricas['esperado']} linhas")
+        self.lbl_real.config(text=f"{metricas['total']} linhas")
+        
+        if metricas['diferenca'] > 0:
+            self.lbl_diferenca.config(
+                text=f"+{metricas['diferenca']} linhas A MAIS",
+                style='Red.TLabel'
+            )
+            self.lbl_status.config(
+                text=f"❌ {metricas['status_fase']} - CÓDIGO NÃO FOI REMOVIDO!",
+                style='Red.TLabel'
+            )
+        elif metricas['diferenca'] < 0:
+            self.lbl_diferenca.config(
+                text=f"{metricas['diferenca']} linhas A MENOS",
+                style='Green.TLabel'
+            )
+            self.lbl_status.config(
+                text=f"✅ {metricas['status_fase']} - ÓTIMO!",
+                style='Green.TLabel'
+            )
+        else:
+            self.lbl_diferenca.config(
+                text="Exato!",
+                style='Green.TLabel'
+            )
+            self.lbl_status.config(
+                text=f"✅ {metricas['status_fase']}",
+                style='Green.TLabel'
+            )
+        
+        # Atualizar métricas gerais
         self.lbl_reducao.config(text=f"-{metricas['reducao_total']} linhas")
         self.lbl_percentual.config(text=f"{metricas['reducao_percentual']:.1f}%")
         
@@ -175,16 +259,20 @@ class RefactorMonitor(tk.Tk):
         
         self.style.configure('TProgressbar', troughcolor='#333333', background=cor)
         
-        print(f"\n{'='*60}")
+        # Print no terminal
+        print(f"\n{'='*70}")
         print(f"🔍 REFACTOR MONITOR - {os.path.basename(MAIN_WINDOW_PATH)}")
-        print(f"{'='*60}")
-        print(f"📊 Linhas totais:      {metricas['total']}")
-        print(f"💻 Linhas de código:   {metricas['codigo']}")
-        print(f"✂️  Redução total:      -{metricas['reducao_total']} linhas")
-        print(f"📈 Percentual:         {metricas['reducao_percentual']:.1f}%")
-        print(f"🎯 Falta para meta:    {metricas['falta_para_meta']} linhas")
-        print(f"⚡ Progresso:          {progresso:.1f}%")
-        print(f"{'='*60}\n")
+        print(f"{'='*70}")
+        print(f"\n⚠️  COMPARAÇÃO ({metricas['fase_atual']}):")
+        print(f"   Esperado:  {metricas['esperado']} linhas")
+        print(f"   Real:      {metricas['total']} linhas")
+        print(f"   Diferença: {'+' if metricas['diferenca'] > 0 else ''}{metricas['diferenca']} linhas")
+        print(f"   Status:    {metricas['status_fase']}")
+        print(f"\n📈 PROGRESSO GERAL:")
+        print(f"   Redução total:  -{metricas['reducao_total']} linhas ({metricas['reducao_percentual']:.1f}%)")
+        print(f"   Falta p/ meta:  {metricas['falta_para_meta']} linhas")
+        print(f"   Progresso:      {progresso:.1f}%")
+        print(f"{'='*70}\n")
 
 if __name__ == "__main__":
     # Verificar se arquivo existe
@@ -195,15 +283,19 @@ if __name__ == "__main__":
     
     # Exibir métricas no terminal
     metricas = calcular_metricas()
-    print(f"\n{'='*60}")
+    print(f"\n{'='*70}")
     print(f"🔍 REFACTOR MONITOR INICIADO")
-    print(f"{'='*60}")
-    print(f"📊 Linhas atuais:      {metricas['codigo']}")
-    print(f"✂️  Redução total:      -{metricas['reducao_total']} linhas")
-    print(f"📈 Percentual:         {metricas['reducao_percentual']:.1f}%")
-    print(f"🎯 Falta para meta:    {metricas['falta_para_meta']} linhas")
-    print(f"⚡ Progresso:          {metricas['progresso_meta']:.1f}%")
-    print(f"{'='*60}\n")
+    print(f"{'='*70}")
+    print(f"\n⚠️  COMPARAÇÃO ({metricas['fase_atual']}):")
+    print(f"   Esperado:  {metricas['esperado']} linhas")
+    print(f"   Real:      {metricas['total']} linhas")
+    print(f"   Diferença: {'+' if metricas['diferenca'] > 0 else ''}{metricas['diferenca']} linhas")
+    print(f"   Status:    {metricas['status_fase']}")
+    print(f"\n📈 PROGRESSO GERAL:")
+    print(f"   Redução total:  -{metricas['reducao_total']} linhas ({metricas['reducao_percentual']:.1f}%)")
+    print(f"   Falta p/ meta:  {metricas['falta_para_meta']} linhas")
+    print(f"   Progresso:      {metricas['progresso_meta']:.1f}%")
+    print(f"{'='*70}\n")
     
     # Abrir interface gráfica
     app = RefactorMonitor()
