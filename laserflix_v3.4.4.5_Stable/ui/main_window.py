@@ -17,6 +17,7 @@ REFACTOR-FASE-F: DialogManager extraído ✅
 REFACTOR-CORREÇÃO: Código duplicado REMOVIDO ✅
 REFACTOR-FASE-1.1: NavigationBuilder extraído ✅
 REFACTOR-FASE-1.2: HeaderBuilder + CardsGridBuilder extraídos ✅
+REFACTOR-FASE-1.3: OrphanManager extraído ✅
 """
 import os
 import threading
@@ -57,6 +58,7 @@ from ui.managers.dialog_manager import DialogManager
 from ui.managers.toggle_manager import ToggleManager
 from ui.managers.collection_dialog_manager import CollectionDialogManager
 from ui.managers.progress_ui_manager import ProgressUIManager
+from ui.managers.orphan_manager import OrphanManager
 
 class LaserflixMainWindow:
     def __init__(self, root: tk.Tk):
@@ -169,10 +171,22 @@ class LaserflixMainWindow:
         self.analysis_ctrl.on_show_progress = self.progress_ui.show
         self.analysis_ctrl.on_hide_progress = self.progress_ui.hide
         self.analysis_ctrl.on_update_progress = self.progress_ui.update
+        
+        self.orphan_mgr = OrphanManager(
+            database=self.database,
+            db_manager=self.db_manager,
+            collections_manager=self.collections_manager,
+            on_refresh=lambda: (
+                self.sidebar.refresh(self.database, self.collections_manager),
+                self._invalidate_cache(),
+                self.display_projects()
+            ),
+            on_status_update=lambda msg: self.status_bar.config(text=msg)
+        )
         # === FIM MANAGERS ===
         
         self.display_projects()
-        self.logger.info("✨ Laserflix v%s iniciado (VERSÃO LIMPA)", VERSION)
+        self.logger.info("✨ Laserflix v%s iniciado (FASE-1.3)", VERSION)
 
     def __del__(self):
         if hasattr(self, 'thumbnail_preloader'):
@@ -443,43 +457,10 @@ class LaserflixMainWindow:
             self.status_bar.config(text=f"🗑️ '{name}' removido do banco.")
 
     def clean_orphans(self) -> None:
-        from tkinter import messagebox
-        orphans = [p for p in self.database.keys() if not os.path.isdir(p)]
-        
-        if not orphans:
-            messagebox.showinfo("✅ Banco limpo", "Nenhum órfão encontrado!\n\nTodos os projetos têm pastas válidas.")
-            return
-        
-        msg = f"Encontrei {len(orphans)} projeto(s) órfão(s):\n\n"
-        msg += "\n".join(f"- {os.path.basename(p)}" for p in orphans[:10])
-        if len(orphans) > 10:
-            msg += f"\n... e mais {len(orphans) - 10}"
-        msg += "\n\nEsses projetos não existem mais no disco.\nRemover do banco?"
-        
-        if not messagebox.askyesno("🧹 Limpar órfãos", msg, icon="warning"):
-            return
-        
-        if not messagebox.askyesno(
-            "⚠️ Confirmar remoção",
-            f"Segunda confirmação.\n\n{len(orphans)} projeto(s) serão removidos PERMANENTEMENTE do banco.\n\nTem certeza?",
-            icon="warning"
-        ):
-            return
-        
-        for path in orphans:
-            self.database.pop(path, None)
-        
-        self.db_manager.save_database()
-        self.collections_manager.clean_orphan_projects(set(self.database.keys()))
-        self.sidebar.refresh(self.database, self.collections_manager)
-        self._invalidate_cache()
-        self.display_projects()
-        self.status_bar.config(text=f"🧹 {len(orphans)} órfão(s) removido(s) do banco.")
-        messagebox.showinfo("✅ Limpeza concluída", f"{len(orphans)} projeto(s) órfão(s) removido(s) do banco.\n\nBanco agora está sincronizado com o disco.")
+        """Delega limpeza de órfãos para OrphanManager (FASE-1.3)."""
+        self.orphan_mgr.clean_orphans()
 
     # ANALYSIS
-    # Progress UI delegado para progress_ui (ProgressUIManager)
-
     def analyze_single_project(self, path) -> None:
         self.analysis_ctrl.analyze_single(path, self.database)
 
