@@ -17,6 +17,7 @@ REFACTOR-FASE-F: DialogManager extraído ✅
 REFACTOR-CORREÇÃO: Código duplicado REMOVIDO ✅
 REFACTOR-FASE-1.1: NavigationBuilder extraído ✅
 REFACTOR-FASE-1.2: HeaderBuilder + CardsGridBuilder extraídos ✅
+REFACTOR-FASE-1.2.1: Contador integrado ao HeaderBuilder ✅
 REFACTOR-FASE-1.3: OrphanManager extraído ✅
 """
 import os
@@ -186,7 +187,7 @@ class LaserflixMainWindow:
         # === FIM MANAGERS ===
         
         self.display_projects()
-        self.logger.info("✨ Laserflix v%s iniciado (FASE-1.3)", VERSION)
+        self.logger.info("✨ Laserflix v%s iniciado (FASE-1.2.1)", VERSION)
 
     def __del__(self):
         if hasattr(self, 'thumbnail_preloader'):
@@ -313,14 +314,14 @@ class LaserflixMainWindow:
         end_idx = page_info["end_idx"]
         page_items = all_filtered[start_idx:end_idx]
         
-        # Usar HeaderBuilder (FASE-1.2A)
+        # Usar HeaderBuilder com contador integrado (FASE-1.2.1)
         from ui.builders.header_builder import HeaderBuilder
-        HeaderBuilder.build(self.scrollable_frame, self.display_ctrl)
-        
-        tk.Label(self.scrollable_frame,
-                 text=f"{total_count} projeto(s) | Mostrando {len(page_items)} itens",
-                 font=("Arial", 11), bg=BG_PRIMARY, fg="#999999"
-                 ).grid(row=1, column=0, columnspan=COLS, sticky="w", padx=10, pady=(0, 15))
+        HeaderBuilder.build(
+            self.scrollable_frame, 
+            self.display_ctrl,
+            total_count=total_count,
+            showing_count=len(page_items)
+        )
         
         if not all_filtered:
             self._build_empty_state()
