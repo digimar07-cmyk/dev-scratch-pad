@@ -391,6 +391,18 @@ class LaserflixMainWindow:
                       relief="flat", cursor="hand2", padx=6, pady=3,
                       state="normal" if page_info["current_page"] < page_info["total_pages"] else "disabled"
                       ).pack(side="left", padx=1)
+            right_controls = tk.Frame(header_frame, bg=BG_PRIMARY)
+            right_controls.pack(side="right", padx=10)
+            
+
+            
+
+            tk.Button(nav_frame, text="◀", command=self.display_ctrl.prev_page,
+                      bg="#444444", fg=FG_PRIMARY, font=("Arial", 9),
+                      relief="flat", cursor="hand2", padx=6, pady=3,
+                      state="normal" if page_info["current_page"] > 1 else "disabled"
+                      ).pack(side="left", padx=1)
+            
             tk.Label(nav_frame, text=f"Pág {page_info['current_page']}/{page_info['total_pages']}",
                      bg=BG_PRIMARY, fg=ACCENT_GOLD, font=("Arial", 10, "bold")
                      ).pack(side="left", padx=8)
