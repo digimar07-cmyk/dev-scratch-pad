@@ -2,11 +2,13 @@
 ui/builders/header_builder.py — Construtor de cabeçalho dinâmico.
 
 FASE-1.2A: Extração do método _build_header() do main_window.py
-Redução: ~30 linhas
+FASE-1.2.1: Integração do label contador
+Redução: ~34 linhas
 
 Responsabilidades:
 - Construir título dinâmico baseado em filtros ativos
 - Integrar NavigationBuilder para controles de navegação
+- Exibir contador de projetos (total + mostrando)
 - Gerenciar layout do header frame
 """
 import tkinter as tk
@@ -15,17 +17,19 @@ from config.ui_constants import BG_PRIMARY, FG_PRIMARY
 
 
 class HeaderBuilder:
-    """Construtor de cabeçalho com título dinâmico e navegação."""
+    """Construtor de cabeçalho com título dinâmico, contador e navegação."""
     
     @staticmethod
-    def build(parent, display_ctrl, cols=COLS):
+    def build(parent, display_ctrl, cols=COLS, total_count=None, showing_count=None):
         """
-        Constrói cabeçalho com título dinâmico + navegação.
+        Constrói cabeçalho completo com título, contador e navegação.
         
         Args:
             parent: Frame pai onde o header será inserido
             display_ctrl: DisplayController com estado dos filtros
             cols: Número de colunas do grid (padrão: COLS)
+            total_count: Total de projetos filtrados (opcional)
+            showing_count: Quantidade de projetos exibidos na página (opcional)
         
         Returns:
             Frame do header criado
@@ -33,7 +37,7 @@ class HeaderBuilder:
         # Calcular título baseado nos filtros ativos
         title = HeaderBuilder._build_title(display_ctrl)
         
-        # Frame do header
+        # Frame do header (row 0)
         header_frame = tk.Frame(parent, bg=BG_PRIMARY)
         header_frame.grid(row=0, column=0, columnspan=cols, 
                          sticky="ew", padx=10, pady=(0, 5))
@@ -54,7 +58,30 @@ class HeaderBuilder:
             page_info = display_ctrl.get_page_info(filtered_count)
             HeaderBuilder._build_navigation(header_frame, page_info, display_ctrl)
         
+        # Contador de projetos (row 1)
+        if total_count is not None and showing_count is not None:
+            HeaderBuilder._build_counter(parent, total_count, showing_count, cols)
+        
         return header_frame
+    
+    @staticmethod
+    def _build_counter(parent, total_count, showing_count, cols):
+        """
+        Constrói label contador de projetos.
+        
+        Args:
+            parent: Frame pai onde o contador será inserido
+            total_count: Total de projetos filtrados
+            showing_count: Quantidade de projetos exibidos na página
+            cols: Número de colunas do grid
+        """
+        tk.Label(
+            parent,
+            text=f"{total_count} projeto(s) | Mostrando {showing_count} itens",
+            font=("Arial", 11), 
+            bg=BG_PRIMARY, 
+            fg="#999999"
+        ).grid(row=1, column=0, columnspan=cols, sticky="w", padx=10, pady=(0, 15))
     
     @staticmethod
     def _build_title(display_ctrl):
