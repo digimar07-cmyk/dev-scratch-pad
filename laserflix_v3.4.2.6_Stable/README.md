@@ -28,13 +28,14 @@ QUALQUER OUTRO ARQUIVO UI: 300 linhas (MÁXIMO ABSOLUTO)
 3. **REDUZIR** para 70% do limite
 4. **SÓ ENTÃO** continuar
 
-**Detalhes completos**: [FILE_SIZE_LIMIT_RULE.md](./FILE_SIZE_LIMIT_RULE.md)
+**Detalhes completos**: [FILE_SIZE_LIMIT_RULE.md](./FILE_SIZE_LIMIT_RULE.md)  
+**Plano de Refatoração Atual**: [REFACTORING_PLAN_TIDY_FIRST.md](./REFACTORING_PLAN_TIDY_FIRST.md) 🎯 **NOVO**
 
 ---
 
-# 🎉 LASERFLIX v3.4.0.7 Stable
+# 🎉 LASERFLIX v3.4.2.6 Stable
 
-**“Organize a criatividade. Libere o potencial.”**
+**"Organize a criatividade. Libere o potencial."**
 
 ---
 
@@ -110,7 +111,7 @@ Laserflix é um **organizador visual de projetos de design 3D** (LightBurn, Lase
 
 ```bash
 git clone https://github.com/digimar07-cmyk/dev-scratch-pad.git
-cd dev-scratch-pad/laserflix_v3.4.0.7_Stable
+cd dev-scratch-pad/laserflix_v3.4.2.6_Stable
 ```
 
 ### Passo 2: Instalar Dependências
@@ -161,7 +162,7 @@ python main.py
 
 ### 1. Importar Projetos
 
-1. Clique em **“📂 Importar Pastas”**
+1. Clique em **"📂 Importar Pastas"**
 2. Selecione pasta raiz dos projetos
 3. Escolha modo:
    - **Rápido**: Apenas scan (sem IA)
@@ -188,7 +189,7 @@ python main.py
 ### 4. Coleções
 
 1. Menu **Tools → 📁 Coleções**
-2. Criar coleção (ex: “Natal 2025”)
+2. Criar coleção (ex: "Natal 2025")
 3. Adicionar projetos ao card ou modal
 4. Filtrar por coleção na sidebar
 
@@ -196,19 +197,25 @@ python main.py
 
 ## 📚 DOCUMENTAÇÃO COMPLETA
 
-### Arquivos de Documentação
+### Arquivos de Documentação Ativa
 
 - **[FILE_SIZE_LIMIT_RULE.md](./FILE_SIZE_LIMIT_RULE.md)**: 🚨 **REGRA ABSOLUTA** (LEIA PRIMEIRO)
+- **[REFACTORING_PLAN_TIDY_FIRST.md](./REFACTORING_PLAN_TIDY_FIRST.md)**: 🎯 **PLANO ATUAL** (Kent Beck "Tidy First")
 - **[BACKLOG.md](./BACKLOG.md)**: Status do projeto, próximas features, áreas restritas
 - **[PERSONA_MASTER_CODER.md](./PERSONA_MASTER_CODER.md)**: Padrões de código Kent Beck, instruções absolutas
 - **[APP_PHILOSOPHY.md](./APP_PHILOSOPHY.md)**: Missão, valores, razão de existir
-- **[CHANGELOG_v3.4.0.7.md](./CHANGELOG_v3.4.0.7.md)**: Histórico detalhado de mudanças
+- **[CHANGELOG.md](./CHANGELOG.md)**: Histórico detalhado de mudanças
 - **[README.md](./README.md)**: Este arquivo (visão geral)
+
+### Documentação Arquivada
+
+📦 Planos antigos e documentos obsoletos foram movidos para `docs/archive/`  
+⚠️ **NÃO USE** para desenvolvimento ativo.
 
 ### Estrutura do Projeto
 
 ```
-laserflix_v3.4.0.7_Stable/
+laserflix_v3.4.2.6_Stable/
 ├── ai/                      # 🚫 Módulos de IA (restrito)
 │   ├── ollama_client.py
 │   ├── image_analyzer.py
@@ -236,8 +243,10 @@ laserflix_v3.4.0.7_Stable/
 ├── config/                  # Configurações
 │   ├── settings.py
 │   └── ui_constants.py
+├── docs/                    # Documentação
+│   └── archive/             # 📦 Documentos obsoletos
 ├── main.py                  # Entry point
-├── *.md                     # Documentação
+├── *.md                     # Documentação ativa
 └── backups/                 # Backups automáticos
 ```
 
@@ -250,7 +259,7 @@ laserflix_v3.4.0.7_Stable/
 ```bash
 # Clonar
 git clone https://github.com/digimar07-cmyk/dev-scratch-pad.git
-cd dev-scratch-pad/laserflix_v3.4.0.7_Stable
+cd dev-scratch-pad/laserflix_v3.4.2.6_Stable
 
 # Instalar deps
 pip install -r requirements.txt
@@ -263,6 +272,7 @@ python main.py
 
 1. **Ler documentação obrigatória**:
    - **`FILE_SIZE_LIMIT_RULE.md`** (🚨 PRIMEIRA LEITURA)
+   - **`REFACTORING_PLAN_TIDY_FIRST.md`** (🎯 PLANO ATUAL)
    - `PERSONA_MASTER_CODER.md` (padrões Kent Beck)
    - `APP_PHILOSOPHY.md` (missão e valores)
    - `BACKLOG.md` (tarefas atuais)
@@ -271,13 +281,15 @@ python main.py
    - Seguir Simple Design (4 regras)
    - **NUNCA** adicionar lógica ao `main_window.py`
    - **SEMPRE** criar controller/component ANTES
-   - Commits semânticos
+   - Micro-refactorings (10-15 min cada)
+   - Commits atômicos
    - Logs claros
    - Nunca tocar áreas restritas sem autorização
 
 3. **Após cada tarefa**:
    - **VERIFICAR** tamanho dos arquivos (`wc -l ui/*.py`)
    - Atualizar `BACKLOG.md`
+   - Atualizar `REFACTORING_PLAN_TIDY_FIRST.md` (se refatoração)
    - Commit descritivo
    - Testar manualmente
 
@@ -322,7 +334,7 @@ Sem Ollama, use edição manual (igualmente poderosa).
 **R**: Menu **Tools → Backup Manual**. Backups automáticos são criados em `backups/`.
 
 ### P: Posso contribuir?
-**R**: Sim! Issues e PRs bem-vindos. Leia `FILE_SIZE_LIMIT_RULE.md` e `PERSONA_MASTER_CODER.md` antes.
+**R**: Sim! Issues e PRs bem-vindos. Leia `FILE_SIZE_LIMIT_RULE.md` e `REFACTORING_PLAN_TIDY_FIRST.md` antes.
 
 ---
 
@@ -342,7 +354,7 @@ Sem Ollama, use edição manual (igualmente poderosa).
 
 ### Problema: Lento no import
 **Solução**:
-1. Use “Modo Rápido” (sem IA)
+1. Use "Modo Rápido" (sem IA)
 2. Analise depois: Menu **Tools → Analisar Novos**
 3. Evite pastas com 1000+ projetos de uma vez
 
@@ -368,6 +380,15 @@ Sem Ollama, use edição manual (igualmente poderosa).
 ---
 
 ## 🎓 CHANGELOG
+
+### v3.4.2.6 (07/03/2026)
+🧹 **Reorganização de Documentação + Plano de Refatoração**
+- ✅ DOCS: Planos antigos movidos para `docs/archive/`
+- ✅ DOCS: Novo plano "Tidy First" criado (Kent Beck style)
+- ✅ DOCS: README atualizado com links corretos
+- ✅ SCRIPT: `MOVE_TO_ARCHIVE.sh` criado para limpeza
+- ⚠️ REFACTOR: main_window.py em 868 linhas (434% acima do limite)
+- 🎯 META: Reduzir para ~400 linhas via micro-refactorings
 
 ### v3.4.0.7 (06/03/2026)
 🔧 **Correções e Melhorias de UX**
@@ -411,7 +432,7 @@ Sem Ollama, use edição manual (igualmente poderosa).
 ## 📞 CONTATO
 
 - **GitHub**: https://github.com/digimar07-cmyk/dev-scratch-pad
-- **Versão**: 3.4.0.7 Stable
+- **Versão**: 3.4.2.6 Stable
 - **Branch**: main
 - **Desenvolvedor**: digimar07
 
@@ -419,7 +440,7 @@ Sem Ollama, use edição manual (igualmente poderosa).
 
 ## ❤️ AGRADECIMENTOS
 
-- **Kent Beck**: Filosofia XP
+- **Kent Beck**: Filosofia XP + "Tidy First"
 - **Ollama**: IA democrática
 - **LightBurn**: Comunidade laser
 - **Claude AI**: Parceiro de desenvolvimento
@@ -427,9 +448,9 @@ Sem Ollama, use edição manual (igualmente poderosa).
 
 ---
 
-**“Organize a criatividade. Libere o potencial.”**
+**"Organize a criatividade. Libere o potencial."**
 
 ---
 
-**Modelo usado**: Claude Sonnet 4.5
-**Versão do Documento**: v3.4.0.7
+**Modelo usado**: Claude Sonnet 4.5  
+**Versão do Documento**: v3.4.2.6
