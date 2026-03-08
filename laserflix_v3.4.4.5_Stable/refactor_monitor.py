@@ -11,7 +11,14 @@ import os
 import tkinter as tk
 from tkinter import ttk
 
-# CONFIGURAÇÃO
+# =====================================================================
+# CONFIGURAÇÃO FÁCIL - MODIFIQUE AQUI!
+# =====================================================================
+WINDOW_WIDTH = 700   # Largura da janela em pixels
+WINDOW_HEIGHT = 750  # Altura da janela em pixels
+# =====================================================================
+
+# CONFIGURAÇÃO DO MONITOR
 MAIN_WINDOW_PATH = "ui/main_window.py"
 
 # HISTÓRICO DE FASES
@@ -91,7 +98,7 @@ class RefactorMonitor(tk.Tk):
         super().__init__()
         
         self.title("🔍 Laserflix Refactor Monitor")
-        self.geometry("700x750")  # Tamanho fixo e ajustado
+        self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")  # Usa as constantes definidas no topo
         self.configure(bg="#1a1a1a")
         
         # Estilo
