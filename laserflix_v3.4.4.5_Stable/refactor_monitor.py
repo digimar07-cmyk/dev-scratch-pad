@@ -29,7 +29,8 @@ META_FINAL = 200     # Meta final de 80% de redução
 FASES = [
     {"nome": "INICIAL", "linhas": 609, "descricao": "Código original"},
     {"nome": "FASE-1.1", "linhas": 545, "descricao": "NavigationBuilder extraído"},
-    {"nome": "FASE-1.2", "linhas": 490, "descricao": "HeaderBuilder + CardsGridBuilder (ESPERADO)"},
+    {"nome": "FASE-1.2", "linhas": 490, "descricao": "HeaderBuilder + CardsGridBuilder extraídos"},
+    {"nome": "FASE-1.3", "linhas": 455, "descricao": "OrphanManager extraído (ESPERADO)"},
 ]
 
 def contar_linhas(filepath):
@@ -142,7 +143,7 @@ class RefactorMonitor(tk.Tk):
         # Esperado
         frame_esp = tk.Frame(compare_frame, bg="#2a2a2a")
         frame_esp.pack(fill="x", pady=5)
-        ttk.Label(frame_esp, text="Esperado (após FASE-1.2):").pack(side="left")
+        ttk.Label(frame_esp, text="Esperado (após FASE-1.3):").pack(side="left")
         self.lbl_esperado = ttk.Label(frame_esp, text="---", style='White.TLabel')
         self.lbl_esperado.pack(side="right")
         
@@ -214,7 +215,7 @@ class RefactorMonitor(tk.Tk):
         timeline_frame.pack(padx=40, pady=10, fill="x")
         
         for fase in FASES:
-            status = "✅" if fase["nome"] != "FASE-1.2" else "⚠️ "
+            status = "✅" if fase["nome"] != "FASE-1.3" else "⚠️ "
             linha_txt = f"{status} {fase['nome']}: {fase['linhas']} linhas - {fase['descricao']}"
             ttk.Label(timeline_frame, text=linha_txt, font=('Courier', 9)).pack(anchor="w", pady=2, padx=10)
         
