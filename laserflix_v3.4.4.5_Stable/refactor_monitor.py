@@ -91,7 +91,7 @@ class RefactorMonitor(tk.Tk):
         super().__init__()
         
         self.title("🔍 Laserflix Refactor Monitor")
-        self.geometry("650x600")
+        self.geometry("650x800")  # Aumentado de 600 para 800 (+33%)
         self.configure(bg="#1a1a1a")
         
         # Estilo
@@ -187,9 +187,23 @@ class RefactorMonitor(tk.Tk):
         self.lbl_progress = ttk.Label(main_frame, text="0%", style='Yellow.TLabel')
         self.lbl_progress.pack(pady=5)
         
+        # Separador
+        ttk.Separator(main_frame, orient='horizontal').pack(fill='x', padx=20, pady=15)
+        
+        # Timeline (novo)
+        ttk.Label(main_frame, text="📅 HISTÓRICO DE FASES:", style='Title.TLabel').pack(pady=(10, 10))
+        
+        timeline_frame = tk.Frame(main_frame, bg="#1a1a1a", relief="sunken", bd=1)
+        timeline_frame.pack(padx=40, pady=10, fill="x")
+        
+        for fase in FASES:
+            status = "✅" if fase["nome"] != "FASE-1.2" else "⚠️ "
+            linha_txt = f"{status} {fase['nome']}: {fase['linhas']} linhas - {fase['descricao']}"
+            ttk.Label(timeline_frame, text=linha_txt, font=('Courier', 9)).pack(anchor="w", pady=2, padx=10)
+        
         # Botões
         btn_frame = tk.Frame(self, bg="#1a1a1a")
-        btn_frame.pack(pady=10)
+        btn_frame.pack(pady=15)
         
         tk.Button(btn_frame, text="🔄 Atualizar", command=self.atualizar, 
                  bg="#00d4ff", fg="#000", font=('Arial', 10, 'bold'),
